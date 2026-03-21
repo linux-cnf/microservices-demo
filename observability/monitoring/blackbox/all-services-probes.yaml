@@ -1,0 +1,64 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: frontend-internal-http-probe
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  jobName: frontend-internal-http-probe
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: blackbox-prometheus-blackbox-exporter.monitoring.svc.cluster.local:9115
+  targets:
+    staticConfig:
+      static:
+        - http://frontend.default.svc.cluster.local
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: frontend-external-http-probe
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  jobName: frontend-external-http-probe
+  interval: 30s
+  module: http_2xx
+  prober:
+    url: blackbox-prometheus-blackbox-exporter.monitoring.svc.cluster.local:9115
+  targets:
+    staticConfig:
+      static:
+        - http://104.197.161.75
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: microservices-tcp-probe
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  jobName: microservices-tcp-probe
+  interval: 30s
+  module: tcp_connect
+  prober:
+    url: blackbox-prometheus-blackbox-exporter.monitoring.svc.cluster.local:9115
+  targets:
+    staticConfig:
+      static:
+        - adservice.default.svc.cluster.local:9555
+        - cartservice.default.svc.cluster.local:7070
+        - checkoutservice.default.svc.cluster.local:5050
+        - currencyservice.default.svc.cluster.local:7000
+        - emailservice.default.svc.cluster.local:5000
+        - paymentservice.default.svc.cluster.local:50051
+        - productcatalogservice.default.svc.cluster.local:3550
+        - recommendationservice.default.svc.cluster.local:8080
+        - redis-cart.default.svc.cluster.local:6379
+        - shippingservice.default.svc.cluster.local:50051
