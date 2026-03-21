@@ -1,0 +1,37 @@
+grafana:
+  adminPassword: admin
+
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: false
+
+  persistence:
+    enabled: false   # keep false for lab, true in prod
+
+prometheus:
+  prometheusSpec:
+    retention: 10d
+
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+
+    serviceMonitorSelector: {}
+    podMonitorSelector: {}
+    probeSelector: {}
+
+    resources:
+      requests:
+        memory: 400Mi
+        cpu: 100m
+
+alertmanager:
+  enabled: true
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true
