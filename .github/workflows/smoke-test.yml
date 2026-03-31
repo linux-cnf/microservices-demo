@@ -1,0 +1,41 @@
+name: smoke-test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials kfounding \
+            --zone us-central1-a \
+            --project project-9e0b2bd9-4649-487c-9d1
+
+      - name: Wait for pods
+        run: |
+          kubectl wait --for=condition=Ready pods --all -n boutique --timeout=600s
+
+      - name: Smoke test frontend
+        run: |
+          kubectl port-forward -n boutique svc/frontend 8080:80 >/tmp/pf.log 2>&1 &
+          sleep 10
+          curl -fsS http://127.0.0.1:8080/ >/dev/null
