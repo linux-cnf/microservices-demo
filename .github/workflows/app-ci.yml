@@ -1,0 +1,31 @@
+name: app-ci
+
+on:
+  pull_request:
+    paths:
+      - 'kustomize/**'
+      - '.github/workflows/app-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'kustomize/**'
+      - '.github/workflows/app-ci.yml'
+
+jobs:
+  validate-kustomize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: latest
+
+      - name: Render kustomize
+        run: kubectl kustomize kustomize > rendered.yaml
+
+      - name: Validate manifests
+        run: kubectl apply --dry-run=client -f rendered.yaml
