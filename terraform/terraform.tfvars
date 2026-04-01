@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-gcp_project_id = "<project_id_here>"
-
-memorystore = false
+name           = "kfounding"
+zone           = "us-central1-a"
+gcp_project_id = "project-9e0b2bd9-4649-487c-9d1"
+region         = "us-central1"
+memorystore    = false

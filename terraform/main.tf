@@ -38,63 +38,111 @@ module "enable_google_apis" {
 
 # Create GKE cluster
 resource "google_container_cluster" "my_cluster" {
-
   name     = var.name
-  location = var.region
-
+  location = var.zone
   # Enable autopilot for this cluster
-  enable_autopilot = true
-
-  # Set an empty ip_allocation_policy to allow autopilot cluster to spin up correctly
-  ip_allocation_policy {
+  #enable_autopilot = true
+  release_channel {
+    channel = "REGULAR"
   }
-
+  remove_default_node_pool = true
+  initial_node_count       = 1
+  # Set an empty ip_allocation_policy to allow autopilot cluster to spin up correctly
+  ip_allocation_policy {}
   # Avoid setting deletion_protection to false
   # until you're ready (and certain you want) to destroy the cluster.
-  # deletion_protection = false
-
+  # Uncomment the line: "deletion_protection = false" or just run sed -i "s/# deletion_protection/deletion_protection/g" main.tf
+  deletion_protection = false
   depends_on = [
     module.enable_google_apis
   ]
 }
 
+resource "google_container_node_pool" "cpu_optimized" {
+  name     = "cpu-optimized"
+  cluster  = google_container_cluster.my_cluster.name
+  location = var.zone
+
+  node_count = 1
+
+  autoscaling {
+    min_node_count = 1
+    max_node_count = 2
+  }
+
+  node_config {
+    machine_type = "e2-standard-2"
+    disk_type    = "pd-standard"
+    disk_size_gb = 30
+
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/cloud-platform"
+    ]
+  }
+
+  management {
+    auto_repair  = true
+    auto_upgrade = true
+  }
+
+  depends_on = [
+    google_container_cluster.my_cluster
+  ]
+}
+
+
 # Get credentials for cluster
-module "gcloud" {
-  source  = "terraform-google-modules/gcloud/google"
-  version = "~> 4.0"
-
-  platform              = "linux"
-  additional_components = ["kubectl", "beta"]
-
-  create_cmd_entrypoint = "gcloud"
-  # Module does not support explicit dependency
-  # Enforce implicit dependency through use of local variable
-  create_cmd_body = "container clusters get-credentials ${local.cluster_name} --zone=${var.region} --project=${var.gcp_project_id}"
-}
-
-# Apply YAML kubernetes-manifest configurations
-resource "null_resource" "apply_deployment" {
-  provisioner "local-exec" {
-    interpreter = ["bash", "-exc"]
-    command     = "kubectl apply -k ${var.filepath_manifest} -n ${var.namespace}"
-  }
-
-  depends_on = [
-    module.gcloud
-  ]
-}
-
-# Wait condition for all Pods to be ready before finishing
-resource "null_resource" "wait_conditions" {
-  provisioner "local-exec" {
-    interpreter = ["bash", "-exc"]
-    command     = <<-EOT
-    kubectl wait --for=condition=AVAILABLE apiservice/v1beta1.metrics.k8s.io --timeout=180s
-    kubectl wait --for=condition=ready pods --all -n ${var.namespace} --timeout=280s
-    EOT
-  }
-
-  depends_on = [
-    resource.null_resource.apply_deployment
-  ]
-}
+#module "gcloud" {
+#  source  = "terraform-google-modules/gcloud/google"
+#  version = "~> 4.0"
+#
+#  platform              = "linux"
+#  additional_components = ["kubectl", "beta"]
+#
+#  create_cmd_entrypoint = "gcloud"
+#  # Module does not support explicit dependency
+#  # Enforce implicit dependency through use of local variable
+#  #create_cmd_body = "container clusters get-credentials ${local.cluster_name} --zone=${var.region} --project=${var.gcp_project_id}"
+#  create_cmd_body = "container clusters get-credentials ${local.cluster_name} --zone=${var.zone} --project=${var.gcp_project_id}"
+#}
+#
+## Apply YAML kubernetes-manifest configurations
+#resource "null_resource" "apply_deployment" {
+#  provisioner "local-exec" {
+#    interpreter = ["bash", "-exc"]
+#    command     = "kubectl apply -k ${var.filepath_manifest} -n ${var.namespace}"
+#  }
+#
+#  depends_on = [
+#    module.gcloud
+#  ]
+#}
+#
+## Wait condition for all Pods to be ready before finishing
+#resource "null_resource" "wait_conditions" {
+#  provisioner "local-exec" {
+#    interpreter = ["bash", "-exc"]
+#    command     = <<-EOT
+#    echo "Waiting for metrics APIService object to be created..."
+#      for i in $(seq 1 60); do
+#        if kubectl get apiservice v1beta1.metrics.k8s.io >/dev/null 2>&1; then
+#          echo "metrics APIService exists"
+#          break
+#        fi
+#        sleep 5
+#      done
+#
+#      kubectl get apiservice v1beta1.metrics.k8s.io >/dev/null 2>&1
+#
+#      echo "Waiting for metrics APIService to become Available..."
+#      kubectl wait --for=condition=Available apiservice/v1beta1.metrics.k8s.io --timeout=300s
+#
+#      echo "Waiting for application pods to become Ready..."
+#      kubectl wait --for=condition=Ready pods --all -n ${var.namespace} --timeout=300s
+#    EOT
+#  }
+#
+#  depends_on = [
+#    resource.null_resource.apply_deployment
+#  ]
+#}

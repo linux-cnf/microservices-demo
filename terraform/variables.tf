@@ -29,6 +29,12 @@ variable "region" {
   default     = "us-central1"
 }
 
+variable "zone" {
+  type        = string
+  description = "GKE zone"
+  default     = "us-central1-a"
+}
+
 variable "namespace" {
   type        = string
   description = "Kubernetes Namespace in which the Online Boutique resources are to be deployed"
