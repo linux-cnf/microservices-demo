@@ -24,6 +24,12 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Verify auth
+        run: |
+          gcloud auth list
+          gcloud config list
+          gcloud projects describe project-9e0b2bd9-4649-487c-9d1 --format="value(projectNumber)"
+
       - name: Get GKE credentials
         run: |
           gcloud container clusters get-credentials kfounding \
