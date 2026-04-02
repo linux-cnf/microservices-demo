@@ -30,6 +30,12 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Verify auth
+        run: |
+          gcloud auth list
+          gcloud config list
+          gcloud projects describe project-9e0b2bd9-4649-487c-9d1 --format="value(projectNumber)"
+
       - name: Install GKE auth plugin
         run: gcloud components install gke-gcloud-auth-plugin
 
