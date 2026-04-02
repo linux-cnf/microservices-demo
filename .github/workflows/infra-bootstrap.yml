@@ -39,6 +39,11 @@ jobs:
       - name: Install GKE auth plugin
         run: gcloud components install gke-gcloud-auth-plugin
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.8
+
       - name: Terraform init
         working-directory: terraform
         run: terraform init
