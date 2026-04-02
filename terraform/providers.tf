@@ -13,6 +13,11 @@
 # limitations under the License.
 
 terraform {
+  backend "gcs" {
+    bucket = "project-9e0b2bd9-4649-487c-9d1-tfstate"
+    prefix = "gke/kfounding/dev"
+  }
+
   required_providers {
     google = {
       source  = "hashicorp/google"
