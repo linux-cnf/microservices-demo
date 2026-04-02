@@ -27,6 +27,7 @@ on:
       - '.github/workflows/terraform-validate-ci.yaml'
       - 'helm-chart/**'
       - '.github/workflows/helm-chart-ci.yaml'
+      - '.github/workflows/infra-destroy.yml'
 jobs:
   code-tests:
     runs-on: [self-hosted, is-enabled]
