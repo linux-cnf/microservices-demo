@@ -99,7 +99,7 @@ jobs:
         #ACTIONS_ALLOW_UNSECURE_COMMANDS: true
         PROJECT_ID: "project-9e0b2bd9-4649-487c-9d1"
         PR_CLUSTER: "kfounding"
-        REGION: "us-central1-a"
+        ZONE: "us-central1-a"
           #PROJECT_ID: "online-boutique-ci"
           #PR_CLUSTER: "prs-gke-cluster"
           #REGION: "us-central1"
