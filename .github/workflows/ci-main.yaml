@@ -85,7 +85,7 @@ jobs:
         echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
 
         yes | gcloud auth configure-docker us-docker.pkg.dev
-        gcloud container clusters get-credentials $PR_CLUSTER --region $REGION --project $PROJECT_ID
+        gcloud container clusters get-credentials $PR_CLUSTER --zone $ZONE --project $PROJECT_ID
         cat <<EOF | kubectl apply -f -
         apiVersion: v1
         kind: Namespace
@@ -97,9 +97,12 @@ jobs:
         skaffold run --default-repo=us-docker.pkg.dev/$PROJECT_ID/$GITHUB_REF --tag=$GITHUB_SHA --namespace=$NAMESPACE -p network-policies
       env:
         #ACTIONS_ALLOW_UNSECURE_COMMANDS: true
-        PROJECT_ID: "online-boutique-ci"
-        PR_CLUSTER: "prs-gke-cluster"
-        REGION: "us-central1"
+        PROJECT_ID: "project-9e0b2bd9-4649-487c-9d1"
+        PR_CLUSTER: "kfounding"
+        REGION: "us-central1-a"
+          #PROJECT_ID: "online-boutique-ci"
+          #PR_CLUSTER: "prs-gke-cluster"
+          #REGION: "us-central1"
     - name: Wait For Pods
       timeout-minutes: 20
       run: |
