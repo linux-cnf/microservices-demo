@@ -89,9 +89,11 @@ jobs:
         project_id: project-9e0b2bd9-4649-487c-9d1
 
     - name: Install Skaffold
-      uses: hiberbee/github-action-skaffold@latest
-      with:
-        command: version
+      run: |
+        curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+        chmod +x skaffold
+        sudo mv skaffold /usr/local/bin/skaffold
+        skaffold version
 
     - name: Build + Deploy images to GKE
       timeout-minutes: 20
