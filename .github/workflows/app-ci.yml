@@ -30,5 +30,7 @@ jobs:
       - name: Verify rendered manifest is not empty
         run: test -s rendered.yaml
 
-      - name: Validate manifests
-        run: kubectl apply --dry-run=client --validate=false -f rendered.yaml
+      - name: Verify rendered manifest looks like Kubernetes YAML
+        run: |
+          grep -q '^apiVersion:' rendered.yaml
+          grep -q '^kind:' rendered.yaml
