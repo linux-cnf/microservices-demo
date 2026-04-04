@@ -18,7 +18,8 @@ locals {
     "container.googleapis.com",
     "monitoring.googleapis.com",
     "cloudtrace.googleapis.com",
-    "cloudprofiler.googleapis.com"
+    "cloudprofiler.googleapis.com",
+    "artifactregistry.googleapis.com"
   ]
   memorystore_apis = ["redis.googleapis.com"]
   cluster_name     = google_container_cluster.my_cluster.name
@@ -90,6 +91,16 @@ resource "google_container_node_pool" "cpu_optimized" {
   ]
 }
 
+resource "google_artifact_registry_repository" "docker_repo" {
+  location      = "us-central1"
+  repository_id = "microservices-demo"
+  description   = "Docker repository for microservices-demo images"
+  format        = "DOCKER"
+
+  depends_on = [
+    module.enable_google_apis
+  ]
+}
 
 # Get credentials for cluster
 #module "gcloud" {

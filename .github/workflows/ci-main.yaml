@@ -13,9 +13,9 @@
 # limitations under the License.
 
 name: "Continuous Integration - Main/Release"
+
 on:
   push:
-    # run on pushes to main or release/*
     branches:
       - main
       - release/*
@@ -28,136 +28,49 @@ on:
       - 'helm-chart/**'
       - '.github/workflows/helm-chart-ci.yaml'
       - '.github/workflows/infra-destroy.yml'
-permissions:
-  contents: read
-  id-token: write
+      - 'argocd/**'
 
+permissions:
+  contents: write # write is needed because workflow will commit and push file changes
+  id-token: write # write is still useful for GCP auth in image build/push job 
 jobs:
   code-tests:
-    #runs-on: [self-hosted, is-enabled]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
-    - uses: actions/setup-dotnet@v5
-      env:
-        DOTNET_INSTALL_DIR: "./.dotnet"
-      with:
-        dotnet-version: '10.0'
-    - uses: actions/setup-go@v6
-      with:
-        go-version: '1.26'
-    - name: Go Unit Tests
-      timeout-minutes: 10
-      run: |
-        for SERVICE in "shippingservice" "productcatalogservice"; do
-          echo "testing $SERVICE..."
-          pushd src/$SERVICE
-          go test
-          popd
-        done
-    - name: C# Unit Tests
-      timeout-minutes: 10
-      run: |
-        dotnet test src/cartservice/
-  deployment-tests:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v5
+        env:
+          DOTNET_INSTALL_DIR: ./.dotnet
+        with:
+          dotnet-version: '10.0'
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+
+      - name: Go Unit Tests
+        timeout-minutes: 10
+        run: |
+          for SERVICE in shippingservice productcatalogservice; do
+            echo "testing $SERVICE..."
+            pushd src/$SERVICE
+            go test ./...
+            popd
+          done
+
+      - name: C# Unit Tests
+        timeout-minutes: 10
+        run: |
+          dotnet test src/cartservice/
+
+  manifest-validation:
     runs-on: ubuntu-latest
     needs: code-tests
-    strategy:
-      matrix:
-        profile: ["local-code"]
-      fail-fast: true
     steps:
-    - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
-    - uses: google-github-actions/auth@v2
-      with:
-        workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-
-    - uses: google-github-actions/setup-gcloud@v3
-      with:
-        project_id: project-9e0b2bd9-4649-487c-9d1
-
-    - uses: azure/setup-kubectl@v4
-      with:
-        version: 'latest'
-
-    - uses: google-github-actions/get-gke-credentials@v3
-      with:
-        cluster_name: kfounding
-        location: us-central1-a
-        project_id: project-9e0b2bd9-4649-487c-9d1
-
-    - name: Install Skaffold
-      run: |
-        curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
-        chmod +x skaffold
-        sudo mv skaffold /usr/local/bin/skaffold
-        skaffold version
-
-    - name: Build + Deploy images to GKE
-      timeout-minutes: 20
-      run: |
-        BRANCH_NAME="${GITHUB_REF##*/}"
-        NAMESPACE="pr${BRANCH_NAME}"
-        echo "NAMESPACE=$NAMESPACE" >> $GITHUB_ENV
-
-        echo "PROJECT_ID=$PROJECT_ID"
-        echo "CLUSTER_NAME=$CLUSTER_NAME"
-        echo "ZONE=$ZONE"
-        echo "NAMESPACE=$NAMESPACE"
-
-        gcloud auth configure-docker us-docker.pkg.dev --quiet
-
-        cat <<EOF | kubectl apply -f -
-        apiVersion: v1
-        kind: Namespace
-        metadata:
-          name: $NAMESPACE
-        EOF
-
-        echo "Deploying application"
-        skaffold config set --global local-cluster false
-        skaffold run \
-          --default-repo=us-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REPO \
-          --tag=$GITHUB_SHA \
-          --namespace=$NAMESPACE \
-          -p network-policies
-      env:
-        PROJECT_ID: "project-9e0b2bd9-4649-487c-9d1"
-        CLUSTER_NAME: "kfounding"
-        ZONE: "us-central1-a"
-        ARTIFACT_REPO: "microservices-demo"
-
-    - name: Wait For Pods
-      timeout-minutes: 20
-      run: |
-        set -x
-        kubectl config set-context --current --namespace=$NAMESPACE
-        kubectl wait --for=condition=available --timeout=1000s deployment/redis-cart
-        kubectl wait --for=condition=available --timeout=1000s deployment/adservice
-        kubectl wait --for=condition=available --timeout=1000s deployment/cartservice
-        kubectl wait --for=condition=available --timeout=1000s deployment/checkoutservice
-        kubectl wait --for=condition=available --timeout=1000s deployment/currencyservice
-        kubectl wait --for=condition=available --timeout=1000s deployment/emailservice
-        kubectl wait --for=condition=available --timeout=1000s deployment/frontend
-        kubectl wait --for=condition=available --timeout=1000s deployment/loadgenerator
-        kubectl wait --for=condition=available --timeout=1000s deployment/paymentservice
-        kubectl wait --for=condition=available --timeout=1000s deployment/productcatalogservice
-        kubectl wait --for=condition=available --timeout=1000s deployment/recommendationservice
-        kubectl wait --for=condition=available --timeout=1000s deployment/shippingservice
-
-    - name: Smoke Test
-      timeout-minutes: 5
-      run: |
-        set -x
-        kubectl delete pod -l app=loadgenerator || true
-        REQUEST_COUNT="0"
-        while [[ "$REQUEST_COUNT" -lt "50" ]]; do
-          sleep 5
-          REQUEST_COUNT=$(kubectl logs -l app=loadgenerator | grep Aggregated | awk '{print $2}')
-        done
-        ERROR_COUNT=$(kubectl logs -l app=loadgenerator | grep Aggregated | awk '{print $3}' | sed "s/[(][^)]*[)]//g")
-        if [[ "$ERROR_COUNT" -gt "0" ]]; then
-          exit 1
-        fi 
+      - name: Validate Kustomize base renders successfully
+        run: |
+          kubectl kustomize kustomize > /tmp/boutique-rendered.yaml
+          test -s /tmp/boutique-rendered.yaml

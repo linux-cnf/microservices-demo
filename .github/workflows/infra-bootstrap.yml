@@ -28,16 +28,15 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: project-9e0b2bd9-4649-487c-9d1
 
       - name: Verify auth
         run: |
           gcloud auth list
           gcloud config list
           gcloud projects describe project-9e0b2bd9-4649-487c-9d1 --format="value(projectNumber)"
-
-      - name: Install GKE auth plugin
-        run: gcloud components install gke-gcloud-auth-plugin
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -61,10 +60,11 @@ jobs:
         run: terraform apply -auto-approve
 
       - name: Get cluster credentials
-        run: |
-          gcloud container clusters get-credentials kfounding \
-            --zone us-central1-a \
-            --project project-9e0b2bd9-4649-487c-9d1
+        uses: google-github-actions/get-gke-credentials@v3
+        with:
+          cluster_name: kfounding
+          location: us-central1-a
+          project_id: project-9e0b2bd9-4649-487c-9d1
 
       - name: Install Argo CD
         run: |
