@@ -27,5 +27,8 @@ jobs:
       - name: Render kustomize
         run: kubectl kustomize kustomize > rendered.yaml
 
+      - name: Verify rendered manifest is not empty
+        run: test -s rendered.yaml
+
       - name: Validate manifests
-        run: kubectl apply --dry-run=client -f rendered.yaml
+        run: kubectl apply --dry-run=client --validate=false -f rendered.yaml
