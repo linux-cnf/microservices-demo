@@ -12,12 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-output "cluster_location" {
-  description = "Location of the cluster"
-  value       = resource.google_container_cluster.my_cluster.location
+output "gke_cluster_name" {
+  description = "Name of the GKE cluster"
+  value       = google_container_cluster.my_cluster.name
 }
 
-output "cluster_name" {
-  description = "Name of the cluster"
-  value       = resource.google_container_cluster.my_cluster.name
+output "gke_location" {
+  description = "Location of the GKE cluster"
+  value       = google_container_cluster.my_cluster.location
+}
+
+output "artifact_registry_repository" {
+  description = "Artifact Registry repository name"
+  value       = google_artifact_registry_repository.docker_repo.repository_id
+}
+
+output "artifact_registry_location" {
+  description = "Artifact Registry location"
+  value       = google_artifact_registry_repository.docker_repo.location
+}
+
+output "artifact_registry_url" {
+  description = "Artifact Registry Docker repository URL"
+  value       = "${google_artifact_registry_repository.docker_repo.location}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.docker_repo.repository_id}"
 }
