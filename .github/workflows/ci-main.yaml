@@ -74,3 +74,77 @@ jobs:
         run: |
           kubectl kustomize kustomize > /tmp/boutique-rendered.yaml
           test -s /tmp/boutique-rendered.yaml
+
+  build-and-push-images:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+    needs:
+      - code-tests
+      - manifest-validation
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build and push service images
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          REGISTRY="us-central1-docker.pkg.dev/${PROJECT_ID}/microservices-demo"
+          TAG="${GITHUB_SHA}"
+
+          SERVICES=(
+            adservice
+            cartservice
+            checkoutservice
+            currencyservice
+            emailservice
+            frontend
+            loadgenerator
+            paymentservice
+            productcatalogservice
+            recommendationservice
+            shippingservice
+            shoppingassistantservice
+          )
+
+          for service in "${SERVICES[@]}"; do
+            if [ "${service}" = "cartservice" ]; then
+              DOCKERFILE="src/cartservice/src/Dockerfile"
+              CONTEXT="src/cartservice"
+            else
+              DOCKERFILE="src/${service}/Dockerfile"
+              CONTEXT="src/${service}"
+            fi
+
+            if [ ! -f "${DOCKERFILE}" ]; then
+              echo "Skipping ${service}: Dockerfile not found at ${DOCKERFILE}"
+              continue
+            fi
+
+            IMAGE="${REGISTRY}/${service}:${TAG}"
+
+            echo "Building ${IMAGE}"
+            docker build -t "${IMAGE}" "src/${service}"
+
+            echo "Pushing ${IMAGE}"
+            docker push "${IMAGE}"
+        done
