@@ -147,4 +147,5 @@ jobs:
 
             echo "Pushing ${IMAGE}"
             docker push "${IMAGE}"
-        done
+          done
+
