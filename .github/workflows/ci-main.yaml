@@ -129,7 +129,7 @@ jobs:
           for service in "${SERVICES[@]}"; do
             if [ "${service}" = "cartservice" ]; then
               DOCKERFILE="src/cartservice/src/Dockerfile"
-              CONTEXT="src/cartservice"
+              CONTEXT="src/cartservice/src"
             else
               DOCKERFILE="src/${service}/Dockerfile"
               CONTEXT="src/${service}"
