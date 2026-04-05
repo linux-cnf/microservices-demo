@@ -143,7 +143,8 @@ jobs:
             IMAGE="${REGISTRY}/${service}:${TAG}"
 
             echo "Building ${IMAGE}"
-            docker build -t "${IMAGE}" "src/${service}"
+            #docker build -t "${IMAGE}" "src/${service}"
+            docker build -f "${DOCKERFILE}" -t "${IMAGE}" "${CONTEXT}"
 
             echo "Pushing ${IMAGE}"
             docker push "${IMAGE}"
