@@ -150,3 +150,47 @@ jobs:
             docker push "${IMAGE}"
           done
 
+  update-kustomize-tags:
+    name: Update Kustomize Tags
+    runs-on: ubuntu-latest
+    needs:
+      - build-and-push-images
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update image tags to current Git SHA
+        run: |
+          set -euo pipefail
+
+          FILE="kustomize/components/container-images-tag/kustomization.yaml"
+
+          sed -i "s|newTag: .*|newTag: ${GITHUB_SHA}|g" "${FILE}"
+
+          echo "Updated file:"
+          git diff -- "${FILE}"
+
+      - name: Commit and push updated tags
+        run: |
+          set -euo pipefail
+
+          FILE="kustomize/components/container-images-tag/kustomization.yaml"
+          BRANCH="${GITHUB_REF_NAME}"
+
+          if git diff --quiet -- "${FILE}"; then
+            echo "No tag changes detected"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add "${FILE}"
+          git commit -m "ci: update image tags to ${GITHUB_SHA}"
+          git push origin "HEAD:${BRANCH}"
