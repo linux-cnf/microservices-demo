@@ -16,24 +16,24 @@ apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 images:
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/adservice
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/cartservice
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/checkoutservice
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/currencyservice
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/emailservice
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/frontend
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/loadgenerator
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/paymentservice
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/productcatalogservice
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/recommendationservice
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
 - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/shippingservice
-  newTag: bdeffae7a20b2bffa16b59291a7b3b2af05d5d3b
+  newTag: e07f0751d1ffd22d2bb0870ad0303b5dd03dc158
