@@ -26,3 +26,6 @@ resources:
 - productcatalogservice.yaml
 - recommendationservice.yaml
 - shippingservice.yaml
+- namespace/namespace.yaml
+- namespace/limitrange.yaml
+- namespace/resourcequota.yaml

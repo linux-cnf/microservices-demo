@@ -30,6 +30,10 @@ on:
       - '.github/workflows/infra-destroy.yml'
       - 'argocd/**'
 
+concurrency:
+  group: ci-main-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write # write is needed because workflow will commit and push file changes
   id-token: write # write is still useful for GCP auth in image build/push job 
@@ -123,7 +127,7 @@ jobs:
             productcatalogservice
             recommendationservice
             shippingservice
-            shoppingassistantservice
+            #shoppingassistantservice
           )
 
           for service in "${SERVICES[@]}"; do
@@ -175,6 +179,12 @@ jobs:
 
           echo "Updated file:"
           git diff -- "${FILE}"
+
+      - name: Validate final Kustomize render after tag update
+        run: |
+          set -euo pipefail
+          kubectl kustomize kustomize > /tmp/boutique-final-rendered.yaml
+          test -s /tmp/boutique-final-rendered.yaml
 
       - name: Commit and push updated tags
         run: |
