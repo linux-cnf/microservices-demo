@@ -31,7 +31,7 @@ on:
       - 'argocd/**'
 
 concurrency:
-  group: ci-main-${{ github.ref }}
+  group: update-tags-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -162,6 +162,7 @@ jobs:
 
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -203,4 +204,6 @@ jobs:
 
           git add "${FILE}"
           git commit -m "ci: update image tags to ${GITHUB_SHA}"
+          git fetch origin "${BRANCH}"  
+          git rebase "origin/${BRANCH}"
           git push origin "HEAD:${BRANCH}"
