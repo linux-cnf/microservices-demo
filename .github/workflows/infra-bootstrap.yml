@@ -71,11 +71,32 @@ jobs:
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply --server-side --force-conflicts -n argocd \
             -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml    
-
+      
       - name: Wait for Argo CD
         run: |
           kubectl wait --for=condition=Available deployment/argocd-server -n argocd --timeout=600s
           kubectl wait --for=condition=Available deployment/argocd-repo-server -n argocd --timeout=600s
+          
+      - name: Create Argo CD repository secret
+        env:
+          ARGOCD_REPO_URL: ${{ secrets.ARGOCD_REPO_URL }}
+          ARGOCD_REPO_USERNAME: ${{ secrets.ARGOCD_REPO_USERNAME }}
+          ARGOCD_REPO_PASSWORD: ${{ secrets.ARGOCD_REPO_PASSWORD }}
+        run: |
+          kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: repo-microservices-demo
+            namespace: argocd
+            labels:
+              argocd.argoproj.io/secret-type: repository
+          type: Opaque
+          stringData:
+            url: ${ARGOCD_REPO_URL}
+            username: ${ARGOCD_REPO_USERNAME}
+            password: ${ARGOCD_REPO_PASSWORD}
+          EOF
 
       - name: Bootstrap Argo CD app
         run: |
