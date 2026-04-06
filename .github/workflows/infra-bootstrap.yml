@@ -76,7 +76,7 @@ jobs:
         run: |
           kubectl wait --for=condition=Available deployment/argocd-server -n argocd --timeout=600s
           kubectl wait --for=condition=Available deployment/argocd-repo-server -n argocd --timeout=600s
-          
+
       - name: Create Argo CD repository secret
         env:
           ARGOCD_REPO_URL: ${{ secrets.ARGOCD_REPO_URL }}
@@ -93,10 +93,22 @@ jobs:
               argocd.argoproj.io/secret-type: repository
           type: Opaque
           stringData:
+            type: git
             url: ${ARGOCD_REPO_URL}
             username: ${ARGOCD_REPO_USERNAME}
             password: ${ARGOCD_REPO_PASSWORD}
           EOF
+    
+      - name: Validate Argo CD repo secrets
+        env:
+          ARGOCD_REPO_URL: ${{ secrets.ARGOCD_REPO_URL }}
+          ARGOCD_REPO_USERNAME: ${{ secrets.ARGOCD_REPO_USERNAME }}
+          ARGOCD_REPO_PASSWORD: ${{ secrets.ARGOCD_REPO_PASSWORD }}
+        run: |
+          test -n "$ARGOCD_REPO_URL"
+          test -n "$ARGOCD_REPO_USERNAME"
+          test -n "$ARGOCD_REPO_PASSWORD"
+          echo "Argo CD repo secrets are present"
 
       - name: Bootstrap Argo CD app
         run: |
