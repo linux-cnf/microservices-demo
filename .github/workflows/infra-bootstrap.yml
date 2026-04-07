@@ -59,6 +59,32 @@ jobs:
         working-directory: terraform
         run: terraform apply -auto-approve
 
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+     
+      - name: Mirror approved third-party images to Artifact Registry
+        run: |
+          set -euo pipefail
+          IMAGE_FILE="terraform/third_party_images.txt"
+          if [ ! -f "${IMAGE_FILE}" ]; then
+            echo "No third-party image inventory file found. Skipping."
+            exit 0
+          fi
+          while IFS='|' read -r SOURCE_IMAGE TARGET_IMAGE; do
+            if [[ -z "${SOURCE_IMAGE}" || "${SOURCE_IMAGE}" =~ ^# ]]; then
+              continue
+            fi
+            echo "Processing ${SOURCE_IMAGE} -> ${TARGET_IMAGE}"
+            if gcloud artifacts docker images describe "${TARGET_IMAGE}" >/dev/null 2>&1; then
+              echo "Target image already exists, skipping: ${TARGET_IMAGE}"
+              continue
+            fi
+            docker pull "${SOURCE_IMAGE}"
+            docker tag "${SOURCE_IMAGE}" "${TARGET_IMAGE}"
+            docker push "${TARGET_IMAGE}"
+          done < "${IMAGE_FILE}"
+
       - name: Get cluster credentials
         uses: google-github-actions/get-gke-credentials@v3
         with:
@@ -76,6 +102,17 @@ jobs:
         run: |
           kubectl wait --for=condition=Available deployment/argocd-server -n argocd --timeout=600s
           kubectl wait --for=condition=Available deployment/argocd-repo-server -n argocd --timeout=600s
+
+      - name: Validate Argo CD repo secrets
+        env:
+          ARGOCD_REPO_URL: ${{ secrets.ARGOCD_REPO_URL }}
+          ARGOCD_REPO_USERNAME: ${{ secrets.ARGOCD_REPO_USERNAME }}
+          ARGOCD_REPO_PASSWORD: ${{ secrets.ARGOCD_REPO_PASSWORD }}
+        run: |
+          test -n "$ARGOCD_REPO_URL"
+          test -n "$ARGOCD_REPO_USERNAME"
+          test -n "$ARGOCD_REPO_PASSWORD"
+          echo "Argo CD repo secrets are present"
 
       - name: Create Argo CD repository secret
         env:
@@ -99,17 +136,6 @@ jobs:
             password: ${ARGOCD_REPO_PASSWORD}
           EOF
     
-      - name: Validate Argo CD repo secrets
-        env:
-          ARGOCD_REPO_URL: ${{ secrets.ARGOCD_REPO_URL }}
-          ARGOCD_REPO_USERNAME: ${{ secrets.ARGOCD_REPO_USERNAME }}
-          ARGOCD_REPO_PASSWORD: ${{ secrets.ARGOCD_REPO_PASSWORD }}
-        run: |
-          test -n "$ARGOCD_REPO_URL"
-          test -n "$ARGOCD_REPO_USERNAME"
-          test -n "$ARGOCD_REPO_PASSWORD"
-          echo "Argo CD repo secrets are present"
-
       - name: Bootstrap Argo CD app
         run: |
           kubectl apply -f argocd/boutique-app.yaml
