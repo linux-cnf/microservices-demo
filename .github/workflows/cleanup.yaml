@@ -14,11 +14,16 @@
 
 name: "Clean up deployment"
 on:
-  pull_request:
-    # run on pull requests targeting main
-    branches:
-      - main
-    types: closed
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to clean up"
+        required: true
+#  pull_request:
+#    # run on pull requests targeting main
+#    branches:
+#      - main
+#    types: closed
     paths-ignore:
       - '**/README.md'
       - 'kustomize/**'
