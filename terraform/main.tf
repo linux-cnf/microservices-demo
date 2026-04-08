@@ -97,6 +97,10 @@ resource "google_artifact_registry_repository" "docker_repo" {
   description   = "Docker repository for microservices-demo images"
   format        = "DOCKER"
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   depends_on = [
     module.enable_google_apis
   ]
