@@ -29,7 +29,7 @@ on:
       - '.github/workflows/helm-chart-ci.yaml'
       - '.github/workflows/infra-destroy.yml'
       - 'argocd/**'
-   workflow_dispatch:
+  workflow_dispatch:
      
 concurrency:
   group: update-tags-${{ github.ref }}
