@@ -1,4 +1,3 @@
-# .github/workflows/infra-destroy.yml
 name: infra-destroy
 
 on:
@@ -25,6 +24,10 @@ jobs:
     defaults:
       run:
         working-directory: terraform/live/main
+
+    env:
+      TF_INPUT: "false"
+      TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
 
     steps:
       - name: Checkout
