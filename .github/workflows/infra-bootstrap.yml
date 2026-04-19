@@ -57,11 +57,17 @@ jobs:
 
       - name: Terraform plan
         working-directory: terraform/live/main
-        run: terraform plan -out=tfplan
+        env:
+          TF_INPUT: "false"
+          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+        run: terraform plan -input=false -out=tfplan
 
       - name: Terraform apply
         working-directory: terraform/live/main
-        run: terraform apply -auto-approve tfplan
+        env:
+          TF_INPUT: "false"
+          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+        run: terraform apply -input=false -auto-approve tfplan
 
       - name: Configure Docker for Artifact Registry
         run: |
