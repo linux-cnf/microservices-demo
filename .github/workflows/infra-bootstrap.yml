@@ -13,6 +13,10 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: terraform-live-main
+  cancel-in-progress: false
+
 jobs:
   infra:
     runs-on: ubuntu-latest
