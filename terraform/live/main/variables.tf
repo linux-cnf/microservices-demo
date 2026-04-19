@@ -44,10 +44,11 @@ variable "namespace" {
 variable "filepath_manifest" {
   type        = string
   description = "Path to Online Boutique's Kubernetes resources, written using Kustomize"
-  default     = "../kustomize/"
+  default     = "../../../kustomize/"
 }
 
-variable "memorystore" {
+variable "memorystore_enabled" {
   type        = bool
   description = "If true, Online Boutique's in-cluster Redis cache will be replaced with a Google Cloud Memorystore Redis cache"
+  default     = false
 }
