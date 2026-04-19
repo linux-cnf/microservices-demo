@@ -24,7 +24,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: terraform
+        working-directory: terraform/live/main
 
     steps:
       - name: Checkout
@@ -43,7 +43,10 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -input=false
 
-      - name: Terraform Destroy
-        run: terraform destroy -auto-approve
+      - name: Terraform Destroy GKE only
+        run: |
+          terraform destroy -input=false -auto-approve \
+            -target=module.gke_node_pool.google_container_node_pool.primary_nodes \
+            -target=module.gke_cluster.google_container_cluster.my_cluster
