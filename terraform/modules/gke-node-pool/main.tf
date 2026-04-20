@@ -16,6 +16,17 @@ resource "google_container_node_pool" "primary_nodes" {
     disk_size_gb = var.disk_size_gb
     disk_type    = var.disk_type
     image_type   = var.image_type
+
+    labels = var.node_labels
+
+    dynamic "taint" {
+      for_each = var.node_taints
+      content {
+        key    = taint.value.key
+        value  = taint.value.value
+        effect = taint.value.effect
+      }
+    }
   }
 
   management {

@@ -54,3 +54,19 @@ variable "max_node_count" {
   description = "Maximum number of nodes in the node pool"
   default     = 2
 }
+
+variable "node_labels" {
+  type        = map(string)
+  description = "Kubernetes node labels to apply to all nodes in this pool"
+  default     = {}
+}
+
+variable "node_taints" {
+  description = "Kubernetes node taints to apply to all nodes in this pool"
+  type = list(object({
+    key    = string
+    value  = string
+    effect = string
+  }))
+  default = []
+}
