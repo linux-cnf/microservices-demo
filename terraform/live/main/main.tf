@@ -46,6 +46,13 @@ module "artifact_registry" {
   repository_id  = "microservices-demo"
 }
 
+module "artifact_registry_platform_observability" {
+  source         = "../../modules/artifact-registry"
+  gcp_project_id = var.gcp_project_id
+  region         = var.region
+  repository_id  = "platform-observability"
+}
+
 module "gke_cluster" {
   source              = "../../modules/gke-cluster"
   gcp_project_id      = var.gcp_project_id
@@ -68,6 +75,36 @@ module "gke_node_pool" {
   image_type     = "COS_CONTAINERD"
   min_node_count = 1
   max_node_count = 2
+
+  depends_on = [module.gke_cluster]
+}
+
+module "gke_node_pool_platform_observability" {
+  source         = "../../modules/gke-node-pool"
+  gcp_project_id = var.gcp_project_id
+  cluster_name   = module.gke_cluster.cluster_name
+  location       = module.gke_cluster.location
+
+  node_pool_name = "platform-observability"
+  machine_type   = "e2-highmem-2"
+  disk_size_gb   = 100
+  disk_type      = "pd-balanced"
+  image_type     = "COS_CONTAINERD"
+  min_node_count = 1
+  max_node_count = 2
+
+  node_labels = {
+    workload = "observability"
+    tier     = "platform"
+  }
+
+  node_taints = [
+    {
+      key    = "dedicated"
+      value  = "observability"
+      effect = "NO_SCHEDULE"
+    }
+  ]
 
   depends_on = [module.gke_cluster]
 }
