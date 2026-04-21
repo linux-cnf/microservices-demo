@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SEED_FILE="${1:-../terraform/live/main/artifact_registry_seed_observability_images.txt}"
+#SEED_FILE="${1:-../terraform/live/main/artifact_registry_seed_observability_images.txt}"
+SEED_FILE="${1:-terraform/live/main/artifact_registry_seed_observability_images.txt}"
 
 if [[ ! -f "$SEED_FILE" ]]; then
   echo "Seed file not found: $SEED_FILE"
