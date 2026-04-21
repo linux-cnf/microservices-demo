@@ -26,3 +26,6 @@ pkg/
 release/wi-kubernetes-manifests.yaml
 vendor/
 **/.terraform/
+helm-chart/**/charts/
+rendered-*.yaml
+helm-chart/**/rendered-*.yaml
