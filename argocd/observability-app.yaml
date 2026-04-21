@@ -10,6 +10,9 @@ spec:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
     targetRevision: main
     path: helm-chart/observability
+    helm:
+      valueFiles:
+        - values.yaml
 
   destination:
     server: https://kubernetes.default.svc
