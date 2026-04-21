@@ -1,0 +1,36 @@
+name: observability-seed-images
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "terraform/live/main/artifact_registry_seed_observability_images.txt"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  seed-images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Seed Images
+        run: |
+          cd helm-chart/observability
+          ./scripts/seed-observability-images.sh
