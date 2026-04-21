@@ -1,1 +1,74 @@
-namespace: observability
+namespaces:
+  monitoring: monitoring
+  logging: logging
+
+kubePrometheusStack:
+  enabled: true
+
+loki:
+  enabled: false
+
+kube-prometheus-stack:
+  crds:
+    enabled: true
+
+  grafana:
+    enabled: true
+    defaultDashboardsEnabled: true
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: false
+    nodeSelector:
+      workload: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+
+  prometheus:
+    enabled: true
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: false
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+      nodeSelector:
+        workload: observability
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: observability
+          effect: NoSchedule
+
+  alertmanager:
+    enabled: true
+    service:
+      type: ClusterIP
+    ingress:
+      enabled: false
+    alertmanagerSpec:
+      nodeSelector:
+        workload: observability
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: observability
+          effect: NoSchedule
+
+  kube-state-metrics:
+    enabled: true
+    nodeSelector:
+      workload: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+
+  prometheus-node-exporter:
+    enabled: true
+    tolerations:
+      - operator: Exists
