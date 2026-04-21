@@ -1,0 +1,4 @@
+docker.elastic.co/eck/eck-operator:3.1.0|us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/eck-operator:3.1.0
+docker.elastic.co/elasticsearch/elasticsearch:9.1.4|us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/elasticsearch:9.1.4
+docker.elastic.co/kibana/kibana:9.1.4|us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/kibana:9.1.4
+grafana/grafana:11.2.0|us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/grafana:11.2.0
