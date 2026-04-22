@@ -10,9 +10,6 @@ spec:
   elasticsearchRefs:
     - name: {{ .Values.elasticsearchRef.name }}
 
-  kibanaRef:
-    name: {{ .Values.kibanaRef.name }}
-
   daemonSet:
     podTemplate:
       spec:
