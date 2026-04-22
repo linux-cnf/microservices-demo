@@ -156,7 +156,21 @@ jobs:
             password: ${ARGOCD_REPO_PASSWORD}
           EOF
 
-      - name: Bootstrap Argo CD apps boutique|observability
+      - name: Bootstrap Argo CD apps boutique | observability| ECK operator| logging app
         run: |
           kubectl apply -f argocd/boutique-app.yaml -n argocd
+          
           kubectl apply -f argocd/observability-app.yaml -n argocd
+          
+          #Apply ECK operator app first
+          kubectl apply -f argocd/eck-operator-app.yaml -n argocd
+
+          # Wait until the ECK operator deployment exists and becomes available
+          until kubectl get deployment elastic-operator -n elastic-system >/dev/null 2>&1; do
+            echo "Waiting for elastic-operator deployment to be created..."
+            sleep 5
+          done
+          kubectl wait --for=condition=Available deployment/elastic-operator -n elastic-system --timeout=300s
+
+          # Then apply logging app
+          kubectl apply -f argocd/logging-app.yaml -n argocd
