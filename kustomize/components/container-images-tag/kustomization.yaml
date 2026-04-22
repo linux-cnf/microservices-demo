@@ -15,25 +15,25 @@
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 images:
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/adservice
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/cartservice
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/checkoutservice
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/currencyservice
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/emailservice
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/frontend
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/loadgenerator
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/paymentservice
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/productcatalogservice
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/recommendationservice
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
-- name: us-central1-docker.pkg.dev/google-samples/microservices-demo/shippingservice
-  newTag: a7c55e5bbb8eb876769374b055c3bf9933970f1f
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/adservice
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/cartservice
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/checkoutservice
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/currencyservice
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/emailservice
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/frontend
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/loadgenerator
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/paymentservice
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/productcatalogservice
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/recommendationservice
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
+  - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/shippingservice
+    newTag: ad7aa372711ad9c4af276362c996e8e897c7e84a
