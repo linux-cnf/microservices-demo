@@ -156,6 +156,7 @@ jobs:
             password: ${ARGOCD_REPO_PASSWORD}
           EOF
 
-      - name: Bootstrap Argo CD app
+      - name: Bootstrap Argo CD apps boutique|observability
         run: |
-          kubectl apply -f argocd/boutique-app.yaml
+          kubectl apply -f argocd/boutique-app.yaml -n argocd
+          kubectl apply -f argocd/observability-app.yaml -n argocd
