@@ -15,6 +15,7 @@ name: "Continuous Integration :- Main/Release"
       - ".github/workflows/helm-chart-ci.yaml"
       - ".github/workflows/infra-destroy.yml"
       - "argocd/**"
+      - "kustomize/components/container-images-tag/kustomization.yaml"
   workflow_dispatch:
 
 concurrency:
@@ -97,7 +98,7 @@ jobs:
             fi
           done
 
-          SHARED_REGEX='^(\.github/workflows/ci-main\.yaml|kustomize/base/|kustomize/components/|proto/|pb/|genproto/|Dockerfile|Makefile)'
+          SHARED_REGEX='^(\.github/workflows/ci-main\.yaml|kustomize/base/|proto/|pb/|genproto/|Dockerfile|Makefile)'
 
           if echo "${DIFF_FILES}" | grep -qE "${SHARED_REGEX}"; then
             SHARED_CHANGED="true"
