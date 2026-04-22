@@ -17,6 +17,15 @@ eck-stack:
                 operator: Equal
                 value: observability
                 effect: NoSchedule
+            containers:
+              - name: elasticsearch
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 2Gi
+                  limits:
+                    cpu: 1
+                    memory: 2Gi
         volumeClaimTemplates:
           - metadata:
               name: elasticsearch-data
