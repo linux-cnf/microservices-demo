@@ -1,0 +1,6 @@
+apiVersion: v2
+name: logging-agent
+description: Elastic Agent standalone collector for Kubernetes logs
+type: application
+version: 0.1.0
+appVersion: "9.2.0"
