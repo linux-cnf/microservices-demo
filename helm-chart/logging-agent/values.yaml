@@ -1,0 +1,22 @@
+namespace: logging
+
+agent:
+  name: logging-agent
+  version: "9.2.0"
+
+elasticsearchRef:
+  name: elasticsearch
+
+kibanaRef:
+  name: logging-eck-kibana
+
+tolerations:
+  - operator: Exists
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 400Mi
+  limits:
+    cpu: 500m
+    memory: 800Mi
