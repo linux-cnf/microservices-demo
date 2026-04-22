@@ -1,0 +1,52 @@
+eck-stack:
+  eck-elasticsearch:
+    enabled: true
+    version: 9.2.0
+
+    nodeSets:
+      - name: default
+        count: 1
+        config:
+          node.store.allow_mmap: false
+        podTemplate:
+          spec:
+            nodeSelector:
+              workload: observability
+            tolerations:
+              - key: dedicated
+                operator: Equal
+                value: observability
+                effect: NoSchedule
+        volumeClaimTemplates:
+          - metadata:
+              name: elasticsearch-data
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 20Gi
+
+  eck-kibana:
+    enabled: true
+    version: 9.2.0
+
+    count: 1
+
+    elasticsearchRef:
+      name: elasticsearch
+
+    http:
+      service:
+        spec:
+          type: ClusterIP
+
+    podTemplate:
+      spec:
+        nodeSelector:
+          workload: observability
+        tolerations:
+          - key: dedicated
+            operator: Equal
+            value: observability
+            effect: NoSchedule
