@@ -7,9 +7,6 @@ agent:
 elasticsearchRef:
   name: elasticsearch
 
-kibanaRef:
-  name: logging-eck-kibana
-
 tolerations:
   - operator: Exists
 
