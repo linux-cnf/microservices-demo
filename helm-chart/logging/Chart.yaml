@@ -1,0 +1,11 @@
+apiVersion: v2
+name: logging
+description: Logging platform chart for Elasticsearch and Kibana on ECK
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: eck-stack
+    version: "0.17.0"
+    repository: "https://helm.elastic.co"
