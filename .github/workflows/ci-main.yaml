@@ -1,46 +1,138 @@
-# Copyright 2020 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
+---
 name: "Continuous Integration :- Main/Release"
 
-on:
+'on':
   push:
     branches:
       - main
       - release/*
     paths-ignore:
-      - '**/README.md'
-      - 'kustomize/**'
-      - '.github/workflows/kustomize-build-ci.yaml'
-      - 'terraform/**'
-      - '.github/workflows/terraform-validate-ci.yaml'
-      - 'helm-chart/**'
-      - '.github/workflows/helm-chart-ci.yaml'
-      - '.github/workflows/infra-destroy.yml'
-      - 'argocd/**'
+      - "**/README.md"
+      - ".github/workflows/kustomize-build-ci.yaml"
+      - "terraform/**"
+      - ".github/workflows/terraform-validate-ci.yaml"
+      - "helm-chart/**"
+      - ".github/workflows/helm-chart-ci.yaml"
+      - ".github/workflows/infra-destroy.yml"
+      - "argocd/**"
   workflow_dispatch:
-     
+
 concurrency:
   group: update-tags-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
-  contents: write # write is needed because workflow will commit and push file changes
-  id-token: write # write is still useful for GCP auth in image build/push job 
+  contents: write
+  id-token: write
+
+env:
+  REGISTRY_REGION: us-central1
+  IMAGE_REPOSITORY: microservices-demo
+  TAG_FILE: kustomize/components/container-images-tag/kustomization.yaml
+
 jobs:
-  code-tests:
+  detect-changes:
+    name: Detect Changed Services
     runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.detect.outputs.services }}
+      has_service_changes: >-
+        ${{ steps.detect.outputs.has_service_changes }}
+      shared_changed: >-
+        ${{ steps.detect.outputs.shared_changed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed files and services
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BEFORE_SHA="${{ github.event.before }}"
+          CURRENT_SHA="${{ github.sha }}"
+
+          echo "Before SHA: ${BEFORE_SHA}"
+          echo "Current SHA: ${CURRENT_SHA}"
+
+          if [[ -z "${BEFORE_SHA}" ]] || \
+             [[ "${BEFORE_SHA}" == \
+             "0000000000000000000000000000000000000000" ]]; then
+            echo "No valid before SHA found. Falling back to previous commit if available."
+            if git rev-parse HEAD^ >/dev/null 2>&1; then
+              DIFF_FILES="$(git diff --name-only HEAD^ HEAD)"
+            else
+              DIFF_FILES="$(git ls-files)"
+            fi
+          else
+            DIFF_FILES="$(git diff --name-only "${BEFORE_SHA}" "${CURRENT_SHA}")"
+          fi
+
+          echo "Changed files:"
+          echo "${DIFF_FILES}"
+
+          SERVICES=(
+            adservice
+            cartservice
+            checkoutservice
+            currencyservice
+            emailservice
+            frontend
+            loadgenerator
+            paymentservice
+            productcatalogservice
+            recommendationservice
+            shippingservice
+          )
+
+          declare -a CHANGED_SERVICES=()
+          SHARED_CHANGED="false"
+
+          for service in "${SERVICES[@]}"; do
+            if echo "${DIFF_FILES}" | grep -qE "^src/${service}/"; then
+              CHANGED_SERVICES+=("${service}")
+            fi
+          done
+
+          SHARED_REGEX='^(\.github/workflows/ci-main\.yaml|kustomize/base/|kustomize/components/|proto/|pb/|genproto/|Dockerfile|Makefile)'
+
+          if echo "${DIFF_FILES}" | grep -qE "${SHARED_REGEX}"; then
+            SHARED_CHANGED="true"
+            CHANGED_SERVICES=("${SERVICES[@]}")
+          fi
+
+          if [[ ${#CHANGED_SERVICES[@]} -gt 0 ]]; then
+            mapfile -t UNIQUE_CHANGED_SERVICES < <(
+              printf "%s\n" "${CHANGED_SERVICES[@]}" | sort -u
+            )
+          else
+            UNIQUE_CHANGED_SERVICES=()
+          fi
+
+          if [[ ${#UNIQUE_CHANGED_SERVICES[@]} -eq 0 ]]; then
+            echo "No service changes detected."
+            echo 'services=[]' >> "$GITHUB_OUTPUT"
+            echo 'has_service_changes=false' >> "$GITHUB_OUTPUT"
+          else
+            JSON="$(
+              printf '%s\n' "${UNIQUE_CHANGED_SERVICES[@]}" |
+              jq -R . |
+              jq -cs .
+            )"
+            echo "Changed services JSON: ${JSON}"
+            echo "services=${JSON}" >> "$GITHUB_OUTPUT"
+            echo 'has_service_changes=true' >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "shared_changed=${SHARED_CHANGED}" >> "$GITHUB_OUTPUT"
+
+  code-tests:
+    name: Code Tests
+    runs-on: ubuntu-latest
+    needs: detect-changes
     steps:
       - uses: actions/checkout@v4
 
@@ -48,18 +140,20 @@ jobs:
         env:
           DOTNET_INSTALL_DIR: ./.dotnet
         with:
-          dotnet-version: '10.0'
+          dotnet-version: "10.0"
 
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.26'
+          go-version: "1.26"
 
       - name: Go Unit Tests
         timeout-minutes: 10
         run: |
+          set -euo pipefail
+
           for SERVICE in shippingservice productcatalogservice; do
             echo "testing $SERVICE..."
-            pushd src/$SERVICE
+            pushd "src/$SERVICE"
             go test ./...
             popd
           done
@@ -67,30 +161,42 @@ jobs:
       - name: C# Unit Tests
         timeout-minutes: 10
         run: |
+          set -euo pipefail
           dotnet test src/cartservice/
 
   manifest-validation:
+    name: Manifest Validation
     runs-on: ubuntu-latest
-    needs: code-tests
+    needs:
+      - detect-changes
+      - code-tests
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
       - name: Validate Kustomize base renders successfully
         run: |
+          set -euo pipefail
           kubectl kustomize kustomize > /tmp/boutique-rendered.yaml
           test -s /tmp/boutique-rendered.yaml
 
   build-and-push-images:
-    name: Build and Push Images
+    name: Build and Push Changed Images
     runs-on: ubuntu-latest
     needs:
+      - detect-changes
       - code-tests
       - manifest-validation
-
+    if: needs.detect-changes.outputs.has_service_changes == 'true'
     permissions:
       contents: read
       id-token: write
-
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.detect-changes.outputs.services) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -105,83 +211,117 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+        run: |
+          gcloud auth configure-docker \
+            ${{ env.REGISTRY_REGION }}-docker.pkg.dev \
+            --quiet
 
-      - name: Build and push service images
+      - name: Build and push changed service image
+        shell: bash
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          SERVICE: ${{ matrix.service }}
         run: |
           set -euo pipefail
 
-          REGISTRY="us-central1-docker.pkg.dev/${PROJECT_ID}/microservices-demo"
+          REGISTRY="${REGISTRY_REGION}-docker.pkg.dev/${PROJECT_ID}/${IMAGE_REPOSITORY}"
           TAG="${GITHUB_SHA}"
 
-          SERVICES=(
-            adservice
-            cartservice
-            checkoutservice
-            currencyservice
-            emailservice
-            frontend
-            loadgenerator
-            paymentservice
-            productcatalogservice
-            recommendationservice
-            shippingservice
-            #shoppingassistantservice
-          )
+          if [[ "${SERVICE}" == "cartservice" ]]; then
+            DOCKERFILE="src/cartservice/src/Dockerfile"
+            CONTEXT="src/cartservice/src"
+          else
+            DOCKERFILE="src/${SERVICE}/Dockerfile"
+            CONTEXT="src/${SERVICE}"
+          fi
 
-          for service in "${SERVICES[@]}"; do
-            if [ "${service}" = "cartservice" ]; then
-              DOCKERFILE="src/cartservice/src/Dockerfile"
-              CONTEXT="src/cartservice/src"
-            else
-              DOCKERFILE="src/${service}/Dockerfile"
-              CONTEXT="src/${service}"
-            fi
+          if [[ ! -f "${DOCKERFILE}" ]]; then
+            echo "Skipping ${SERVICE}: Dockerfile not found at ${DOCKERFILE}"
+            exit 0
+          fi
 
-            if [ ! -f "${DOCKERFILE}" ]; then
-              echo "Skipping ${service}: Dockerfile not found at ${DOCKERFILE}"
-              continue
-            fi
+          IMAGE="${REGISTRY}/${SERVICE}:${TAG}"
 
-            IMAGE="${REGISTRY}/${service}:${TAG}"
+          echo "Checking whether image already exists: ${IMAGE}"
+          if docker manifest inspect "${IMAGE}" >/dev/null 2>&1; then
+            echo "Image already exists. Skipping build/push for ${IMAGE}"
+            exit 0
+          fi
 
-            echo "Building ${IMAGE}"
-            #docker build -t "${IMAGE}" "src/${service}"
-            docker build -f "${DOCKERFILE}" -t "${IMAGE}" "${CONTEXT}"
+          echo "Building ${IMAGE}"
+          docker build -f "${DOCKERFILE}" -t "${IMAGE}" "${CONTEXT}"
 
-            echo "Pushing ${IMAGE}"
-            docker push "${IMAGE}"
-          done
+          echo "Pushing ${IMAGE}"
+          docker push "${IMAGE}"
 
   update-kustomize-tags:
     name: Update Kustomize Tags
     runs-on: ubuntu-latest
     needs:
+      - detect-changes
       - build-and-push-images
-
+    if: needs.detect-changes.outputs.has_service_changes == 'true'
     permissions:
       contents: write
       id-token: write
       pull-requests: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Update image tags to current Git SHA
+      - name: Install tools
+        run: |
+          set -euo pipefail
+          sudo wget -O /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+          jq --version
+
+      - name: Update only changed service tags to current Git SHA
+        shell: bash
+        env:
+          CHANGED_SERVICES_JSON: ${{ needs.detect-changes.outputs.services }}
         run: |
           set -euo pipefail
 
-          FILE="kustomize/components/container-images-tag/kustomization.yaml"
+          FILE="${TAG_FILE}"
+          TAG="${GITHUB_SHA}"
 
-          sed -i "s|newTag: .*|newTag: ${GITHUB_SHA}|g" "${FILE}"
+          if [[ ! -f "${FILE}" ]]; then
+            echo "Tag file not found: ${FILE}"
+            exit 1
+          fi
 
-          echo "Updated file:"
-          git diff -- "${FILE}"
+          echo "Before update:"
+          cat "${FILE}"
+
+          mapfile -t CHANGED_SERVICES < <(
+            echo "${CHANGED_SERVICES_JSON}" | jq -r '.[]'
+          )
+
+          for service in "${CHANGED_SERVICES[@]}"; do
+            IMAGE_NAME="us-central1-docker.pkg.dev/google-samples"
+            IMAGE_NAME="${IMAGE_NAME}/microservices-demo/${service}"
+
+            echo "Updating tag for service: ${service}"
+            echo "Matching image name: ${IMAGE_NAME}"
+
+            yq -i '
+              (.images[] | select(.name == "'"${IMAGE_NAME}"'").newTag) = "'"${TAG}"'"
+            ' "${FILE}"
+          done
+
+          echo "After update:"
+          cat "${FILE}"
+
+          echo "Diff:"
+          git diff -- "${FILE}" || true
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
 
       - name: Validate final Kustomize render after tag update
         run: |
@@ -189,20 +329,35 @@ jobs:
           kubectl kustomize kustomize > /tmp/boutique-final-rendered.yaml
           test -s /tmp/boutique-final-rendered.yaml
 
+      - name: Check whether tag file actually changed
+        id: git-check
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- "${TAG_FILE}"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No tag changes detected."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Tag file changed."
+          fi
+
       - name: Create pull request for updated image tags
+        if: steps.git-check.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "ci: update image tags to ${GITHUB_SHA}"
+          commit-message: "ci: update changed image tags to ${GITHUB_SHA}"
           branch: "bot/update-image-tags-${{ github.ref_name }}"
           delete-branch: true
-          title: "ci: update image tags to ${{ github.sha }}"
+          title: "ci: update changed image tags to ${{ github.sha }}"
           body: |
             Automated image tag update generated by GitHub Actions.
-            - Updated image tags to `${{ github.sha }}`
-            - Source workflow: `${{ github.workflow }}`
-            - Source commit: `${{ github.sha }}`
-          #base: main # every bot PR will target main
-          base: ${{ github.ref_name }} # # want the PR to go back to the same branch that triggered the workflow
+
+            Updated image tags only for changed services to `${{ github.sha }}`.
+
+            Source workflow: `${{ github.workflow }}`
+            Source commit: `${{ github.sha }}`
+          base: ${{ github.ref_name }}
           add-paths: |
             kustomize/components/container-images-tag/kustomization.yaml
