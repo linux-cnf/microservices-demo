@@ -85,6 +85,12 @@ spec:
             data_stream:
               dataset: kubernetes.container_logs
               type: logs
+        processors:
+          - add_kubernetes_metadata:
+              host: ${NODE_NAME}
+              matchers:
+                - logs_path:
+                    logs_path: /var/log/containers/
 
     providers:
       kubernetes:
@@ -95,3 +101,8 @@ spec:
           node: true
           deployment: true
           cronjob: true
+        resources:
+          pod:
+            enabled: true
+          node:
+            enabled: true
