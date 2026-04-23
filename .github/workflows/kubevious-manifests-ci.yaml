@@ -7,11 +7,13 @@ on:
     paths:
       - 'helm-chart/**'
       - 'kustomize/**'
+      - 'kubernetes-manifests/**'
       - '.github/workflows/kubevious-manifests-ci.yaml'
   pull_request:
     paths:
       - 'helm-chart/**'
       - 'kustomize/**'
+      - 'kubernetes-manifests/**'
       - '.github/workflows/kubevious-manifests-ci.yaml'
 
 permissions:
@@ -44,7 +46,7 @@ jobs:
 
   kubevious-helm-charts:
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -55,6 +57,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add elastic https://helm.elastic.co
+          helm repo add prometheus-community \
+            https://prometheus-community.github.io/helm-charts
+          helm repo update
+
+      - name: Build chart dependencies
+        run: |
+          if [ -f "${{ matrix.chart }}/Chart.lock" ]; then
+            helm dependency build "${{ matrix.chart }}"
+          fi
 
       - name: Validate Helm chart
         uses: kubevious/cli@v1.0.64
