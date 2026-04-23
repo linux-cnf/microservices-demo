@@ -9,3 +9,4 @@ dependencies:
   - name: eck-stack
     version: "0.17.0"
     repository: "https://helm.elastic.co"
+# CI test: trigger pipeline validation
