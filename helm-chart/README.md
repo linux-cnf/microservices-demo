@@ -48,3 +48,14 @@ Use dedicated observability node pool
 Keep charts independent and modular
 Prefer GitOps (Argo CD) for deployments
 Scale components based on workload
+
+
+## CI Validation
+
+- **helm-chart-ci.yaml**
+  - Lints and templates each Helm chart (`logging-agent`, `logging`, `observability`)
+  - Ensures charts render correctly before merge
+
+- **kubevious-manifests-ci.yaml**
+  - Validates Kubernetes manifests (Helm, kustomize, raw YAML)
+  - Detects misconfigurations and unsafe patterns
