@@ -29,6 +29,13 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@v4
 
+      - name: Add Helm repositories
+        run: |
+          helm repo add elastic https://helm.elastic.co
+          helm repo add prometheus-community \
+            https://prometheus-community.github.io/helm-charts
+          helm repo update
+
       - name: Build chart dependencies
         run: |
           if [ -f "${{ matrix.chart }}/Chart.lock" ]; then
@@ -41,5 +48,8 @@ jobs:
 
       - name: Helm template
         run: |
-          helm template "$(basename "${{ matrix.chart }}")" "${{ matrix.chart }}" > rendered.yaml
+          helm template \
+            "$(basename "${{ matrix.chart }}")" \
+            "${{ matrix.chart }}" \
+            > rendered.yaml
           cat rendered.yaml
