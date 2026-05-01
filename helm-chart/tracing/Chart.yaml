@@ -1,0 +1,15 @@
+apiVersion: v2
+name: tracing
+description: Tempo and OpenTelemetry Collector tracing stack
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+dependencies:
+  - name: tempo
+    version: 1.24.4
+    repository: https://grafana.github.io/helm-charts
+
+  - name: opentelemetry-collector
+    version: 0.126.0
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
