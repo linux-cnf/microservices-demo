@@ -1,0 +1,80 @@
+tempo:
+  enabled: true
+
+  nodeSelector:
+    cloud.google.com/gke-nodepool: platform-observability
+
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+
+  tempo:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+
+  persistence:
+    enabled: true
+    size: 10Gi
+
+  service:
+    type: ClusterIP
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+
+opentelemetry-collector:
+  enabled: true
+  mode: deployment
+
+  nodeSelector:
+    cloud.google.com/gke-nodepool: platform-observability
+
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+
+  image:
+    repository: otel/opentelemetry-collector-contrib
+
+  service:
+    type: ClusterIP
+
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch: {}
+
+    exporters:
+      otlp:
+        endpoint: tracing-tempo:4317
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        traces:
+          receivers:
+            - otlp
+          processors:
+            - batch
+          exporters:
+            - otlp

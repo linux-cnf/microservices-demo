@@ -13,6 +13,12 @@ kube-prometheus-stack:
     enabled: true
 
   grafana:
+    additionalDataSources:
+      - name: Tempo
+        type: tempo
+        access: proxy
+        url: http://tracing-tempo.tracing.svc.cluster.local:3100
+        isDefault: false
     enabled: true
     defaultDashboardsEnabled: true
     service:
