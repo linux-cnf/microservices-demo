@@ -171,3 +171,4 @@ jobs:
 
           kubectl apply -f argocd/logging-app.yaml -n argocd
           kubectl apply -f argocd/logging-agent-app.yaml -n argocd
+          kubectl apply -f argocd/tracing-app.yaml -n argocd
