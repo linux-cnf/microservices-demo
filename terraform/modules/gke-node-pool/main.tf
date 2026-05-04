@@ -4,12 +4,14 @@ resource "google_container_node_pool" "primary_nodes" {
   location = var.location
   project  = var.gcp_project_id
 
-  node_count = var.min_node_count
+  initial_node_count = var.min_node_count
 
   autoscaling {
     min_node_count = var.min_node_count
     max_node_count = var.max_node_count
   }
+
+  max_pods_per_node = var.max_pods_per_node
 
   node_config {
     machine_type = var.machine_type
@@ -19,8 +21,21 @@ resource "google_container_node_pool" "primary_nodes" {
 
     labels = var.node_labels
 
+    service_account = var.service_account
+    oauth_scopes    = var.oauth_scopes
+
+    metadata = {
+      disable-legacy-endpoints = "true"
+    }
+
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
+    }
+
     dynamic "taint" {
       for_each = var.node_taints
+
       content {
         key    = taint.value.key
         value  = taint.value.value
