@@ -1,16 +1,7 @@
 # Copyright 2022 Google LLC
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Licensed under the Apache License, Version 2.0
+
 locals {
   base_apis = [
     "container.googleapis.com",
@@ -29,6 +20,25 @@ module "project_services" {
   project_id                  = var.gcp_project_id
   activate_apis               = local.activate_apis
   disable_services_on_destroy = false
+}
+
+module "vpc" {
+  source = "../../modules/vpc"
+
+  project_id = var.gcp_project_id
+  region     = var.region
+
+  network_name = "vpc-kfounding-dev"
+  subnet_name  = "subnet-us-central1-dev"
+
+  node_cidr    = "10.10.0.0/20"
+  pod_cidr     = "10.20.0.0/18"
+  service_cidr = "10.30.0.0/22"
+
+  pod_range_name     = "pods-us-central1-dev"
+  service_range_name = "services-us-central1-dev"
+
+  depends_on = [module.project_services]
 }
 
 module "memorystore_redis" {
@@ -60,6 +70,30 @@ module "gke_cluster" {
   zone                = var.zone
   region              = var.region
   deletion_protection = false
+
+  network    = module.vpc.network_self_link
+  subnetwork = module.vpc.subnet_self_link
+
+  pod_range_name     = module.vpc.pod_range_name
+  service_range_name = module.vpc.service_range_name
+
+  datapath_provider = "ADVANCED_DATAPATH"
+
+  enable_private_nodes    = true
+  enable_private_endpoint = false
+  master_ipv4_cidr_block  = "172.16.0.0/28"
+
+  master_authorized_networks = [
+    {
+      cidr_block   = "163.227.186.128/30"
+      display_name = "on-prem-bastion"
+    }
+  ]
+
+  depends_on = [
+    module.project_services,
+    module.vpc
+  ]
 }
 
 module "gke_node_pool" {
@@ -75,6 +109,8 @@ module "gke_node_pool" {
   image_type     = "COS_CONTAINERD"
   min_node_count = 1
   max_node_count = 2
+
+  max_pods_per_node = 64
 
   depends_on = [module.gke_cluster]
 }
@@ -92,6 +128,8 @@ module "gke_node_pool_platform_observability" {
   image_type     = "COS_CONTAINERD"
   min_node_count = 1
   max_node_count = 2
+
+  max_pods_per_node = 64
 
   node_labels = {
     workload = "observability"
@@ -150,5 +188,3 @@ module "github_actions_deployer_serviceusage_admin" {
   role           = "roles/serviceusage.serviceUsageAdmin"
   member         = module.github_actions_deployer_sa.member
 }
-
-

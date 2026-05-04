@@ -55,6 +55,12 @@ variable "max_node_count" {
   default     = 2
 }
 
+variable "max_pods_per_node" {
+  type        = number
+  description = "Maximum number of pods per node"
+  default     = 64
+}
+
 variable "node_labels" {
   type        = map(string)
   description = "Kubernetes node labels to apply to all nodes in this pool"
@@ -69,4 +75,18 @@ variable "node_taints" {
     effect = string
   }))
   default = []
+}
+
+variable "service_account" {
+  type        = string
+  description = "Service account used by GKE nodes"
+  default     = null
+}
+
+variable "oauth_scopes" {
+  type        = list(string)
+  description = "OAuth scopes for GKE nodes"
+  default = [
+    "https://www.googleapis.com/auth/cloud-platform"
+  ]
 }
