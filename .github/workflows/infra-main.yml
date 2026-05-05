@@ -1,0 +1,111 @@
+name: infra-main
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/infra-main.yml'
+  workflow_dispatch:
+    inputs:
+      run_apply:
+        description: "Run terraform apply?"
+        required: true
+        default: "false"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-live-main
+  cancel-in-progress: false
+
+jobs:
+  infra:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Verify auth
+        run: |
+          gcloud auth list
+          gcloud config list
+          gcloud projects describe "${{ secrets.GCP_PROJECT_ID }}" --format="value(projectNumber)"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.8
+
+      - name: Terraform init
+        working-directory: terraform/live/main
+        run: terraform init
+
+      - name: Terraform fmt check
+        working-directory: terraform/live/main
+        run: terraform fmt -check -recursive
+
+      - name: Terraform validate
+        working-directory: terraform/live/main
+        run: terraform validate
+
+      - name: Terraform plan
+        working-directory: terraform/live/main
+        env:
+          TF_INPUT: "false"
+          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Terraform apply
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
+        working-directory: terraform/live/main
+        env:
+          TF_INPUT: "false"
+          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Configure Docker for Artifact Registry
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Mirror approved third-party images to Artifact Registry
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
+        run: |
+          set -euo pipefail
+          IMAGE_FILE="terraform/live/main/artifact_registry_seed_images.txt"
+          if [ ! -f "${IMAGE_FILE}" ]; then
+            echo "No third-party image inventory file found. Skipping."
+            exit 0
+          fi
+
+          while IFS='|' read -r SOURCE_IMAGE TARGET_IMAGE; do
+            if [[ -z "${SOURCE_IMAGE}" || "${SOURCE_IMAGE}" =~ ^# ]]; then
+              continue
+            fi
+
+            echo "Processing ${SOURCE_IMAGE} -> ${TARGET_IMAGE}"
+
+            if gcloud artifacts docker images describe "${TARGET_IMAGE}" >/dev/null 2>&1; then
+              echo "Target image already exists, skipping: ${TARGET_IMAGE}"
+              continue
+            fi
+
+            docker pull "${SOURCE_IMAGE}"
+            docker tag "${SOURCE_IMAGE}" "${TARGET_IMAGE}"
+            docker push "${TARGET_IMAGE}"
+          done < "${IMAGE_FILE}"
