@@ -154,6 +154,13 @@ module "github_actions_deployer_sa" {
   display_name   = "GitHub Actions Deployer"
 }
 
+module "github_actions_deployer_compute_network_admin" {
+  source         = "../../modules/iam-binding"
+  gcp_project_id = var.gcp_project_id
+  role           = "roles/compute.networkAdmin"
+  member         = module.github_actions_deployer_sa.member
+}
+
 module "github_actions_deployer_artifactregistry_admin" {
   source         = "../../modules/iam-binding"
   gcp_project_id = var.gcp_project_id
@@ -188,3 +195,11 @@ module "github_actions_deployer_serviceusage_admin" {
   role           = "roles/serviceusage.serviceUsageAdmin"
   member         = module.github_actions_deployer_sa.member
 }
+
+# Later, if firewall rules are added, uncomment this.
+#module "github_actions_deployer_compute_security_admin" {
+#  source         = "../../modules/iam-binding"
+#  gcp_project_id = var.gcp_project_id
+#  role           = "roles/compute.securityAdmin"
+#  member         = module.github_actions_deployer_sa.member
+#}

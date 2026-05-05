@@ -1,0 +1,105 @@
+name: cluster-bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cluster-bootstrap-kfounding
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: [self-hosted, linux, bastion]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Get cluster credentials
+        uses: google-github-actions/get-gke-credentials@v3
+        with:
+          cluster_name: kfounding
+          location: us-central1-a
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Verify kubectl access
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Install Argo CD
+        run: |
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply --server-side --force-conflicts -n argocd \
+            -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+      - name: Wait for Argo CD
+        run: |
+          kubectl wait --for=condition=Available deployment/argocd-server -n argocd --timeout=600s
+          kubectl wait --for=condition=Available deployment/argocd-repo-server -n argocd --timeout=600s
+
+      - name: Validate Argo CD repo secrets
+        env:
+          ARGOCD_REPO_URL: ${{ secrets.ARGOCD_REPO_URL }}
+          ARGOCD_REPO_USERNAME: ${{ secrets.ARGOCD_REPO_USERNAME }}
+          ARGOCD_REPO_PASSWORD: ${{ secrets.ARGOCD_REPO_PASSWORD }}
+        run: |
+          test -n "$ARGOCD_REPO_URL"
+          test -n "$ARGOCD_REPO_USERNAME"
+          test -n "$ARGOCD_REPO_PASSWORD"
+          echo "Argo CD repo secrets are present"
+
+      - name: Create Argo CD repository secret
+        env:
+          ARGOCD_REPO_URL: ${{ secrets.ARGOCD_REPO_URL }}
+          ARGOCD_REPO_USERNAME: ${{ secrets.ARGOCD_REPO_USERNAME }}
+          ARGOCD_REPO_PASSWORD: ${{ secrets.ARGOCD_REPO_PASSWORD }}
+        run: |
+          kubectl apply -f - <<EOF
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: repo-microservices-demo
+            namespace: argocd
+            labels:
+              argocd.argoproj.io/secret-type: repository
+          type: Opaque
+          stringData:
+            type: git
+            url: ${ARGOCD_REPO_URL}
+            username: ${ARGOCD_REPO_USERNAME}
+            password: ${ARGOCD_REPO_PASSWORD}
+          EOF
+
+      - name: Bootstrap Argo CD apps
+        run: |
+          set -euo pipefail
+
+          kubectl apply -f argocd/boutique-app.yaml -n argocd
+          kubectl apply -f argocd/observability-app.yaml -n argocd
+          kubectl apply -f argocd/eck-operator-app.yaml -n argocd
+
+          echo "Waiting for eck-operator to become Healthy..."
+          until [ "$(kubectl get application eck-operator -n argocd -o jsonpath='{.status.health.status}')" = "Healthy" ]; do
+            kubectl get application eck-operator -n argocd || true
+            sleep 10
+          done
+
+          kubectl apply -f argocd/logging-app.yaml -n argocd
+          kubectl apply -f argocd/logging-agent-app.yaml -n argocd
+          kubectl apply -f argocd/tracing-app.yaml -n argocd
