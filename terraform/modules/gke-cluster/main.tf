@@ -11,9 +11,22 @@ resource "google_container_cluster" "my_cluster" {
   remove_default_node_pool = true
   initial_node_count       = 1
 
-  datapath_provider = var.datapath_provider
+  node_config {
+    disk_type    = "pd-standard"
+    disk_size_gb = 30
+    image_type   = "COS_CONTAINERD"
 
-  networking_mode = "VPC_NATIVE"
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/cloud-platform"
+    ]
+
+    metadata = {
+      disable-legacy-endpoints = "true"
+    }
+  }
+
+  datapath_provider = var.datapath_provider
+  networking_mode   = "VPC_NATIVE"
 
   private_cluster_config {
     enable_private_nodes    = var.enable_private_nodes
