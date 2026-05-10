@@ -123,8 +123,8 @@ module "gke_node_pool_platform_observability" {
 
   node_pool_name = "platform-observability"
   machine_type   = "e2-highmem-2"
-  disk_size_gb   = 100
-  disk_type      = "pd-balanced"
+  disk_size_gb   = 30
+  disk_type      = "pd-standard"
   image_type     = "COS_CONTAINERD"
   min_node_count = 1
   max_node_count = 2

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'terraform/**'
+      - 'scripts/map-pv-disks.sh'
       - '.github/workflows/infra-main.yml'
   workflow_dispatch:
     inputs:
@@ -77,6 +78,27 @@ jobs:
           TF_INPUT: "false"
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
         run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Get GKE credentials
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: kfounding
+          location: us-central1-a
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Map Kubernetes PVs to GCP disks
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
+        run: |
+          chmod +x scripts/map-pv-disks.sh
+          ./scripts/map-pv-disks.sh | tee pv-disk-map.txt
+
+      - name: Upload PV disk map artifact
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pv-disk-map
+          path: pv-disk-map.txt
 
       - name: Configure Docker for Artifact Registry
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
