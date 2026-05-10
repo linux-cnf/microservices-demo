@@ -21,6 +21,12 @@ resource "google_container_node_pool" "primary_nodes" {
 
     labels = var.node_labels
 
+    resource_labels = {
+      managed_by = "terraform"
+      cluster    = var.cluster_name
+      node_pool  = var.node_pool_name
+    }
+
     service_account = var.service_account
     oauth_scopes    = var.oauth_scopes
 
@@ -46,6 +52,6 @@ resource "google_container_node_pool" "primary_nodes" {
 
   management {
     auto_repair  = true
-    auto_upgrade = true
+    auto_upgrade = false
   }
 }
