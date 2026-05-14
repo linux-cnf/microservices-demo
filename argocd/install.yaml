@@ -31895,7 +31895,7 @@ spec:
               key: dexserver.connector.failure.continue
               name: argocd-cmd-params-cm
               optional: true
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/dex:v2.45.0
+        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/dex:v2.43.1
         imagePullPolicy: Always
         name: dex
         ports:
@@ -32113,7 +32113,7 @@ spec:
             secretKeyRef:
               key: auth
               name: argocd-redis
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/redis:8.2.3-alpine
+        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/redis:7.2.8-alpine
         imagePullPolicy: Always
         name: redis
         ports:
