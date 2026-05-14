@@ -41,6 +41,27 @@ module "vpc" {
   depends_on = [module.project_services]
 }
 
+# NOTE:
+# Cloud NAT is currently enabled mainly to provide outbound internet access
+# for private GKE nodes so Argo CD can fetch external Git repositories/images.
+# This keeps nodes private (no public IPs) while still allowing controlled egress.
+module "cloud_nat" {
+  source = "../../modules/cloud-nat"
+
+  project_id        = var.gcp_project_id
+  region            = var.region
+  network_self_link = module.vpc.network_self_link
+
+  router_name = "router-kfounding-dev"
+  nat_name    = "nat-kfounding-dev"
+
+  depends_on = [
+    module.project_services,
+    module.vpc
+  ]
+}
+
+
 module "memorystore_redis" {
   source         = "../../modules/memorystore-redis"
   memorystore    = var.memorystore_enabled
