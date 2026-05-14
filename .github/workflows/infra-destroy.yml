@@ -48,8 +48,42 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false
 
-      - name: Terraform Destroy GKE only
+      - name: Terraform Destroy GKE and NAT only
         run: |
           terraform destroy -input=false -auto-approve \
             -target=module.gke_node_pool \
-            -target=module.gke_cluster
+            -target=module.gke_node_pool_platform_observability \
+            -target=module.gke_cluster \
+            -target=module.cloud_nat.google_compute_router_nat.this \
+            -target=module.cloud_nat.google_compute_router.this
+
+      - name: Delete orphan PVC disks
+        if: always()
+        run: |
+          echo "Finding PVC disks..."
+          PVC_DISKS=$(gcloud compute disks list \
+            --filter="name~'^pvc-'" \
+            --format="value(name,zone)")
+
+          if [ -z "$PVC_DISKS" ]; then
+            echo "No PVC disks found."
+            exit 0
+          fi
+
+          echo "$PVC_DISKS" | while read -r DISK ZONE; do
+            echo "Deleting PVC disk: $DISK in $ZONE"
+            gcloud compute disks delete "$DISK" \
+              --zone="$ZONE" \
+              --quiet
+          done
+
+      - name: Check leftover static IPs
+        if: always()
+        run: |
+          echo "=== Regional Static IPs ==="
+          gcloud compute addresses list \
+            --format="table(name,address,status,region,purpose)"
+
+          echo "=== Global Static IPs ==="
+          gcloud compute addresses list --global \
+            --format="table(name,address,status,purpose)"
