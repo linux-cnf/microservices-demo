@@ -107,33 +107,9 @@ kubectl wait --for=condition=Available deployment/argocd-repo-server \
 echo "Argo CD is ready."
 
 ########################################
-# Validate required env vars
+# Public Git repository
 ########################################
-: "${ARGOCD_REPO_URL:?Need ARGOCD_REPO_URL}"
-: "${ARGOCD_REPO_USERNAME:?Need ARGOCD_REPO_USERNAME}"
-: "${ARGOCD_REPO_PASSWORD:?Need ARGOCD_REPO_PASSWORD}"
-
-########################################
-# Create Argo CD repo secret
-########################################
-echo "Creating Argo CD repository secret..."
-
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: repo-microservices-demo
-  namespace: argocd
-  labels:
-    argocd.argoproj.io/secret-type: repository
-type: Opaque
-stringData:
-  type: git
-  url: ${ARGOCD_REPO_URL}
-  username: ${ARGOCD_REPO_USERNAME}
-  password: ${ARGOCD_REPO_PASSWORD}
-EOF
-
+echo "Using public Git repository; no Argo CD repo credentials required."
 ########################################
 # Apply Argo CD Applications
 ########################################
