@@ -1,0 +1,77 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# High-level orchestration workflow for platform bootstrap.
+#
+# RESPONSIBILITIES:
+# - Provision infrastructure
+# - Mirror approved platform images into Artifact Registry
+# - Prepare the platform for private-cluster GitOps bootstrap
+#
+# WHY THIS EXISTS?
+# Private GKE nodes running without Cloud NAT cannot pull directly
+# from public registries such as:
+# - quay.io
+# - ghcr.io
+# - docker.io
+# - public.ecr.aws
+#
+# Therefore:
+# 1. Infrastructure must exist first
+# 2. Artifact Registry repositories must exist
+# 3. Required platform images must be mirrored internally
+# 4. Only then can cluster bootstrap succeed reliably
+#
+# EXECUTION FLOW:
+# infra-main
+#   ↓
+# mirror-platform-images
+#
+# FUTURE PLATFORM FLOW:
+# platform-bootstrap
+#   ├── infra-main
+#   ├── mirror-platform-images
+#   ├── cluster-bootstrap
+#   ├── observability-bootstrap
+#   └── smoke-tests
+#
+# BENEFITS:
+# - deterministic platform bootstrap
+# - no random public image pulls
+# - production-friendly private-node architecture
+# - reusable workflow composition
+# - reduced dependency on public registries
+#
+# In short:
+# bootstrap infra first, mirror trusted images second,
+# then deploy workloads safely into private GKE.
+# -------------------------------------------------------------------
+name: platform-bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_apply:
+        description: "Run terraform apply before mirroring?"
+        required: true
+        default: "true"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform-validate:
+    uses: ./.github/workflows/terraform-validate-ci.yaml
+    secrets: inherit
+
+  infra:
+    needs: terraform-validate
+    uses: ./.github/workflows/infra-main.yml
+    with:
+      run_apply: ${{ inputs.run_apply }}
+    secrets: inherit
+
+  mirror-platform-images:
+    needs: infra
+    uses: ./.github/workflows/mirror-platform-images.yml
+    secrets: inherit

@@ -1,12 +1,64 @@
+# # -------------------------------------------------------------------
+# PURPOSE:
+# Provision and validate core cloud infrastructure using Terraform
+# from GitHub-hosted runners.
+#
+# RESPONSIBILITIES:
+# - Enable required GCP APIs
+# - Create VPC/subnet/networking
+# - Create Artifact Registry repositories
+# - Create GKE cluster and node pools
+# - Validate Terraform configuration
+# - Export PV -> GCP disk mapping artifact
+#
+# DESIGN PRINCIPLES:
+# - Infrastructure only (no kubectl app bootstrap here)
+# - Reusable workflow via workflow_call
+# - Safe for orchestration from higher-level workflows
+# - Keeps cloud provisioning separate from cluster bootstrap
+#
+# WHY SEPARATED?
+# Cluster-level operations such as:
+# - Argo CD installation
+# - kubectl apply
+# - GitOps bootstrap
+# - workload deployment
+#
+# are intentionally handled separately from bastion/bootstrap
+# workflows because private GKE clusters may not be reachable from
+# GitHub-hosted runners.
+#
+# LONG-TERM PLATFORM FLOW:
+# platform-bootstrap
+#   ├── infra-main
+#   ├── mirror-platform-images
+#   ├── cluster-bootstrap
+#   ├── observability-bootstrap
+#   └── smoke-tests
+#
+# In short:
+# Terraform provisions infrastructure.
+# GitOps/bootstrap layers are handled separately afterward.
+# -------------------------------------------------------------------
+# This workflow is responsible only for infrastructure provisioning and
+# validation from GitHub-hosted runners using Terraform.
 name: infra-main
 
 on:
+  workflow_call:
+    inputs:
+      run_apply:
+        required: false
+        type: string
+        default: "true"
+
   push:
     branches: [main]
     paths:
       - 'terraform/**'
       - 'scripts/map-pv-disks.sh'
       - '.github/workflows/infra-main.yml'
+
   workflow_dispatch:
     inputs:
       run_apply:
@@ -72,7 +124,7 @@ jobs:
         run: terraform plan -input=false -out=tfplan
 
       - name: Terraform apply
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
+        if: inputs.run_apply == 'true'
         working-directory: terraform/live/main
         env:
           TF_INPUT: "false"
@@ -80,7 +132,7 @@ jobs:
         run: terraform apply -input=false -auto-approve tfplan
 
       - name: Get GKE credentials
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
+        if: inputs.run_apply == 'true'
         uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: kfounding
@@ -88,46 +140,15 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Map Kubernetes PVs to GCP disks
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
+        if: inputs.run_apply == 'true'
+        continue-on-error: true
         run: |
           chmod +x scripts/map-pv-disks.sh
           ./scripts/map-pv-disks.sh | tee pv-disk-map.txt
 
       - name: Upload PV disk map artifact
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
+        if: inputs.run_apply == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: pv-disk-map
           path: pv-disk-map.txt
-
-      - name: Configure Docker for Artifact Registry
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
-        run: |
-          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
-
-      - name: Mirror approved third-party images to Artifact Registry
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
-        run: |
-          set -euo pipefail
-          IMAGE_FILE="terraform/live/main/artifact_registry_seed_images.txt"
-          if [ ! -f "${IMAGE_FILE}" ]; then
-            echo "No third-party image inventory file found. Skipping."
-            exit 0
-          fi
-
-          while IFS='|' read -r SOURCE_IMAGE TARGET_IMAGE; do
-            if [[ -z "${SOURCE_IMAGE}" || "${SOURCE_IMAGE}" =~ ^# ]]; then
-              continue
-            fi
-
-            echo "Processing ${SOURCE_IMAGE} -> ${TARGET_IMAGE}"
-
-            if gcloud artifacts docker images describe "${TARGET_IMAGE}" >/dev/null 2>&1; then
-              echo "Target image already exists, skipping: ${TARGET_IMAGE}"
-              continue
-            fi
-
-            docker pull "${SOURCE_IMAGE}"
-            docker tag "${SOURCE_IMAGE}" "${TARGET_IMAGE}"
-            docker push "${TARGET_IMAGE}"
-          done < "${IMAGE_FILE}"
