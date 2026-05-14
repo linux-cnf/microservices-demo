@@ -1,0 +1,59 @@
+# NOTE:
+# This workflow mirrors approved third-party/platform container images into
+# the private Google Artifact Registry repository used by the cluster.
+#
+# The main purpose is to avoid direct public image pulls from Kubernetes nodes,
+# improve reliability for private-node GKE clusters, reduce dependency on
+# external registries during deployments, and support environments running
+# without Cloud NAT/public internet access.
+#
+# Image inventory is maintained in:
+# terraform/live/main/artifact_registry_seed_platform_images.txt
+#
+# The actual mirroring logic is handled by:
+# scripts/mirror-platform-images.sh
+#
+# In short:
+# approved external images -> mirror into private Artifact Registry
+# -> GKE pulls only trusted internal images.
+name: mirror-platform-images
+
+on:
+  workflow_call:
+
+  workflow_dispatch:
+
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/live/main/artifact_registry_seed_platform_images.txt'
+      - 'scripts/mirror-platform-images.sh'
+      - '.github/workflows/mirror-platform-images.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Mirror platform images
+        run: |
+          chmod +x scripts/mirror-platform-images.sh
+          ./scripts/mirror-platform-images.sh
