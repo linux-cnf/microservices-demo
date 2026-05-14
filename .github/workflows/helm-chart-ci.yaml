@@ -1,3 +1,24 @@
+# NOTE:
+# This workflow validates the custom platform Helm charts used for the
+# observability and logging stack before they are merged or deployed by Argo CD.
+#
+# It currently checks:
+# - helm-chart/logging-agent
+# - helm-chart/logging
+# - helm-chart/observability
+#
+# This was added when the repo started moving platform components like
+# Prometheus/Grafana, Elasticsearch/Kibana, and logging agents into Helm charts.
+# The main issue it solved was catching broken Helm chart syntax, missing chart
+# dependencies, invalid values, and render failures early in GitHub Actions
+# instead of discovering them later during Argo CD sync inside the GKE cluster.
+#
+# The Helm repositories are added explicitly because some charts depend on
+# external upstream chart repos such as Elastic and prometheus-community.
+#
+# In short:
+# Helm chart change -> build dependencies -> helm lint --strict
+# -> helm template render check -> safer Argo CD deployment.
 name: helm-chart-ci
 
 on:
