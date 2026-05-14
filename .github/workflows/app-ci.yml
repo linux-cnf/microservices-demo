@@ -1,3 +1,18 @@
+# NOTE:
+# This workflow validates the Kubernetes application manifests generated from
+# the kustomize/ directory before they are merged into main.
+#
+# It was added when the repo moved toward GitOps with Argo CD, where Argo CD
+# syncs the rendered Kustomize manifests into GKE. The goal is to catch broken
+# Kustomize configuration, empty renders, or invalid-looking Kubernetes YAML
+# early in GitHub Actions instead of discovering the issue during Argo CD sync.
+#
+# This workflow does not build container images and does not deploy to the
+# cluster. It only renders the Kustomize output and performs basic safety checks.
+#
+# In short:
+# Kustomize change -> render manifests -> verify output is not empty
+# -> verify Kubernetes YAML structure -> safer Argo CD sync.
 name: app-ci
 
 on:

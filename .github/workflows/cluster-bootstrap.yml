@@ -1,3 +1,9 @@
+# NOTE:
+# Cluster bootstrap is intentionally executed from the bastion host using
+# scripts/cluster-bootstrap.sh instead of a dedicated GitHub Actions cluster
+# pipeline/runners. This approach keeps the setup simple and avoids additional
+# always-running/self-hosted runner infrastructure cost for cluster-level
+# kubectl and Argo CD bootstrap operations.
 name: cluster-bootstrap
 
 on:
@@ -46,7 +52,7 @@ jobs:
         run: |
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply --server-side --force-conflicts -n argocd \
-            -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+            -f argocd/install.yaml
 
       - name: Wait for Argo CD
         run: |

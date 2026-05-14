@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "terraform/live/main/artifact_registry_seed_observability_images.txt"
+      - "terraform/live/main/artifact_registry_seed_platform_images.txt"
 
 permissions:
   contents: read
@@ -33,4 +33,4 @@ jobs:
       - name: Seed Images
         run: |
           cd helm-chart/observability
-          ./scripts/seed-observability-images.sh
+          ./scripts/seed-platform-images.sh

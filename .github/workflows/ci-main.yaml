@@ -1,3 +1,21 @@
+# NOTE:
+# This workflow is the main application CI/CD pipeline for the Online Boutique
+# microservices. It detects which services changed, runs unit tests, validates
+# Kustomize manifests, builds only the changed service images, and pushes them
+# to Google Artifact Registry using the current Git SHA as the image tag.
+#
+# After images are pushed, it updates only the affected service tags in the
+# Kustomize image tag file and opens an automated pull request instead of
+# directly changing the protected main/release branch.
+#
+# This pipeline does not install Argo CD or apply manifests directly to the
+# GKE cluster. Cluster bootstrap and Argo CD setup are intentionally handled
+# separately from the bastion host using scripts/cluster-bootstrap.sh, while
+# Argo CD performs the final GitOps deployment after the image tag PR is merged.
+#
+# In short:
+# code change -> test -> build changed images -> push to Artifact Registry
+# -> update Kustomize tags via PR -> merge PR -> Argo CD syncs to GKE.
 ---
 name: "Continuous Integration :- Main/Release"
 
