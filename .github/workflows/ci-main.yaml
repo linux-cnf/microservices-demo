@@ -1,21 +1,32 @@
-# NOTE:
-# This workflow is the main application CI/CD pipeline for the Online Boutique
-# microservices. It detects which services changed, runs unit tests, validates
-# Kustomize manifests, builds only the changed service images, and pushes them
-# to Google Artifact Registry using the current Git SHA as the image tag.
+# IMPORTANT:
+# This pipeline can intentionally rebuild and retag ALL microservices even when
+# no direct src/<service>/ application code changes are detected.
 #
-# After images are pushed, it updates only the affected service tags in the
-# Kustomize image tag file and opens an automated pull request instead of
-# directly changing the protected main/release branch.
+# This happens when "shared" files change, because such changes can impact the
+# build, runtime behavior, generated artifacts, manifests, or deployment logic
+# across multiple/all services.
 #
-# This pipeline does not install Argo CD or apply manifests directly to the
-# GKE cluster. Cluster bootstrap and Argo CD setup are intentionally handled
-# separately from the bastion host using scripts/cluster-bootstrap.sh, while
-# Argo CD performs the final GitOps deployment after the image tag PR is merged.
+# Shared change detection is currently triggered for changes in:
+# - .github/workflows/ci-main.yaml
+# - kustomize/base/
+# - proto/
+# - pb/
+# - genproto/
+# - Dockerfile
+# - Makefile
 #
+# In these cases, the workflow marks all services as changed, rebuilds all
+# images, pushes fresh tags to Artifact Registry, and opens an automated PR
+# updating all image tags in:
+# kustomize/components/container-images-tag/kustomization.yaml
+#
+# Example:
+# A CI pipeline logic change in ci-main.yaml can trigger full image rebuilds
+# and tag updates even without direct microservice source-code changes.
 # In short:
-# code change -> test -> build changed images -> push to Artifact Registry
-# -> update Kustomize tags via PR -> merge PR -> Argo CD syncs to GKE.
+# code/shared-change -> test -> validate manifests -> build affected images
+# -> push to Artifact Registry -> update Kustomize tags via PR
+# -> merge PR -> Argo CD syncs deployment to GKE.
 ---
 name: "Continuous Integration :- Main/Release"
 
