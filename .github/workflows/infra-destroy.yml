@@ -61,21 +61,20 @@ jobs:
         if: always()
         run: |
           echo "Finding PVC disks..."
-          PVC_DISKS=$(gcloud compute disks list \
+
+          gcloud compute disks list \
             --filter="name~'^pvc-'" \
-            --format="value(name,zone)")
+            --format="csv[no-heading](name,zone.basename())" | while IFS=, read -r DISK ZONE; do
 
-          if [ -z "$PVC_DISKS" ]; then
-            echo "No PVC disks found."
-            exit 0
-          fi
+              if [ -z "$DISK" ] || [ -z "$ZONE" ]; then
+                continue
+              fi
 
-          echo "$PVC_DISKS" | while read -r DISK ZONE; do
-            echo "Deleting PVC disk: $DISK in $ZONE"
-            gcloud compute disks delete "$DISK" \
-              --zone="$ZONE" \
-              --quiet
-          done
+              echo "Deleting PVC disk: $DISK in $ZONE"
+              gcloud compute disks delete "$DISK" \
+                --zone="$ZONE" \
+                --quiet
+            done
 
       - name: Check leftover static IPs
         if: always()
