@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
-    targetRevision: tempo
+    targetRevision: main
     path: helm-chart/tracing
     helm:
       valueFiles:
