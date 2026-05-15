@@ -218,10 +218,10 @@ module "github_actions_deployer_serviceusage_admin" {
 }
 
 module "github_actions_deployer_compute_storage_admin" {
-  source     = "../../modules/iam-binding"
+  source         = "../../modules/iam-binding"
   gcp_project_id = var.gcp_project_id
-  member     = module.github_actions_deployer_sa.member
-  role       = "roles/compute.storageAdmin"
+  member         = module.github_actions_deployer_sa.member
+  role           = "roles/compute.storageAdmin"
 }
 # Later, if firewall rules are added, uncomment this.
 #module "github_actions_deployer_compute_security_admin" {
