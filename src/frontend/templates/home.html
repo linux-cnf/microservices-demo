@@ -56,10 +56,12 @@
           </div>
           {{ end }}
 
-          <!-- Homepage ad block -->
-          <div class="ad">
-            {{ if $.ad }}{{ template "text_ad" $ }}{{ end }}
-          </div>
+	  <!-- Homepage ad block -->
+	  <div class="col-12">
+  	  <div class="ad">
+   	    {{ if $.ad }}{{ template "text_ad" $ }}{{ end }}
+ 	 </div>
+         </div>
 
         </div>
 
