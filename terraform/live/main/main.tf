@@ -219,7 +219,7 @@ module "github_actions_deployer_serviceusage_admin" {
 
 module "github_actions_deployer_compute_storage_admin" {
   source     = "../../modules/iam-binding"
-  project_id = var.gcp_project_id
+  gcp_project_id = var.gcp_project_id
   member     = module.github_actions_deployer_sa.member
   role       = "roles/compute.storageAdmin"
 }
