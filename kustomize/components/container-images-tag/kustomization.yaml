@@ -26,7 +26,7 @@ images:
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/emailservice
     newTag: 52eb99a2630d1af884e26c0d4b7e7930b2e41a9b
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/frontend
-    newTag: 0302e26478a6e62573e1cf6c41c265e27259b08e
+    newTag: 622017468ef2eda12f33b1f9f932984db6fab38e
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/loadgenerator
     newTag: 52eb99a2630d1af884e26c0d4b7e7930b2e41a9b
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/paymentservice
