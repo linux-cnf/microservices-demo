@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: Platform apps like observability, logging, tracing and operators
+
+  sourceRepos:
+    - https://github.com/linux-cnf/microservices-demo.git
+    - https://helm.elastic.co
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: elastic-system
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: logging
+    - server: https://kubernetes.default.svc
+      namespace: tracing
+
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: boutique
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: Online Boutique application
+
+  sourceRepos:
+    - https://github.com/linux-cnf/microservices-demo.git
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: boutique
+
+  clusterResourceWhitelist: []
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

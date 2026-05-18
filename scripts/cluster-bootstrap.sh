@@ -113,27 +113,25 @@ echo "Using public Git repository; no Argo CD repo credentials required."
 ########################################
 # Apply Argo CD Applications
 ########################################
-echo "Applying Argo CD applications..."
-
-kubectl apply -f argocd/boutique-app.yaml -n argocd
-kubectl apply -f argocd/observability-app.yaml -n argocd
-kubectl apply -f argocd/eck-operator-app.yaml -n argocd
-
 ########################################
-# Wait for ECK operator
+# Apply Argo CD Root Application
 ########################################
-echo "Waiting for ECK operator to become Healthy..."
+echo "Applying Argo CD root application..."
 
-until [ "$(kubectl get application eck-operator -n argocd -o jsonpath='{.status.health.status}')" = "Healthy" ]; do
-  kubectl get application eck-operator -n argocd || true
-  sleep 10
-done
+kubectl apply -f argocd/platform-root-app.yaml -n argocd
 
-########################################
-# Apply remaining apps
-########################################
-kubectl apply -f argocd/logging-app.yaml -n argocd
-kubectl apply -f argocd/logging-agent-app.yaml -n argocd
-kubectl apply -f argocd/tracing-app.yaml -n argocd
+echo "Waiting for platform-root application to be created..."
+kubectl wait --for=jsonpath='{.metadata.name}'=platform-root \
+  application/platform-root -n argocd --timeout=120s || true
+
+echo "Waiting for platform-root to sync..."
+kubectl wait --for=jsonpath='{.status.sync.status}'=Synced \
+  application/platform-root -n argocd --timeout=300s || true
+
+echo "Current Argo CD applications:"
+kubectl get application -n argocd || true
+
+echo "Current Argo CD projects:"
+kubectl get appproject -n argocd || true
 
 echo "Cluster bootstrap completed successfully 🚀"

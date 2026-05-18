@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: logging-agent
+  name: logging
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "2"
 spec:
-  project: default
+  project: platform 
 
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
     targetRevision: main
-    path: helm-chart/logging-agent
+    path: helm-chart/logging
     helm:
       valueFiles:
         - values.yaml
@@ -28,3 +28,5 @@ spec:
       - CreateNamespace=true
       - ServerSideApply=true
       - SkipDryRunOnMissingResource=true
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true

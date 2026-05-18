@@ -1,30 +1,25 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: logging
+  name: boutique
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "5"
 spec:
-  project: default
-
+  project: boutique
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
     targetRevision: main
-    path: helm-chart/logging
-    helm:
-      valueFiles:
-        - values.yaml
-
+    path: kustomize
   destination:
     server: https://kubernetes.default.svc
-    namespace: logging
-
+    namespace: boutique
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
-      - SkipDryRunOnMissingResource=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - ApplyOutOfSyncOnly=true
