@@ -29,11 +29,12 @@ This directory contains **Argo CD Application manifests** for platform and appli
 
 ## Recommended Deployment Order
 
-1. eck-operator-app  
-2. observability-app  
-3. logging-app  
-4. logging-agent-app  
-5. boutique-app  
+1. eck-operator-app
+2. observability-app
+3. logging-app
+4. logging-agent-app
+5. tracing-app
+6. boutique-app
 
 ---
 
@@ -49,6 +50,7 @@ kubectl apply -f argocd/observability-app.yaml -n argocd
 kubectl apply -f argocd/eck-operator-app.yaml -n argocd
 kubectl apply -f argocd/logging-app.yaml -n argocd
 kubectl apply -f argocd/logging-agent-app.yaml -n argocd
+kubectl apply -f argocd/tracing-app.yaml -n argocd
 kubectl apply -f argocd/boutique-app.yaml -n argocd
 
 Workflow Pattern
@@ -68,6 +70,7 @@ Structure
 argocd/
 ├── README.md
 ├── boutique-app.yaml
+├── tracing-app.yaml
 ├── eck-operator-app.yaml
 ├── logging-agent-app.yaml
 ├── logging-app.yaml

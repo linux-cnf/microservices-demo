@@ -92,20 +92,15 @@ jobs:
             password: ${ARGOCD_REPO_PASSWORD}
           EOF
 
-      - name: Bootstrap Argo CD apps
+      - name: Bootstrap Argo CD root app
         run: |
           set -euo pipefail
 
-          kubectl apply -f argocd/boutique-app.yaml -n argocd
-          kubectl apply -f argocd/observability-app.yaml -n argocd
-          kubectl apply -f argocd/eck-operator-app.yaml -n argocd
+          echo "Applying Argo CD root app..."
+          kubectl apply -f argocd/platform-root-app.yaml -n argocd
 
-          echo "Waiting for eck-operator to become Healthy..."
-          until [ "$(kubectl get application eck-operator -n argocd -o jsonpath='{.status.health.status}')" = "Healthy" ]; do
-            kubectl get application eck-operator -n argocd || true
-            sleep 10
-          done
+          echo "Waiting for root app to appear..."
+          kubectl wait --for=jsonpath='{.metadata.name}'=platform-root \
+            application/platform-root -n argocd --timeout=120s || true
 
-          kubectl apply -f argocd/logging-app.yaml -n argocd
-          kubectl apply -f argocd/logging-agent-app.yaml -n argocd
-          kubectl apply -f argocd/tracing-app.yaml -n argocd
+          kubectl get application -n argocd
