@@ -1,9 +1,15 @@
 # NOTE:
 # Cluster bootstrap is intentionally executed from the bastion host using
-# scripts/cluster-bootstrap.sh instead of a dedicated GitHub Actions cluster
-# pipeline/runners. This approach keeps the setup simple and avoids additional
-# always-running/self-hosted runner infrastructure cost for cluster-level
-# kubectl and Argo CD bootstrap operations.
+# a self-hosted GitHub Actions runner because the GKE control plane is
+# restricted by master authorized networks.
+#
+# This workflow performs only cluster-level bootstrap:
+# - gets GKE credentials
+# - installs Argo CD
+# - applies Argo CD core config
+# - applies the app-of-apps root application
+#
+# Child applications are managed by argocd/platform-root-app.yaml.
 name: cluster-bootstrap
 
 on:
@@ -45,52 +51,59 @@ jobs:
 
       - name: Verify kubectl access
         run: |
+          set -euo pipefail
           kubectl cluster-info
-          kubectl get nodes
+          kubectl get nodes -o wide
 
       - name: Install Argo CD
         run: |
+          set -euo pipefail
+
           kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+
           kubectl apply --server-side --force-conflicts -n argocd \
             -f argocd/install.yaml
 
       - name: Wait for Argo CD
         run: |
-          kubectl wait --for=condition=Available deployment/argocd-server -n argocd --timeout=600s
-          kubectl wait --for=condition=Available deployment/argocd-repo-server -n argocd --timeout=600s
+          set -euo pipefail
 
-      - name: Validate Argo CD repo secrets
-        env:
-          ARGOCD_REPO_URL: ${{ secrets.ARGOCD_REPO_URL }}
-          ARGOCD_REPO_USERNAME: ${{ secrets.ARGOCD_REPO_USERNAME }}
-          ARGOCD_REPO_PASSWORD: ${{ secrets.ARGOCD_REPO_PASSWORD }}
-        run: |
-          test -n "$ARGOCD_REPO_URL"
-          test -n "$ARGOCD_REPO_USERNAME"
-          test -n "$ARGOCD_REPO_PASSWORD"
-          echo "Argo CD repo secrets are present"
+          kubectl wait --for=condition=Available deployment/argocd-server \
+            -n argocd --timeout=600s
 
-      - name: Create Argo CD repository secret
-        env:
-          ARGOCD_REPO_URL: ${{ secrets.ARGOCD_REPO_URL }}
-          ARGOCD_REPO_USERNAME: ${{ secrets.ARGOCD_REPO_USERNAME }}
-          ARGOCD_REPO_PASSWORD: ${{ secrets.ARGOCD_REPO_PASSWORD }}
+          kubectl wait --for=condition=Available deployment/argocd-repo-server \
+            -n argocd --timeout=600s
+
+      - name: Apply Argo CD core config
         run: |
-          kubectl apply -f - <<EOF
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: repo-microservices-demo
-            namespace: argocd
-            labels:
-              argocd.argoproj.io/secret-type: repository
-          type: Opaque
-          stringData:
-            type: git
-            url: ${ARGOCD_REPO_URL}
-            username: ${ARGOCD_REPO_USERNAME}
-            password: ${ARGOCD_REPO_PASSWORD}
-          EOF
+          set -euo pipefail
+
+          echo "Applying Argo CD custom health checks..."
+          kubectl apply -f argocd/argocd-cm-health-patch.yaml -n argocd
+
+          echo "Applying Argo CD notifications config..."
+          kubectl apply -f argocd/argocd-notifications-cm.yaml -n argocd
+
+      - name: Restart Argo CD components
+        run: |
+          set -euo pipefail
+
+          kubectl rollout restart deployment/argocd-server -n argocd
+          kubectl rollout restart deployment/argocd-repo-server -n argocd
+          kubectl rollout restart deployment/argocd-notifications-controller -n argocd
+          kubectl rollout restart statefulset/argocd-application-controller -n argocd
+
+          kubectl rollout status deployment/argocd-server \
+            -n argocd --timeout=300s
+
+          kubectl rollout status deployment/argocd-repo-server \
+            -n argocd --timeout=300s
+
+          kubectl rollout status deployment/argocd-notifications-controller \
+            -n argocd --timeout=300s
+
+          kubectl rollout status statefulset/argocd-application-controller \
+            -n argocd --timeout=300s
 
       - name: Bootstrap Argo CD root app
         run: |
@@ -99,8 +112,16 @@ jobs:
           echo "Applying Argo CD root app..."
           kubectl apply -f argocd/platform-root-app.yaml -n argocd
 
-          echo "Waiting for root app to appear..."
+          echo "Waiting for platform-root application to be created..."
           kubectl wait --for=jsonpath='{.metadata.name}'=platform-root \
             application/platform-root -n argocd --timeout=120s || true
 
-          kubectl get application -n argocd
+          echo "Waiting for platform-root to sync..."
+          kubectl wait --for=jsonpath='{.status.sync.status}'=Synced \
+            application/platform-root -n argocd --timeout=300s || true
+
+          echo "Current Argo CD applications:"
+          kubectl get application -n argocd || true
+
+          echo "Current Argo CD projects:"
+          kubectl get appproject -n argocd || true

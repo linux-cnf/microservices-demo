@@ -4,13 +4,14 @@ metadata:
   name: platform
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-wave: "-3"
 spec:
   description: Platform apps like observability, logging, tracing and operators
 
   sourceRepos:
     - https://github.com/linux-cnf/microservices-demo.git
     - https://helm.elastic.co
+    - https://charts.external-secrets.io
 
   destinations:
     - server: https://kubernetes.default.svc
@@ -21,6 +22,8 @@ spec:
       namespace: logging
     - server: https://kubernetes.default.svc
       namespace: tracing
+    - server: https://kubernetes.default.svc
+      namespace: external-secrets
 
   clusterResourceWhitelist:
     - group: "*"
@@ -36,7 +39,7 @@ metadata:
   name: boutique
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-wave: "-3"
 spec:
   description: Online Boutique application
 

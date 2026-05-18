@@ -105,14 +105,50 @@ kubectl wait --for=condition=Available deployment/argocd-repo-server \
   -n argocd --timeout=600s
 
 echo "Argo CD is ready."
+echo "Argo CD is ready."
+
+########################################
+# Apply Argo CD custom health checks
+########################################
+echo "Applying Argo CD custom health checks..."
+kubectl apply -f argocd/argocd-cm-health-patch.yaml -n argocd
+
+########################################
+# Apply Argo CD notifications config
+########################################
+echo "Applying Argo CD notifications config..."
+kubectl apply -f argocd/argocd-notifications-cm.yaml -n argocd
+
+########################################
+# Restart Argo CD components
+########################################
+echo "Restarting Argo CD components to load updated configuration..."
+
+kubectl rollout restart deployment/argocd-server -n argocd
+kubectl rollout restart deployment/argocd-repo-server -n argocd
+kubectl rollout restart deployment/argocd-notifications-controller -n argocd
+kubectl rollout restart statefulset/argocd-application-controller -n argocd
+
+########################################
+# Wait for Argo CD components
+########################################
+kubectl rollout status deployment/argocd-server \
+  -n argocd --timeout=300s
+
+kubectl rollout status deployment/argocd-repo-server \
+  -n argocd --timeout=300s
+
+kubectl rollout status deployment/argocd-notifications-controller \
+  -n argocd --timeout=300s
+
+kubectl rollout status statefulset/argocd-application-controller \
+  -n argocd --timeout=300s
 
 ########################################
 # Public Git repository
 ########################################
 echo "Using public Git repository; no Argo CD repo credentials required."
-########################################
-# Apply Argo CD Applications
-########################################
+
 ########################################
 # Apply Argo CD Root Application
 ########################################

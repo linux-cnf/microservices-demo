@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+data:
+  service.slack: |
+    token: $slack-token
+
+  ########################################
+  # Triggers
+  ########################################
+
+  trigger.on-health-degraded: |
+    - description: App health degraded
+      when: app.status.health.status == 'Degraded'
+      send:
+        - app-health-degraded
+
+  trigger.on-sync-failed: |
+    - description: App sync failed
+      when: app.status.operationState.phase in ['Error', 'Failed']
+      send:
+        - app-sync-failed
+
+  trigger.on-out-of-sync: |
+    - description: App is OutOfSync
+      when: app.status.sync.status == 'OutOfSync'
+      send:
+        - app-out-of-sync
+
+  trigger.on-sync-succeeded: |
+    - description: App sync succeeded
+      when: app.status.operationState.phase in ['Succeeded']
+      send:
+        - app-sync-succeeded
+
+  ########################################
+  # Templates
+  ########################################
+
+  template.app-health-degraded: |
+    message: |
+      :rotating_light: *Argo CD App Health Degraded*
+
+      *App:* {{.app.metadata.name}}
+      *Project:* {{.app.spec.project}}
+      *Health:* {{.app.status.health.status}}
+      *Sync:* {{.app.status.sync.status}}
+
+      *Repo:* {{.app.spec.source.repoURL}}
+      *Path:* {{.app.spec.source.path}}
+
+  template.app-sync-failed: |
+    message: |
+      :x: *Argo CD Sync Failed*
+
+      *App:* {{.app.metadata.name}}
+      *Project:* {{.app.spec.project}}
+
+      *Phase:* {{.app.status.operationState.phase}}
+      *Message:* {{.app.status.operationState.message}}
+
+      *Repo:* {{.app.spec.source.repoURL}}
+      *Path:* {{.app.spec.source.path}}
+
+  template.app-out-of-sync: |
+    message: |
+      :large_orange_circle: *Argo CD App OutOfSync*
+
+      *App:* {{.app.metadata.name}}
+      *Project:* {{.app.spec.project}}
+
+      *Health:* {{.app.status.health.status}}
+      *Sync:* {{.app.status.sync.status}}
+
+      *Repo:* {{.app.spec.source.repoURL}}
+      *Path:* {{.app.spec.source.path}}
+
+  template.app-sync-succeeded: |
+    message: |
+      :white_check_mark: *Argo CD Sync Succeeded*
+
+      *App:* {{.app.metadata.name}}
+      *Project:* {{.app.spec.project}}
+
+      *Health:* {{.app.status.health.status}}
+      *Sync:* {{.app.status.sync.status}}
+
+  ########################################
+  # Default Subscriptions
+  ########################################
+
+  subscriptions: |
+    - recipients:
+        - slack:argocd-alerts
+      triggers:
+        - on-health-degraded
+        - on-sync-failed
+        - on-out-of-sync
+
+    - recipients:
+        - slack:production-incidents
+      triggers:
+        - on-health-degraded
+        - on-sync-failed
