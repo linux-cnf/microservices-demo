@@ -19,17 +19,17 @@ on:
       pr_number:
         description: "PR number to clean up"
         required: true
-#  pull_request:
-#    # run on pull requests targeting main
-#    branches:
-#      - main
-#    types: closed
+    #  pull_request:
+    #    # run on pull requests targeting main
+    #    branches:
+    #      - main
+    #    types: closed
     paths-ignore:
-      - '**/README.md'
-      - 'kustomize/**'
-      - '.github/workflows/kustomize-build-ci.yaml'
-      - 'terraform/**'
-      - '.github/workflows/terraform-validate-ci.yaml'
+      - "**/README.md"
+      - "kustomize/**"
+      - ".github/workflows/kustomize-build-ci.yaml"
+      - "terraform/**"
+      - ".github/workflows/terraform-validate-ci.yaml"
 jobs:
   cleanup-namespace:
     runs-on: [self-hosted, is-enabled]

@@ -18,13 +18,13 @@ name: app-ci
 on:
   pull_request:
     paths:
-      - 'kustomize/**'
-      - '.github/workflows/app-ci.yml'
+      - "kustomize/**"
+      - ".github/workflows/app-ci.yml"
   push:
     branches: [main]
     paths:
-      - 'kustomize/**'
-      - '.github/workflows/app-ci.yml'
+      - "kustomize/**"
+      - ".github/workflows/app-ci.yml"
 
 jobs:
   validate-kustomize:
