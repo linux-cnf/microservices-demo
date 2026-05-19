@@ -1,8 +1,8 @@
 module "vpc" {
   source = "../../modules/vpc"
 
-  gcp_project_id = var.gcp_project_id
-  region         = var.region
+  project_id = var.gcp_project_id
+  region     = var.region
 
   network_name = "vpc-kfounding-dev"
   subnet_name  = "subnet-us-central1-dev"
