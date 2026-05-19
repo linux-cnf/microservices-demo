@@ -1,0 +1,48 @@
+name: github-actions-ci
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-github-actions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check workflow YAML formatting with Prettier
+        run: |
+          npx prettier --check ".github/workflows/**/*.{yml,yaml}"
+
+      - name: Install yamllint
+        run: |
+          python -m pip install --upgrade pip
+          pip install yamllint
+
+      - name: Validate workflow YAML syntax with yamllint
+        run: |
+          yamllint .github/workflows
+
+      - name: Install actionlint
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+
+      - name: Validate GitHub Actions with actionlint
+        run: |
+          ./actionlint -color
