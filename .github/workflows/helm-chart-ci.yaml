@@ -26,12 +26,12 @@ on:
     branches:
       - main
     paths:
-      - 'helm-chart/**'
-      - '.github/workflows/helm-chart-ci.yaml'
+      - "helm-chart/**"
+      - ".github/workflows/helm-chart-ci.yaml"
   pull_request:
     paths:
-      - 'helm-chart/**'
-      - '.github/workflows/helm-chart-ci.yaml'
+      - "helm-chart/**"
+      - ".github/workflows/helm-chart-ci.yaml"
 
 jobs:
   helm-chart-ci:

@@ -30,7 +30,7 @@
 ---
 name: "Continuous Integration :- Main/Release"
 
-'on':
+"on":
   push:
     branches:
       - main

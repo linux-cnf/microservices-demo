@@ -55,9 +55,9 @@ on:
   push:
     branches: [main]
     paths:
-      - 'terraform/**'
-      - 'scripts/map-pv-disks.sh'
-      - '.github/workflows/infra-main.yml'
+      - "terraform/**"
+      - "scripts/map-pv-disks.sh"
+      - ".github/workflows/infra-main.yml"
 
   workflow_dispatch:
     inputs:
@@ -107,6 +107,42 @@ jobs:
       - name: Terraform init
         working-directory: terraform/live/main
         run: terraform init
+
+      - name: Import long-lived existing Terraform resources
+        working-directory: terraform/live/main
+        env:
+          TF_INPUT: "false"
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          SECRET_RESOURCE="google_secret_manager_secret.argocd_slack_bot_token"
+          SECRET_ID="projects/${PROJECT_ID}/secrets/argocd-slack-bot-token"
+
+          EXTERNAL_SECRETS_SA_RESOURCE="module.external_secrets_gsm_sa.google_service_account.service_account"
+          EXTERNAL_SECRETS_SA_ID="projects/${PROJECT_ID}/serviceAccounts/external-secrets-gsm@${PROJECT_ID}.iam.gserviceaccount.com"
+
+          if gcloud secrets describe argocd-slack-bot-token --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            if terraform state show "${SECRET_RESOURCE}" >/dev/null 2>&1; then
+              echo "Secret Manager secret already exists in Terraform state."
+            else
+              echo "Importing existing Secret Manager secret into Terraform state..."
+              terraform import "${SECRET_RESOURCE}" "${SECRET_ID}"
+            fi
+          else
+            echo "Secret Manager secret does not exist yet. Terraform will create secret metadata."
+          fi
+
+          if gcloud iam service-accounts describe "external-secrets-gsm@${PROJECT_ID}.iam.gserviceaccount.com" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            if terraform state show "${EXTERNAL_SECRETS_SA_RESOURCE}" >/dev/null 2>&1; then
+              echo "External Secrets service account already exists in Terraform state."
+            else
+              echo "Importing existing External Secrets service account into Terraform state..."
+              terraform import "${EXTERNAL_SECRETS_SA_RESOURCE}" "${EXTERNAL_SECRETS_SA_ID}"
+            fi
+          else
+            echo "External Secrets service account does not exist yet. Terraform will create it."
+          fi
 
       - name: Terraform fmt check
         working-directory: terraform/live/main

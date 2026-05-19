@@ -5,16 +5,16 @@ on:
     branches:
       - main
     paths:
-      - 'helm-chart/**'
-      - 'kustomize/**'
-      - 'kubernetes-manifests/**'
-      - '.github/workflows/kubevious-manifests-ci.yaml'
+      - "helm-chart/**"
+      - "kustomize/**"
+      - "kubernetes-manifests/**"
+      - ".github/workflows/kubevious-manifests-ci.yaml"
   pull_request:
     paths:
-      - 'helm-chart/**'
-      - 'kustomize/**'
-      - 'kubernetes-manifests/**'
-      - '.github/workflows/kubevious-manifests-ci.yaml'
+      - "helm-chart/**"
+      - "kustomize/**"
+      - "kubernetes-manifests/**"
+      - ".github/workflows/kubevious-manifests-ci.yaml"
 
 permissions:
   contents: read

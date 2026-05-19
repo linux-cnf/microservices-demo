@@ -24,13 +24,13 @@ on:
   push:
     branches: [main]
     paths:
-      - 'terraform/**'
-      - '.github/workflows/terraform-validate-ci.yaml'
+      - "terraform/**"
+      - ".github/workflows/terraform-validate-ci.yaml"
 
   pull_request:
     paths:
-      - 'terraform/**'
-      - '.github/workflows/terraform-validate-ci.yaml'
+      - "terraform/**"
+      - ".github/workflows/terraform-validate-ci.yaml"
 
 jobs:
   terraform-validate-ci:
