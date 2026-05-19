@@ -18,7 +18,7 @@ locals {
 
 module "project_services" {
   source                      = "../../modules/project-services"
-  gcp_project_id              = var.gcp_project_id
+  project_id                  = var.gcp_project_id
   activate_apis               = local.activate_apis
   disable_services_on_destroy = false
 }
