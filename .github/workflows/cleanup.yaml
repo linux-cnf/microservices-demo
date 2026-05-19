@@ -24,15 +24,10 @@ on:
     #    branches:
     #      - main
     #    types: closed
-    paths-ignore:
-      - "**/README.md"
-      - "kustomize/**"
-      - ".github/workflows/kustomize-build-ci.yaml"
-      - "terraform/**"
-      - ".github/workflows/terraform-validate-ci.yaml"
 jobs:
   cleanup-namespace:
-    runs-on: [self-hosted, is-enabled]
+    #runs-on: [self-hosted, is-enabled]
+    runs-on: ubuntu-latest
     steps:
       - name: Delete PR namespace in staging cluster
         if: ${{ always() }}
@@ -46,4 +41,4 @@ jobs:
           PROJECT_ID: "online-boutique-ci"
           PR_CLUSTER: "prs-gke-cluster"
           REGION: "us-central1"
-          PR_NUMBER: ${{ github.event.number }}
+          PR_NUMBER: ${{ inputs.pr_number }}

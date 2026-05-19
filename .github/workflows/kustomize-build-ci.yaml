@@ -37,9 +37,7 @@ jobs:
       - name: kustomize build tests
         run: |
           cd kustomize/tests
-          KUSTOMIZE_TESTS_SUBFOLDERS=$(ls -d */)
-          for test in $KUSTOMIZE_TESTS_SUBFOLDERS;
-          do
-              echo "## kustomize build for " + $test
-              kustomize build $test
+          find . -mindepth 1 -maxdepth 1 -type d | sort | while read -r test; do
+            echo "## kustomize build for ${test}"
+            kustomize build "${test}"
           done
