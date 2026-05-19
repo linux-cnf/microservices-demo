@@ -2,7 +2,7 @@ module "vpc" {
   source = "../../modules/vpc"
 
   gcp_project_id = var.gcp_project_id
-  region     = var.region
+  region         = var.region
 
   network_name = "vpc-kfounding-dev"
   subnet_name  = "subnet-us-central1-dev"
@@ -24,7 +24,7 @@ module "vpc" {
 module "cloud_nat" {
   source = "../../modules/cloud-nat"
 
-  gcp_project_id        = var.gcp_project_id
+  gcp_project_id    = var.gcp_project_id
   region            = var.region
   network_self_link = module.vpc.network_self_link
 
