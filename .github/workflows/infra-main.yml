@@ -78,6 +78,8 @@ jobs:
   infra:
     runs-on: ubuntu-latest
 
+    env:
+      TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
