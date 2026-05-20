@@ -47,6 +47,13 @@ module "github_actions_deployer_serviceusage_admin" {
   member         = module.github_actions_deployer_sa.member
 }
 
+module "github_actions_deployer_secretmanager_admin" {
+  source         = "../../modules/iam-binding"
+  gcp_project_id = var.gcp_project_id
+  role           = "roles/secretmanager.admin"
+  member         = module.github_actions_deployer_sa.member
+}
+
 module "github_actions_deployer_compute_storage_admin" {
   source         = "../../modules/iam-binding"
   gcp_project_id = var.gcp_project_id
