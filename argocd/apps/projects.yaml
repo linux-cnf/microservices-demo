@@ -24,7 +24,9 @@ spec:
       namespace: tracing
     - server: https://kubernetes.default.svc
       namespace: external-secrets
-
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+  
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
