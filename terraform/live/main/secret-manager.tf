@@ -29,6 +29,10 @@ resource "google_secret_manager_secret" "argocd_slack_bot_token" {
     auto {}
   }
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   depends_on = [module.project_services]
 }
 
