@@ -1,3 +1,29 @@
+# -----------------------------------------------------------------------------
+# PURPOSE:
+# This Job configures Elasticsearch for single-node deployments in the logging
+# namespace after the Elasticsearch cluster becomes available.
+#
+# WHAT IT DOES:
+# - Creates dedicated ServiceAccount + RBAC with least-privilege access.
+# - Reads Elasticsearch admin password from Kubernetes Secret securely.
+# - Waits until Elasticsearch cluster health API becomes reachable.
+# - Sets all Elasticsearch indices replica count to 0 for single-node mode.
+# - Creates a default index template so future indices also use 0 replicas.
+#
+# WHY THIS IS REQUIRED:
+# In a single-node Elasticsearch cluster, replicas cannot be scheduled on the
+# same node, which keeps cluster health in YELLOW state by default.
+# Setting number_of_replicas=0 ensures cluster health becomes GREEN.
+#
+# GITOPS / ARGOCD NOTES:
+# - Runs as a post-deployment Job using Argo CD sync wave "3".
+# - Executes only after Elasticsearch resources are deployed.
+# - Job auto-cleans itself after completion using ttlSecondsAfterFinished.
+#
+# SECURITY NOTES:
+# - Uses namespace-scoped RBAC only.
+# - Access is limited to reading elasticsearch-es-elastic-user Secret.
+# -----------------------------------------------------------------------------
 {{- if .Values.singleNodeSettingsJob.enabled }}
 ---
 apiVersion: v1
@@ -39,6 +65,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 spec:
+  ttlSecondsAfterFinished: 300
   template:
     spec:
       serviceAccountName: elasticsearch-single-node-settings
