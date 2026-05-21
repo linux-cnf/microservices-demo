@@ -54,7 +54,9 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: boutique
 
-  clusterResourceWhitelist: []
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
 
   namespaceResourceWhitelist:
     - group: "*"
