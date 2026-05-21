@@ -78,5 +78,4 @@ jobs:
         with:
           manifests: ${{ matrix.chart }}
           ignore_unknown: true
-          helm_override: singleNodeSettingsJob.enabled=false
           skip_rules: service-selector-ref
