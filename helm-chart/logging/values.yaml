@@ -1,3 +1,6 @@
+singleNodeSettingsJob:
+  enabled: true
+
 eck-stack:
   eck-elasticsearch:
     enabled: true
