@@ -1,0 +1,77 @@
+# NOTE:
+# This Job automatically configures Elasticsearch for single-node lab environments.
+#
+# WHY THIS EXISTS:
+# Elasticsearch stays in YELLOW health on single-node clusters because
+# default/system indices try to allocate replica shards, but replicas
+# cannot be scheduled on the same node as primary shards.
+#
+# WHAT THIS JOB DOES:
+# 1. Waits until Elasticsearch becomes reachable.
+# 2. Updates all existing indices to use:
+#      index.number_of_replicas = 0
+# 3. Creates an index template so all future indices also use:
+#      number_of_replicas = 0
+#
+# RESULT:
+# - Elasticsearch cluster becomes GREEN.
+# - Argo CD application health becomes Healthy.
+# - Prevents manual post-bootstrap replica configuration after every reprovision.
+#
+# IMPORTANT:
+# This configuration is intended ONLY for:
+# - single-node labs
+# - development environments
+# - low-cost sandbox clusters
+#
+# Production environments should use:
+# - multiple Elasticsearch data nodes
+# - replica shards enabled
+# - zone-aware scheduling and persistent storage
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: elasticsearch-single-node-settings
+  namespace: logging
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: set-es-replicas
+          image: curlimages/curl:8.10.1
+          command:
+            - sh
+            - -c
+            - |
+              until curl -k -u elastic:${ELASTIC_PASSWORD} https://elasticsearch-es-http.logging.svc:9200/_cluster/health; do
+                echo "Waiting for Elasticsearch..."
+                sleep 10
+              done
+
+              curl -k -u elastic:${ELASTIC_PASSWORD} \
+                -X PUT "https://elasticsearch-es-http.logging.svc:9200/_all/_settings?expand_wildcards=all" \
+                -H "Content-Type: application/json" \
+                -d '{"index":{"number_of_replicas":0}}'
+
+              curl -k -u elastic:${ELASTIC_PASSWORD} \
+                -X PUT "https://elasticsearch-es-http.logging.svc:9200/_index_template/single-node-defaults" \
+                -H "Content-Type: application/json" \
+                -d '{
+                  "index_patterns": ["*"],
+                  "template": {
+                    "settings": {
+                      "number_of_replicas": 0
+                    }
+                  },
+                  "priority": 500
+                }'
+          env:
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-es-elastic-user
+                  key: elastic
