@@ -28,6 +28,7 @@
 # - multiple Elasticsearch data nodes
 # - replica shards enabled
 # - zone-aware scheduling and persistent storage
+{{- if .Values.singleNodeSettingsJob.enabled }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -75,3 +76,4 @@ spec:
                 secretKeyRef:
                   name: elasticsearch-es-elastic-user
                   key: elastic
+{{- end }}
