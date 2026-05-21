@@ -8,7 +8,6 @@ eck-stack:
         count: 1
         config:
           node.store.allow_mmap: false
-          index.number_of_replicas: 0
         podTemplate:
           spec:
             nodeSelector:
