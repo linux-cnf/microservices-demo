@@ -72,7 +72,8 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: set-es-replicas
-          image: bitnami/kubectl:1.30
+          #image: bitnami/kubectl:1.30
+          image: bitnami/kubectl@sha256:e2b97dde9666986c61c56d49aae85a714b89b69392baa531438e74ec34096fb4
           command:
             - sh
             - -c
