@@ -1,5 +1,3 @@
----
-
 # 🚀 Production-Grade DevOps & Platform Engineering Extension
 
 This repository extends Google's Online Boutique microservices demo into a production-oriented Kubernetes, DevOps, GitOps, Observability, and Platform Engineering learning environment.
@@ -73,5 +71,3 @@ This repository is useful for:
 - Kubernetes Engineers
 - Senior / Lead DevOps professionals
 - Engineers learning production-grade Kubernetes platforms
-
----
