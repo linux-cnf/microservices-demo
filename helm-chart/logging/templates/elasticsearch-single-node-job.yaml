@@ -16,9 +16,9 @@
 # Setting number_of_replicas=0 ensures cluster health becomes GREEN.
 #
 # GITOPS / ARGOCD NOTES:
-# - Runs as a post-deployment Job using Argo CD sync wave "3".
+# - Job stays in the cluster so Argo CD does not mark it OutOfSync after TTL cleanup.
 # - Executes only after Elasticsearch resources are deployed.
-# - Job auto-cleans itself after completion using ttlSecondsAfterFinished.
+# - TTL cleanup is disabled so Argo CD does not see the completed Job as missing.
 #
 # SECURITY NOTES:
 # - Uses namespace-scoped RBAC only.
@@ -63,9 +63,8 @@ metadata:
   name: elasticsearch-single-node-settings
   namespace: logging
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "2"
 spec:
-  ttlSecondsAfterFinished: 300
   template:
     spec:
       serviceAccountName: elasticsearch-single-node-settings
