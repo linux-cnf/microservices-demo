@@ -19,3 +19,30 @@ data:
     end
 
     return hs
+
+  resource.customizations.health.elasticsearch.k8s.elastic.co_Elasticsearch: |
+    hs = {}
+    hs.status = "Progressing"
+    hs.message = "Waiting for Elasticsearch health"
+
+    if obj.status ~= nil then
+      if obj.status.health == "green" then
+        hs.status = "Healthy"
+        hs.message = "Elasticsearch cluster health is green"
+        return hs
+      end
+
+      if obj.status.health == "yellow" then
+        hs.status = "Healthy"
+        hs.message = "Elasticsearch cluster health is yellow but accepted for test single-node environment"
+        return hs
+      end
+
+      if obj.status.health == "red" then
+        hs.status = "Degraded"
+        hs.message = "Elasticsearch cluster health is red"
+        return hs
+      end
+    end
+
+    return hs
