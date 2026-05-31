@@ -118,13 +118,13 @@ spec:
                 -X PUT "https://elasticsearch-es-http.logging.svc:9200/_index_template/single-node-defaults" \
                 -H "Content-Type: application/json" \
                 -d '{
-                  "index_patterns": ["*"],
+                  "index_patterns": ["filebeat-*", "fluentbit-*", "logstash-*"],
                   "template": {
                     "settings": {
                       "number_of_replicas": 0
                     }
                   },
-                  "priority": 500
+                  "priority": 50
                 }'
 
               echo "Elasticsearch single-node settings completed successfully"
