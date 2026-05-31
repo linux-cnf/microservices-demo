@@ -73,7 +73,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: set-es-replicas
-          #image: bitnami/kubectl:1.30 #this was a previous default image
+          # image: bitnami/kubectl:1.30
           image: bitnami/kubectl@sha256:e2b97dde9666986c61c56d49aae85a714b89b69392baa531438e74ec34096fb4
           resources:
             requests:
@@ -86,7 +86,7 @@ spec:
             - sh
             - -c
             - |
-              set -euo pipefail
+              set -eu
 
               ELASTIC_PASSWORD=$(kubectl get secret elasticsearch-es-elastic-user -n logging -o go-template='{{ "{{" }}.data.elastic | base64decode{{ "}}" }}')
 
@@ -128,3 +128,4 @@ spec:
                 }'
 
               echo "Elasticsearch single-node settings completed successfully"
+{{- end }}
