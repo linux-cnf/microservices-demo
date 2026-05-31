@@ -65,31 +65,56 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 300
   template:
     spec:
       serviceAccountName: elasticsearch-single-node-settings
       restartPolicy: OnFailure
       containers:
         - name: set-es-replicas
-          #image: bitnami/kubectl:1.30
+          #image: bitnami/kubectl:1.30 #this was a previous default image
           image: bitnami/kubectl@sha256:e2b97dde9666986c61c56d49aae85a714b89b69392baa531438e74ec34096fb4
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
           command:
             - sh
             - -c
             - |
+              set -euo pipefail
+
               ELASTIC_PASSWORD=$(kubectl get secret elasticsearch-es-elastic-user -n logging -o go-template='{{ "{{" }}.data.elastic | base64decode{{ "}}" }}')
 
-              until curl -k -u elastic:${ELASTIC_PASSWORD} https://elasticsearch-es-http.logging.svc:9200/_cluster/health; do
-                echo "Waiting for Elasticsearch..."
+              for i in $(seq 1 30); do
+                if curl -skf -u elastic:${ELASTIC_PASSWORD} https://elasticsearch-es-http.logging.svc:9200/_cluster/health; then
+                  echo "Elasticsearch is reachable"
+                  break
+                fi
+
+                if [ "$i" -eq 30 ]; then
+                  echo "Elasticsearch did not become ready in time"
+                  exit 1
+                fi
+
+                echo "Waiting for Elasticsearch... attempt $i/30"
                 sleep 10
               done
 
-              curl -k -u elastic:${ELASTIC_PASSWORD} \
+              echo "Setting existing indices replicas to 0"
+
+              curl -skf -u elastic:${ELASTIC_PASSWORD} \
                 -X PUT "https://elasticsearch-es-http.logging.svc:9200/_all/_settings?expand_wildcards=all" \
                 -H "Content-Type: application/json" \
                 -d '{"index":{"number_of_replicas":0}}'
 
-              curl -k -u elastic:${ELASTIC_PASSWORD} \
+              echo "Creating default single-node index template"
+
+              curl -skf -u elastic:${ELASTIC_PASSWORD} \
                 -X PUT "https://elasticsearch-es-http.logging.svc:9200/_index_template/single-node-defaults" \
                 -H "Content-Type: application/json" \
                 -d '{
@@ -101,4 +126,5 @@ spec:
                   },
                   "priority": 500
                 }'
-{{- end }}
+
+              echo "Elasticsearch single-node settings completed successfully"
