@@ -20,6 +20,12 @@ resource "google_container_cluster" "my_cluster" {
     master_ipv4_cidr_block  = var.master_ipv4_cidr_block
   }
 
+  timeouts {
+    create = "30m"
+    update = "40m"
+    delete = "30m"
+  }
+
   ip_allocation_policy {
     cluster_secondary_range_name  = var.pod_range_name
     services_secondary_range_name = var.service_range_name
