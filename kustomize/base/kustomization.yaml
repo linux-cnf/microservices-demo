@@ -29,3 +29,4 @@ resources:
 - namespace/namespace.yaml
 - namespace/limitrange.yaml
 - namespace/resourcequota.yaml
+- frontend-pdb.yaml
