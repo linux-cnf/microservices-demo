@@ -11,13 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0
 
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 resources:
   - otel-collector.yaml
+
 patches:
 # adservice - not yet implemented
+
 # checkoutservice - tracing, profiler
 - patch: |-
     apiVersion: apps/v1
@@ -38,6 +43,7 @@ patches:
                 value: "1"
               - name: ENABLE_PROFILER
                 value: "1"
+
 # currencyservice - tracing, profiler
 - patch: |-
     apiVersion: apps/v1
@@ -58,6 +64,7 @@ patches:
                 value: "1"
               - name: DISABLE_PROFILER
                 $patch: delete
+
 # emailservice - tracing, profiler
 - patch: |-
     apiVersion: apps/v1
@@ -78,10 +85,11 @@ patches:
                 value: "1"
               - name: DISABLE_PROFILER
                 $patch: delete
+
 # frontend - tracing, profiler
 - patch: |-
-    apiVersion: apps/v1
-    kind: Deployment
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
     metadata:
       name: frontend
     spec:
@@ -98,6 +106,7 @@ patches:
                 value: "frontend"
               - name: ENABLE_PROFILER
                 value: "1"
+
 # paymentservice - tracing, profiler
 - patch: |-
     apiVersion: apps/v1
@@ -118,6 +127,7 @@ patches:
                 value: "1"
               - name: DISABLE_PROFILER
                 $patch: delete
+
 # productcatalogservice - tracing, profiler
 - patch: |-
     apiVersion: apps/v1
@@ -138,6 +148,7 @@ patches:
                 value: "1"
               - name: DISABLE_PROFILER
                 value: "1"
+
 # recommendationservice - tracing, profiler
 - patch: |-
     apiVersion: apps/v1
@@ -158,6 +169,7 @@ patches:
                 value: "1"
               - name: DISABLE_PROFILER
                 $patch: delete
+
 # shippingservice - stats, tracing, profiler
 - patch: |-
     apiVersion: apps/v1
