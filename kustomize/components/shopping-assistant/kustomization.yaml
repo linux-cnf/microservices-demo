@@ -18,8 +18,8 @@ resources:
 - shoppingassistantservice.yaml
 patches:
 - patch: |-
-    apiVersion: apps/v1
-    kind: Deployment
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
     metadata:
       name: frontend
     spec:
