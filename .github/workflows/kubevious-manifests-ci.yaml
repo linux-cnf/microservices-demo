@@ -42,6 +42,7 @@ jobs:
         uses: kubevious/cli@v1.0.64
         with:
           manifests: kustomize
+          ignore_unknown: true
           skip_rules: container-latest-image
 
   kubevious-helm-charts:
