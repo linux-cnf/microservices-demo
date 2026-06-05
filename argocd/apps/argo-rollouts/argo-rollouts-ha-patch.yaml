@@ -5,3 +5,23 @@ metadata:
   namespace: argo-rollouts
 spec:
   replicas: 3
+  template:
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: argo-rollouts
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: argo-rollouts
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 150m
+              memory: 128Mi
