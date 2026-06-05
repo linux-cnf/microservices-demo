@@ -105,7 +105,6 @@ kubectl wait --for=condition=Available deployment/argocd-repo-server \
   -n argocd --timeout=600s
 
 echo "Argo CD is ready."
-echo "Argo CD is ready."
 
 ########################################
 # Apply Argo CD custom health checks
@@ -166,6 +165,30 @@ kubectl wait --for=jsonpath='{.status.sync.status}'=Synced \
 
 echo "Current Argo CD applications:"
 kubectl get application -n argocd || true
+
+echo "Checking argocd-health-report application..."
+
+if ! kubectl get application argocd-health-report -n argocd >/dev/null 2>&1; then
+  echo "argocd-health-report application not found"
+  exit 1
+fi
+
+ARGO_SYNC_STATUS="$(kubectl get application argocd-health-report -n argocd -o jsonpath='{.status.sync.status}')"
+ARGO_HEALTH_STATUS="$(kubectl get application argocd-health-report -n argocd -o jsonpath='{.status.health.status}')"
+
+echo "argocd-health-report status: Sync=${ARGO_SYNC_STATUS}, Health=${ARGO_HEALTH_STATUS}"
+
+if [[ "${ARGO_SYNC_STATUS}" != "Synced" || "${ARGO_HEALTH_STATUS}" != "Healthy" ]]; then
+  echo "argocd-health-report application is not Synced/Healthy"
+  exit 1
+fi
+
+echo "Checking argocd-health-report CronJob..."
+
+if ! kubectl get cronjob argocd-health-report -n argocd >/dev/null 2>&1; then
+  echo "argocd-health-report CronJob not found"
+  exit 1
+fi
 
 echo "Current Argo CD projects:"
 kubectl get appproject -n argocd || true
