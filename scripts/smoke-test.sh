@@ -49,6 +49,28 @@ kubectl rollout status statefulset/argocd-application-controller -n argocd --tim
 echo "Checking Argo CD applications..."
 kubectl get applications -n argocd || true
 
+echo "Checking Argo CD health report application..."
+kubectl get application argocd-health-report -n argocd
+
+kubectl get application argocd-health-report -n argocd \
+  -o jsonpath='{.status.sync.status}{" "}{.status.health.status}{"\n"}'
+
+if ! kubectl get application argocd-health-report -n argocd >/dev/null 2>&1; then
+  echo "argocd-health-report application not found"
+  exit 1
+fi
+
+ARGO_HEALTH_STATUS="$(kubectl get application argocd-health-report -n argocd -o jsonpath='{.status.health.status}')"
+ARGO_SYNC_STATUS="$(kubectl get application argocd-health-report -n argocd -o jsonpath='{.status.sync.status}')"
+
+if [[ "${ARGO_SYNC_STATUS}" != "Synced" || "${ARGO_HEALTH_STATUS}" != "Healthy" ]]; then
+  echo "argocd-health-report app is not healthy/synced"
+  exit 1
+fi
+
+echo "Checking Argo CD health report CronJob..."
+kubectl get cronjob argocd-health-report -n argocd
+
 echo "Checking boutique namespace..."
 kubectl get ns boutique || true
 
