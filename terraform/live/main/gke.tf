@@ -43,7 +43,7 @@ module "gke_node_pool" {
   disk_type      = "pd-standard"
   image_type     = "COS_CONTAINERD"
   min_node_count = 1
-  max_node_count = 2
+  max_node_count = 3
 
   max_pods_per_node = 64
 
