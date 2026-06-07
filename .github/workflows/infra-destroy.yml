@@ -57,13 +57,13 @@ jobs:
             -target=module.cloud_nat.google_compute_router_nat.this \
             -target=module.cloud_nat.google_compute_router.this
 
-      - name: Delete orphan PVC disks
+      - name: Delete orphan GKE disks
         if: always()
         run: |
-          echo "Finding PVC disks..."
+          echo "Finding orphan PVC/default-pool disks..."
 
           gcloud compute disks list \
-            --filter="name~'^pvc-'" \
+            --filter="name~'^pvc-' OR name~'^gke-kfounding-default-pool-'" \
             --format="csv[no-heading](name,zone.basename())" | while IFS=, read -r DISK ZONE; do
 
               if [ -z "$DISK" ] || [ -z "$ZONE" ]; then
