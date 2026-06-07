@@ -82,3 +82,9 @@ variable "release_channel" {
   description = "GKE release channel"
   default     = "REGULAR"
 }
+
+variable "node_locations" {
+  type        = list(string)
+  description = "Zones where GKE nodes can be created"
+  default     = []
+}
