@@ -174,7 +174,7 @@ jobs:
         uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: kfounding
-          location: us-central1-a
+          location: us-central1
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Map Kubernetes PVs to GCP disks

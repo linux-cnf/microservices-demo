@@ -12,14 +12,14 @@ set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-project-9e0b2bd9-4649-487c-9d1}"
 CLUSTER_NAME="${CLUSTER_NAME:-kfounding}"
-ZONE="${ZONE:-us-central1-a}"
+REGION="${REGION:-us-central1}"
 
 echo "Using project: ${PROJECT_ID}"
 gcloud config set project "${PROJECT_ID}" >/dev/null
 
 echo "Fetching GKE credentials..."
 gcloud container clusters get-credentials "${CLUSTER_NAME}" \
-  --zone "${ZONE}" \
+  --region "${REGION}" \
   --project "${PROJECT_ID}"
 
 echo "Checking cluster nodes..."
