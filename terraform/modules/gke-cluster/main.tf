@@ -12,6 +12,15 @@ resource "google_container_cluster" "my_cluster" {
   remove_default_node_pool = true
   initial_node_count       = 1
 
+# Required even with remove_default_node_pool = true.
+# GKE creates a temporary default node pool during cluster creation,
+# so keep its boot disk small and non-SSD to avoid quota issues.
+  node_config {
+    disk_size_gb = 30
+    disk_type    = "pd-standard"
+    image_type   = "COS_CONTAINERD"
+  }
+
   datapath_provider = var.datapath_provider
   networking_mode   = "VPC_NATIVE"
 
