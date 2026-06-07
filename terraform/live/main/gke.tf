@@ -2,7 +2,6 @@ module "gke_cluster" {
   source              = "../../modules/gke-cluster"
   gcp_project_id      = var.gcp_project_id
   name                = var.name
-  zone                = var.zone
   region              = var.region
   deletion_protection = false
 

@@ -8,11 +8,6 @@ variable "name" {
   description = "Name of the GKE cluster"
 }
 
-variable "zone" {
-  type        = string
-  description = "Zone where the GKE cluster will be created"
-}
-
 variable "region" {
   type        = string
   description = "Region of the GKE cluster"
