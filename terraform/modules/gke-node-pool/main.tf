@@ -1,14 +1,16 @@
 resource "google_container_node_pool" "primary_nodes" {
-  name     = var.node_pool_name
-  cluster  = var.cluster_name
-  location = var.location
-  project  = var.gcp_project_id
+  name           = var.node_pool_name
+  cluster        = var.cluster_name
+  location       = var.location
+  node_locations = var.node_locations
+  project        = var.gcp_project_id
 
-  initial_node_count = var.min_node_count
+  initial_node_count = var.initial_node_count
 
   autoscaling {
-    min_node_count = var.min_node_count
-    max_node_count = var.max_node_count
+    total_min_node_count = var.total_min_node_count
+    total_max_node_count = var.total_max_node_count
+    location_policy      = var.location_policy
   }
 
   max_pods_per_node = var.max_pods_per_node

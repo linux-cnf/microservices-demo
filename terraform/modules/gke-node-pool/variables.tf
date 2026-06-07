@@ -43,18 +43,6 @@ variable "image_type" {
   default     = "COS_CONTAINERD"
 }
 
-variable "min_node_count" {
-  type        = number
-  description = "Minimum number of nodes in the node pool"
-  default     = 1
-}
-
-variable "max_node_count" {
-  type        = number
-  description = "Maximum number of nodes in the node pool"
-  default     = 2
-}
-
 variable "max_pods_per_node" {
   type        = number
   description = "Maximum number of pods per node"
@@ -89,4 +77,40 @@ variable "oauth_scopes" {
   default = [
     "https://www.googleapis.com/auth/cloud-platform"
   ]
+}
+
+#Multi-zone cluster settings
+variable "node_locations" {
+  type        = list(string)
+  description = "Zones where this node pool can create nodes"
+  default     = []
+}
+
+variable "initial_node_count" {
+  type        = number
+  description = "Initial number of nodes per zone during node pool creation"
+  default     = 1
+}
+
+variable "total_min_node_count" {
+  type        = number
+  description = "Total minimum nodes across all zones"
+  default     = 1
+}
+
+variable "total_max_node_count" {
+  type        = number
+  description = "Total maximum nodes across all zones"
+  default     = 3
+}
+
+variable "location_policy" {
+  type        = string
+  description = "Autoscaling location policy"
+  default     = "BALANCED"
+
+  validation {
+    condition     = contains(["BALANCED", "ANY"], var.location_policy)
+    error_message = "location_policy must be either BALANCED or ANY."
+  }
 }

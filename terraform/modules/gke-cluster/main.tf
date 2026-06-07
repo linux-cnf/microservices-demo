@@ -1,7 +1,8 @@
 resource "google_container_cluster" "my_cluster" {
-  name     = var.name
-  location = var.zone
-  project  = var.gcp_project_id
+  name           = var.name
+  location       = var.region
+  node_locations = var.node_locations
+  project        = var.gcp_project_id
 
   deletion_protection = var.deletion_protection
 
