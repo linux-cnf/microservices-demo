@@ -22,6 +22,14 @@ resource "google_container_cluster" "my_cluster" {
     image_type   = "COS_CONTAINERD"
   }
 
+  # Ignore temporary default node pool settings after cluster creation
+  lifecycle {
+    ignore_changes = [
+      node_config,
+      initial_node_count,
+    ]
+  }
+  
   datapath_provider = var.datapath_provider
   networking_mode   = "VPC_NATIVE"
 
