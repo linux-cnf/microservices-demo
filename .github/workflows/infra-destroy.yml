@@ -72,7 +72,7 @@ jobs:
 
               echo "Deleting PVC disk: $DISK in $ZONE"
               gcloud compute disks delete "$DISK" \
-                --zone="$ZONE" \
+                --zone "$ZONE" \
                 --quiet
             done
 

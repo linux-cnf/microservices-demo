@@ -109,7 +109,7 @@ jobs:
         uses: google-github-actions/get-gke-credentials@v3
         with:
           cluster_name: kfounding
-          location: us-central1-a
+          location: us-central1
           project_id: project-9e0b2bd9-4649-487c-9d1
 
       - name: Install Argo CD
