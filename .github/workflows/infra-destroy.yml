@@ -62,9 +62,13 @@ jobs:
         run: |
           echo "Finding unattached PVC/default-pool/GKE node disks..."
 
+          DISK_FILTER="(name~'^pvc-' OR name~'^gke-kfounding-default-pool-'"
+          DISK_FILTER="${DISK_FILTER} OR name~'^gke-kfounding-primary-node-pool-')"
+          DISK_FILTER="${DISK_FILTER} AND -users:*"
+
           gcloud compute disks list \
-            --project="${TF_VAR_gcp_project_id}" \ 
-            --filter="(name~'^pvc-' OR name~'^gke-kfounding-default-pool-' OR name~'^gke-kfounding-primary-node-pool-') AND -users:*" \
+            --project="${TF_VAR_gcp_project_id}" \
+            --filter="${DISK_FILTER}" \
             --format="csv[no-heading](name,zone.basename())" | while IFS=, read -r DISK ZONE; do
 
               if [ -z "$DISK" ] || [ -z "$ZONE" ]; then
