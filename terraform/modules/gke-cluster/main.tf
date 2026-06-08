@@ -4,6 +4,10 @@ resource "google_container_cluster" "my_cluster" {
   node_locations = var.node_locations
   project        = var.gcp_project_id
 
+  cluster_autoscaling {
+    autoscaling_profile = "OPTIMIZE_UTILIZATION"
+  }
+
   deletion_protection = var.deletion_protection
 
   network    = var.network
@@ -29,7 +33,7 @@ resource "google_container_cluster" "my_cluster" {
       initial_node_count,
     ]
   }
-  
+
   datapath_provider = var.datapath_provider
   networking_mode   = "VPC_NATIVE"
 
