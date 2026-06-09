@@ -27,16 +27,19 @@ spec:
       maxSurge: 1
       maxUnavailable: 0
       steps:
-        - setWeight: 10
-        - pause:
-            duration: 2m
-        - setWeight: 25
-        - pause:
-            duration: 2m
-        - setWeight: 50
-        - pause:
-            duration: 2m
-        - setWeight: 100
+      - setWeight: 10
+      - pause:
+          duration: 2m
+      - analysis:
+          templates:
+          - templateName: frontend-success-rate
+      - setWeight: 25
+      - pause:
+          duration: 2m
+      - setWeight: 50
+      - pause:
+          duration: 2m
+      - setWeight: 100
   selector:
     matchLabels:
       app: frontend
