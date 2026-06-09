@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Root Kustomize entry point for the Boutique application.
+# Combines base Kubernetes manifests, progressive delivery resources, and optional platform components.
+# Resources are rendered into a single deployment package consumed by Argo CD for GitOps-based deployment.
+# Added a Prometheus-backed AnalysisTemplate to support metric-driven canary validation and automated rollback decisions.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: boutique
 resources:
 - base
+- frontend-analysis-template.yaml
 components:
 # - components/cymbal-branding
 # - components/google-cloud-operations
@@ -30,6 +35,6 @@ components:
 # - components/service-mesh-istio
 # - components/without-loadgenerator
 # These must be run last and in this order
-- components/container-images-tag
 # - components/container-images-tag-suffix
+- components/container-images-tag
 - components/container-images-registry
