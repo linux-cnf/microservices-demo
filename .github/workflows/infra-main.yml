@@ -110,6 +110,9 @@ jobs:
         working-directory: terraform/live/main
         run: terraform init
 
+      # Prevents Terraform failures when long-lived resources already exist
+      # outside Terraform state. Automatically imports existing resources
+      # (e.g., Secret Manager secrets and service accounts) to avoid duplicate creation errors.
       - name: Import long-lived existing Terraform resources
         working-directory: terraform/live/main
         env:
@@ -177,6 +180,10 @@ jobs:
           location: us-central1
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+      # Creates a Kubernetes PV → GCP Persistent Disk inventory for troubleshooting,
+      # backup, disaster recovery, and safe infrastructure cleanup by identifying
+      # which cloud disks are actively used by Stateful workloads.
+      # Generates PV-to-GCP disk mapping for stateful workload visibility,
       - name: Map Kubernetes PVs to GCP disks
         if: inputs.run_apply == 'true'
         continue-on-error: true
