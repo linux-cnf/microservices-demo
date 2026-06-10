@@ -1,4 +1,5 @@
-#This file defines the Prometheus check. Argo Rollouts will ask Prometheus whether frontend pods are healthy before continuing the canary.
+# This file defines Prometheus checks used by Argo Rollouts during frontend canary deployments.
+# It validates pod availability, failed probe rate, restart count, and readiness latency before allowing rollout progression.
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -15,3 +16,36 @@ spec:
         address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
         query: |
           sum(kube_pod_status_ready{namespace="boutique",condition="true",pod=~"frontend-.*"})
+
+  - name: frontend-failed-probe-rate
+    interval: 30s
+    count: 3
+    successCondition: result[0] == 0
+    failureLimit: 1
+    provider:
+      prometheus:
+        address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+        query: |
+          sum(rate(prober_probe_total{namespace="boutique",pod=~"frontend-.*",result="failed"}[5m])) or vector(0)
+
+  - name: frontend-restart-increase
+    interval: 30s
+    count: 3
+    successCondition: result[0] == 0
+    failureLimit: 1
+    provider:
+      prometheus:
+        address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+        query: |
+          sum(increase(kube_pod_container_status_restarts_total{namespace="boutique",pod=~"frontend-.*"}[5m])) or vector(0)
+
+  - name: frontend-readiness-latency-p95
+    interval: 30s
+    count: 3
+    successCondition: result[0] < 0.5
+    failureLimit: 1
+    provider:
+      prometheus:
+        address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+        query: |
+          histogram_quantile(0.95, sum(rate(prober_probe_duration_seconds_bucket{namespace="boutique",pod=~"frontend-.*",probe_type="Readiness"}[5m])) by (le))
