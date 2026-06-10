@@ -8,7 +8,7 @@ spec:
   - name: frontend-pod-availability
     interval: 30s
     count: 3
-    successCondition: result[0] >= 1
+    successCondition: result[0] >= 999
     failureLimit: 1
     provider:
       prometheus:
