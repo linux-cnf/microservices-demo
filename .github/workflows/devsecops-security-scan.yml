@@ -11,10 +11,10 @@
 # EXECUTION FLOW:
 #
 # devsecops-security-scan
-#   ├── security-gitleaks
-#   ├── security-checkov
-#   ├── security-trivy
-#   └── security-zizmor
+#   ├── security-gitleaks:  Secrets in Git repositories
+#   ├── security-checkov: Terraform, Kubernetes
+#   ├── security-trivy: Containers, IaC, Kubernetes, secrets, SBOMs
+#   └── security-zizmor: GitHub Actions workflows only
 #
 # BENEFITS:
 # - Consistent security validation
