@@ -50,10 +50,41 @@ name: platform-bootstrap
 on:
   workflow_dispatch:
     inputs:
-      run_apply:
-        description: "Run terraform apply before mirroring?"
+      run_terraform_validate:
+        description: "Run terraform validation?"
         required: true
         default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+      run_infra:
+        description: "Run infra-main workflow?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+      run_apply:
+        description: "Run terraform apply?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+      run_mirror_platform_images:
+        description: "Mirror platform images?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 permissions:
   contents: read
@@ -61,10 +92,12 @@ permissions:
 
 jobs:
   terraform-validate:
+    if: ${{ inputs.run_terraform_validate == 'true' }}
     uses: ./.github/workflows/terraform-validate-ci.yaml
     secrets: inherit
 
   infra:
+    if: ${{ always() && inputs.run_infra == 'true' }}
     needs: terraform-validate
     uses: ./.github/workflows/infra-main.yml
     with:
@@ -72,6 +105,7 @@ jobs:
     secrets: inherit
 
   mirror-platform-images:
+    if: ${{ always() && inputs.run_mirror_platform_images == 'true' }}
     needs: infra
     uses: ./.github/workflows/mirror-platform-images.yml
     secrets: inherit
