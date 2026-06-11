@@ -58,7 +58,7 @@ jobs:
             -target=module.cloud_nat.google_compute_router.this
 
       - name: Delete orphan GKE disks
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           echo "Finding unattached PVC/default-pool/GKE node disks..."
 
@@ -83,7 +83,7 @@ jobs:
             done
 
       - name: Check leftover static IPs
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           echo "=== Regional Static IPs ==="
           gcloud compute addresses list \
