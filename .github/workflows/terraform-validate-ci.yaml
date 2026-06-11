@@ -56,3 +56,18 @@ jobs:
       - name: Terraform validate
         working-directory: terraform/live/main
         run: terraform validate
+
+      - name: Block committed Terraform generated files
+        run: |
+          PATTERN='(^|/)(tfplan[^/]*|.*\.tfplan|terraform\.tfstate|crash\.log)'
+
+          GENERATED_FILES=$(
+            git ls-files | grep -E "$PATTERN" || true
+          )
+
+          if [ -n "$GENERATED_FILES" ]; then
+            echo "Generated Terraform files found:"
+            echo "$GENERATED_FILES"
+            exit 1
+          fi
+
