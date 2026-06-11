@@ -1,0 +1,54 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Central DevSecOps security orchestration workflow.
+#
+# RESPONSIBILITIES:
+# - Secret scanning
+# - IaC security scanning
+# - Repository vulnerability scanning
+# - GitHub Actions security scanning
+#
+# EXECUTION FLOW:
+#
+# devsecops-security-scan
+#   ├── security-gitleaks
+#   ├── security-checkov
+#   ├── security-trivy
+#   └── security-zizmor
+#
+# BENEFITS:
+# - Consistent security validation
+# - Reusable workflow design
+# - Easy future expansion
+# - Clean GitHub Actions architecture
+#
+# In short:
+# one entry point for all repository security checks.
+# -------------------------------------------------------------------
+
+name: devsecops-security-scan
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  gitleaks:
+    uses: ./.github/workflows/security-gitleaks.yml
+    secrets: inherit
+
+  checkov:
+    uses: ./.github/workflows/security-checkov.yml
+    secrets: inherit
+
+  trivy:
+    uses: ./.github/workflows/security-trivy.yml
+    secrets: inherit
+
+  zizmor:
+    uses: ./.github/workflows/security-zizmor.yml
+    secrets: inherit

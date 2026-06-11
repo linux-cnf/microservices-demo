@@ -1,0 +1,39 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Static security analysis for Infrastructure as Code.
+#
+# SCANS:
+# - Terraform
+# - Kubernetes manifests
+# - GitHub Actions
+# - Secrets
+#
+# WHY?
+# Detect insecure infrastructure configurations before deployment.
+#
+# EXECUTION:
+# Called by devsecops-security-scan.yml
+# -------------------------------------------------------------------
+
+name: security-checkov
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  checkov:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: terraform,kubernetes,github_actions,secrets
+          soft_fail: true

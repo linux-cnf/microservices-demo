@@ -1,0 +1,41 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Security analysis of GitHub Actions workflows.
+#
+# SCANS:
+# - Excessive permissions
+# - Workflow injection risks
+# - Unsafe action usage
+# - GitHub Actions security issues
+#
+# WHY?
+# Protect CI/CD pipelines from workflow-level vulnerabilities.
+#
+# EXECUTION:
+# Called by devsecops-security-scan.yml
+# -------------------------------------------------------------------
+
+name: security-zizmor
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run Zizmor
+        uses: zizmorcore/zizmor-action@v0.1.1
+        with:
+          persona: auditor
+          min-severity: medium
+          inputs: .github/workflows

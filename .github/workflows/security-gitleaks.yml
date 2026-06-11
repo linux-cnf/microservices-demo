@@ -1,0 +1,38 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Detect secrets accidentally committed into the repository.
+#
+# SCANS:
+# - API keys
+# - Tokens
+# - Passwords
+# - Private keys
+# - Cloud credentials
+#
+# WHY?
+# Prevent credential leakage before code is merged.
+#
+# EXECUTION:
+# Called by devsecops-security-scan.yml
+# -------------------------------------------------------------------
+
+name: security-gitleaks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
