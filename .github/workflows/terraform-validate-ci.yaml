@@ -70,4 +70,3 @@ jobs:
             echo "$GENERATED_FILES"
             exit 1
           fi
-
