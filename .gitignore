@@ -25,7 +25,15 @@ obj/
 pkg/
 release/wi-kubernetes-manifests.yaml
 vendor/
+
 **/.terraform/
+
 helm-chart/**/charts/
 rendered-*.yaml
 helm-chart/**/rendered-*.yaml
+
+# Terraform generated files
+tfplan*
+*.tfplan
+crash.log
+crash.*.log
