@@ -97,7 +97,7 @@ jobs:
     secrets: inherit
 
   infra:
-    if: ${{ always() && inputs.run_infra == 'true' }}
+    if: ${{ !cancelled() && inputs.run_infra == 'true' }}
     needs: terraform-validate
     uses: ./.github/workflows/infra-main.yml
     with:
@@ -105,7 +105,7 @@ jobs:
     secrets: inherit
 
   mirror-platform-images:
-    if: ${{ always() && inputs.run_mirror_platform_images == 'true' }}
+    if: ${{ !cancelled() && inputs.run_mirror_platform_images == 'true' }}
     needs: infra
     uses: ./.github/workflows/mirror-platform-images.yml
     secrets: inherit
