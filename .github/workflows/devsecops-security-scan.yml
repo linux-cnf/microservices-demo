@@ -36,6 +36,10 @@ permissions:
   contents: read
   security-events: write
 
+concurrency:
+  group: devsecops-security-scan-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   gitleaks:
     uses: ./.github/workflows/security-gitleaks.yml
