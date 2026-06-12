@@ -6,6 +6,11 @@
 # - helm-chart/logging-agent
 # - helm-chart/logging
 # - helm-chart/observability
+# - helm-chart/tracing
+#
+# Validation flow:
+# Helm dependency build -> helm lint --strict -> helm template
+# -> kubeconform schema validation -> Trivy config scan -> Checkov policy scan
 #
 # This was added when the repo started moving platform components like
 # Prometheus/Grafana, Elasticsearch/Kibana, and logging agents into Helm charts.
@@ -47,6 +52,7 @@ jobs:
           - helm-chart/logging-agent
           - helm-chart/logging
           - helm-chart/observability
+          - helm-chart/tracing
 
     steps:
       - uses: actions/checkout@v6
@@ -78,3 +84,27 @@ jobs:
             "${{ matrix.chart }}" \
             > rendered.yaml
           cat rendered.yaml
+
+      - name: Validate rendered manifests with kubeconform
+        uses: yokawasa/action-setup-kube-tools@v0.13.1
+        with:
+          kubeconform: latest
+
+      - name: Kubeconform validation
+        run: kubeconform -strict -ignore-missing-schemas rendered.yaml
+
+      - name: Trivy config scan
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          scan-type: config
+          scan-ref: rendered.yaml
+          exit-code: '1'
+          severity: HIGH,CRITICAL
+
+      - name: Checkov scan rendered manifests
+        uses: bridgecrewio/checkov-action@master
+        with:
+          file: rendered.yaml
+          framework: kubernetes
+          quiet: true
+          soft_fail: false
