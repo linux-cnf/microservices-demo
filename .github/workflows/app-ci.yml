@@ -26,6 +26,10 @@ on:
       - "kustomize/**"
       - ".github/workflows/app-ci.yml"
 
+concurrency:
+  group: app-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-kustomize:
     runs-on: ubuntu-latest

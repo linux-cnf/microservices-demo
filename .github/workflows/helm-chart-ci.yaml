@@ -33,6 +33,10 @@ on:
       - "helm-chart/**"
       - ".github/workflows/helm-chart-ci.yaml"
 
+concurrency:
+  group: helm-chart-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   helm-chart-ci:
     runs-on: ubuntu-24.04
