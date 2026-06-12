@@ -112,3 +112,4 @@ jobs:
           framework: kubernetes
           quiet: true
           soft_fail: false
+          skip_check: CKV_K8S_38

@@ -64,17 +64,35 @@ metadata:
   namespace: logging
   annotations:
     argocd.argoproj.io/sync-wave: "2"
+
 spec:
   backoffLimit: 3
   activeDeadlineSeconds: 300
   template:
     spec:
+      automountServiceAccountToken: true
       serviceAccountName: elasticsearch-single-node-settings
       restartPolicy: OnFailure
+
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+
       containers:
         - name: set-es-replicas
           # image: bitnami/kubectl:1.30
           image: bitnami/kubectl@sha256:e2b97dde9666986c61c56d49aae85a714b89b69392baa531438e74ec34096fb4
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
           resources:
             requests:
               cpu: 50m
@@ -82,6 +100,7 @@ spec:
             limits:
               cpu: 200m
               memory: 256Mi
+
           command:
             - sh
             - -c
