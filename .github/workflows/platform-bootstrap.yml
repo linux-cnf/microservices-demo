@@ -90,6 +90,10 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: terraform-live-main
+  cancel-in-progress: false
+
 jobs:
   terraform-validate:
     if: ${{ inputs.run_terraform_validate == 'true' }}
