@@ -6,6 +6,7 @@
 # - helm-chart/logging-agent
 # - helm-chart/logging
 # - helm-chart/observability
+# - helm-chart/tracing
 #
 # This was added when the repo started moving platform components like
 # Prometheus/Grafana, Elasticsearch/Kibana, and logging agents into Helm charts.
@@ -47,6 +48,7 @@ jobs:
           - helm-chart/logging-agent
           - helm-chart/logging
           - helm-chart/observability
+          - helm-chart/tracing
 
     steps:
       - uses: actions/checkout@v6
@@ -59,13 +61,14 @@ jobs:
           helm repo add elastic https://helm.elastic.co
           helm repo add prometheus-community \
             https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add open-telemetry \
+            https://open-telemetry.github.io/opentelemetry-helm-charts
           helm repo update
 
       - name: Build chart dependencies
         run: |
-          if [ -f "${{ matrix.chart }}/Chart.lock" ]; then
-            helm dependency build "${{ matrix.chart }}"
-          fi
+          helm dependency build "${{ matrix.chart }}"
 
       - name: Helm lint
         run: |
