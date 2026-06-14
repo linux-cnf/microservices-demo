@@ -12,7 +12,7 @@ spec:
     - group: admissionregistration.k8s.io
       kind: ValidatingWebhookConfiguration
       name: istiod-default-validator
-      jsonPointers:
+      jqPathExpressions:
         - '.webhooks[] | select(.name == "validation.istio.io").failurePolicy'
   project: platform
   source:
