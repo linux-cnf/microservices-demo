@@ -12,6 +12,7 @@ spec:
     - https://github.com/linux-cnf/microservices-demo.git
     - https://helm.elastic.co
     - https://charts.external-secrets.io
+    - https://istio-release.storage.googleapis.com/charts
 
   destinations:
     - server: https://kubernetes.default.svc
@@ -28,6 +29,8 @@ spec:
       namespace: argocd
     - server: https://kubernetes.default.svc
       namespace: kube-system
+    - server: https://kubernetes.default.svc
+      namespace: istio-system
   
   clusterResourceWhitelist:
     - group: "*"
