@@ -16,24 +16,24 @@ apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 images:
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/adservice
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/cartservice
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/checkoutservice
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/currencyservice
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/emailservice
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/frontend
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/loadgenerator
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/paymentservice
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/productcatalogservice
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/recommendationservice
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
   - name: us-central1-docker.pkg.dev/google-samples/microservices-demo/shippingservice
-    newTag: c82b7fc0143bbb54648c8ecca55c275f4bf323e1
+    newTag: d7d760a373f2461d2c4b2ebedba74086f50bd8a4
