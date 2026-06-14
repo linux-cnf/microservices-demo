@@ -126,7 +126,7 @@ spec:
           # - name: ENV_PLATFORM
           #   value: "aws"
           - name: PHASE4_METRIC_TEST
-            value: "run-20260613234720"
+            value: "run-20260614155436"
           - name: ENABLE_PROFILER
             value: "0"
           # - name: CYMBAL_BRANDING
