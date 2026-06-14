@@ -17,6 +17,8 @@ spec:
       releaseName: istio-ingressgateway
       values: |
         _internal_defaults_do_not_set: null
+        serviceAccount:
+          create: true
   destination:
     server: https://kubernetes.default.svc
     namespace: istio-system
