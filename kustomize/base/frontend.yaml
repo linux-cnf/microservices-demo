@@ -23,9 +23,19 @@ metadata:
 spec:
   replicas: 3
   strategy:
-    canary:
+    canary:    
       maxSurge: 0
       maxUnavailable: 1
+      trafficRouting:
+        istio:
+          virtualService:
+            name: frontend
+            routes:
+              - primary
+          destinationRule:
+            name: frontend
+            canarySubsetName: canary
+            stableSubsetName: stable
       steps:
       - setWeight: 10
       - pause:
