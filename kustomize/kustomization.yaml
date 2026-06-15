@@ -36,5 +36,6 @@ components:
 # - components/without-loadgenerator
 # These must be run last and in this order
 # - components/container-images-tag-suffix
+- components/istio-sidecar-resources
 - components/container-images-tag
 - components/container-images-registry
