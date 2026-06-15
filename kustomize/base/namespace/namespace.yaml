@@ -4,3 +4,4 @@ metadata:
   name: boutique
   labels:
     app.kubernetes.io/part-of: microservices-demo
+    istio-injection: enabled
