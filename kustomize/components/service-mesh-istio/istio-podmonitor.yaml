@@ -1,0 +1,20 @@
+# Scrapes Istio sidecar Envoy metrics from boutique pods.
+# Required for istio_requests_total and mTLS telemetry in Prometheus.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: boutique-istio-sidecars
+  labels:
+    release: observability
+spec:
+  namespaceSelector:
+    matchNames:
+      - boutique
+  selector:
+    matchExpressions:
+      - key: security.istio.io/tlsMode
+        operator: Exists
+  podMetricsEndpoints:
+    - port: http-envoy-prom
+      path: /stats/prometheus
+      interval: 30s
