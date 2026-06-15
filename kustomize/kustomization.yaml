@@ -39,3 +39,4 @@ components:
 - components/istio-sidecar-resources
 - components/container-images-tag
 - components/container-images-registry
+- components/low-surge-rollouts
