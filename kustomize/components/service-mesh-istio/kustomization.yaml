@@ -1,5 +1,5 @@
 # Enables Istio traffic-management and security resources for the boutique application.
-# Includes egress rules, Gateway API routing, mTLS, and mesh metrics.
+# This component includes mTLS, authorization policies, frontend routing, and mesh metrics.
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
@@ -9,3 +9,4 @@ resources:
   - frontend.yaml
   - mtls.yaml
   - istio-podmonitor.yaml
+  - authorization-policy.yaml
