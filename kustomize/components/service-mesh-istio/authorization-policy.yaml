@@ -1,6 +1,6 @@
 # Istio AuthorizationPolicy for boutique namespace.
-# This starts with namespace-wide allow inside boutique so STRICT mTLS remains safe.
-# Later we can tighten service-to-service access one service at a time.
+# Allows internal boutique-to-boutique service traffic and external traffic coming through Istio ingressgateway.
+# Without the ingressgateway rule, browser/curl traffic to frontend gets blocked with 403.
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
@@ -12,3 +12,7 @@ spec:
         - source:
             namespaces:
               - boutique
+    - from:
+        - source:
+            namespaces:
+              - istio-system
