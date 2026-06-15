@@ -1,0 +1,21 @@
+# Istio VirtualService for recommendationservice HTTP abort testing.
+# This simulates backend failure by returning HTTP 500 for 10% of recommendationservice traffic.
+# Use this to test how the frontend behaves when a dependency fails.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: recommendationservice-abort-fault
+spec:
+  hosts:
+    - recommendationservice
+  http:
+    - fault:
+        abort:
+          percentage:
+            value: 10
+          httpStatus: 500
+      route:
+        - destination:
+            host: recommendationservice
+            port:
+              number: 8080
