@@ -7,3 +7,4 @@ resources:
   - allow-egress-googleapis.yaml
   - frontend.yaml
   - mtls.yaml
+  - istio-podmonitor.yaml
