@@ -138,7 +138,7 @@ spec:
           - name: PHASE4_METRIC_TEST
             value: "run-20260614190244"
           - name: ROLLOUT_TRIGGER
-            value: "run-20260615200715"
+            value: "run-20260615202036"
           - name: ENABLE_PROFILER
             value: "0"
           # - name: CYMBAL_BRANDING
