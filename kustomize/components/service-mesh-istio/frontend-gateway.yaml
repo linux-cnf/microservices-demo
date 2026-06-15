@@ -1,42 +1,34 @@
-# Copyright 2018 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-apiVersion: gateway.networking.k8s.io/v1beta1
+# Istio Gateway for exposing boutique frontend through istio-ingressgateway.
+# This uses classic Istio Gateway instead of Kubernetes Gateway API to avoid GatewayClass dependency in CI.
+apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
-  name: istio-gateway
+  name: frontend-gateway
 spec:
-  gatewayClassName: istio
-  listeners:
-  - name: http
-    port: 80
-    protocol: HTTP
-    allowedRoutes:
-      namespaces:
-        from: Same
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"
 ---
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: HTTPRoute
+# Routes external HTTP traffic from frontend-gateway to the frontend service.
+# This makes http://<istio-ingressgateway-ip> reach the boutique frontend.
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
 metadata:
-  name: frontend-route
+  name: frontend-ingress
 spec:
-  parentRefs:
-  - name: istio-gateway
-  rules:
-  - matches:
-    - path:
-        value: /
-    backendRefs:
-    - name: frontend
-      port: 80
+  hosts:
+    - "*"
+  gateways:
+    - frontend-gateway
+  http:
+    - route:
+        - destination:
+            host: frontend
+            port:
+              number: 80
