@@ -1,0 +1,42 @@
+# Reduce Istio sidecar CPU and memory requests/limits across all boutique Deployments and Rollouts.
+# Prevent scheduling failures during canary rollouts after Istio injection increases pod resource requirements.
+
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: not-used
+      spec:
+        template:
+          metadata:
+            annotations:
+              sidecar.istio.io/proxyCPU: "50m"
+              sidecar.istio.io/proxyCPULimit: "250m"
+              sidecar.istio.io/proxyMemory: "64Mi"
+              sidecar.istio.io/proxyMemoryLimit: "256Mi"
+
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Rollout
+    patch: |-
+      apiVersion: argoproj.io/v1alpha1
+      kind: Rollout
+      metadata:
+        name: not-used
+      spec:
+        template:
+          metadata:
+            annotations:
+              sidecar.istio.io/proxyCPU: "50m"
+              sidecar.istio.io/proxyCPULimit: "250m"
+              sidecar.istio.io/proxyMemory: "64Mi"
+              sidecar.istio.io/proxyMemoryLimit: "256Mi"
