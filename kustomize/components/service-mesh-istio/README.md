@@ -1,297 +1,357 @@
-# Service mesh with Istio
+# Service Mesh Istio Component
 
-You can use [Istio](https://istio.io) to enable [service mesh features](https://cloud.google.com/service-mesh/docs/overview) such as traffic management, observability, and security. Istio can be provisioned using Cloud Service Mesh (CSM), the Open Source Software (OSS) istioctl tool, or via other Istio providers. You can then label individual namespaces for sidecar injection and configure an Istio gateway to replace the frontend-external load balancer.
+This component enables Istio service mesh capabilities for the Boutique application.
 
-# Setup
+## Purpose
 
-The following CLI tools needs to be installed and in the PATH:
+The goal of this component is to improve:
 
-- `gcloud`
-- `kubectl`
-- `kustomize`
-- `istioctl` (optional)
+* Service-to-service security
+* Traffic visibility
+* Least-privilege communication
+* Resilience testing
+* Operational observability
 
-1. Set-up some default environment variables.
+---
 
-   ```sh
-   PROJECT_ID="<your-project-id>"
-   REGION="<your-google-cloud-region"
-   CLUSTER_NAME="online-boutique"
-   gcloud config set project $PROJECT_ID
-   ```
+## Kiali
 
-# Provision a GKE Cluster
+### What is Kiali?
 
-1. Create an Autopilot GKE cluster.
+Kiali is the visualization and management dashboard for Istio.
 
-   ```sh
-   gcloud container clusters create-auto $CLUSTER_NAME \
-     --location=$REGION
-   ```
+It provides:
 
-   To make the best use of our service mesh, we need to have [GKE Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity), and the [Kubernetes Gateway API resource definitions](https://cloud.google.com/kubernetes-engine/docs/how-to/deploying-gateways) enabled. Autopilot takes care of this for us.
+* Service dependency graph
+* Request rates
+* Error rates
+* Latency metrics
+* mTLS visibility
+* Traffic flow analysis
 
-1. Change our kubectl context for the newly created cluster.
+### Access Kiali
 
-   ```sh
-   gcloud container clusters get-credentials $CLUSTER_NAME \
-     --region $REGION
-   ```
+```bash
+kubectl port-forward svc/kiali -n istio-system 20001:20001
+```
 
-# Provision and Configure Istio Service Mesh
+Open:
 
-## (Option A) Provision managed Istio using Cloud Service Mesh
+```text
+http://localhost:20001
+```
 
-Cloud Service Mesh (CSM) provides a service mesh experience that includes a fully managed control plane and data plane. The recommended way to [install CSM](https://cloud.google.com/service-mesh/docs/onboarding/provision-control-plane) uses [fleet management](https://cloud.google.com/kubernetes-engine/fleet-management/docs/fleet-creation).
+Generate traffic:
 
-1. Enable the Cloud Service Mesh and GKE Enterprise APIs.
+```bash
+for i in {1..100}; do
+  curl -s -o /dev/null http://34.45.27.5
+done
+```
 
-   ```sh
-   gcloud services enable mesh.googleapis.com anthos.googleapis.com
-   ```
+Navigate to:
 
-1. Enable service mesh support fleet-wide.
+```text
+Graph -> Namespace: boutique
+```
 
-   ```sh
-   gcloud container fleet mesh enable
-   ```
+---
 
-1. Register the GKE cluster to the fleet.
+## PeerAuthentication (mTLS)
 
-   ```sh
-   gcloud container clusters update $CLUSTER_NAME \
-     --location $REGION \
-     --fleet-project $PROJECT_ID
+### What is PeerAuthentication?
 
-1. Enable automatic management of the service mesh feature in the cluster.
+PeerAuthentication controls whether service-to-service communication uses mTLS.
 
-   ```sh
-   gcloud container fleet mesh update \
-     --management automatic \
-     --memberships $CLUSTER_NAME \
-     --project $PROJECT_ID \
-     --location $REGION
-   ```
+Current configuration:
 
-1. Add the Istio injection labels to the default namespace.
+```yaml
+mtls:
+  mode: STRICT
+```
 
-   ```sh
-   kubectl label namespace default \
-     istio.io/rev- istio-injection=enabled --overwrite
-   ```
+### Why STRICT?
 
-1. Verify that the service mesh is fully provisioned. It will take several minutes for both the control plane and data plane to be ready.
+STRICT mode ensures:
 
-   ```sh
-   gcloud container fleet mesh describe
-   ```
+* All service-to-service traffic is encrypted
+* Service identities are verified
+* Plain-text traffic is rejected
+* Non-mesh workloads cannot communicate directly
 
-   The output should be similar to:
-   ```
-   createTime: '2024-09-18T15:52:36.133664725Z'
-   fleetDefaultMemberConfig:
-     mesh:
-       management: MANAGEMENT_AUTOMATIC
-   membershipSpecs:
-     projects/12345/locations/us-central1/memberships/online-boutique:
-       mesh:
-         management: MANAGEMENT_AUTOMATIC
-       origin:
-         type: USER
-   membershipStates:
-     projects/12345/locations/us-central1/memberships/online-boutique:
-       servicemesh:
-         conditions:
-         - code: VPCSC_GA_SUPPORTED
-           details: This control plane supports VPC-SC GA.
-           documentationLink: http://cloud.google.com/service-mesh/docs/managed/vpc-sc
-           severity: INFO
-         controlPlaneManagement:
-           details:
-           - code: REVISION_READY
-             details: 'Ready: asm-managed'
-           implementation: TRAFFIC_DIRECTOR
-           state: ACTIVE
-         dataPlaneManagement:
-           details:
-           - code: OK
-             details: Service is running.
-           state: ACTIVE
-       state:
-         code: OK
-         description: 'Revision ready for use: asm-managed.'
-         updateTime: '2024-09-18T16:30:37.632583401Z'
-   name: projects/my-project/locations/global/features/servicemesh
-   resourceState:
-     state: ACTIVE
-   spec: {}
-   updateTime: '2024-09-18T16:15:05.957266437Z'
-   ```
+### Validation
 
-1. (Optional) If you require Certificate Authority Service, you can configure it by [following these instructions](https://cloud.google.com/service-mesh/docs/security/certificate-authority-service).
+Create a namespace without Istio sidecars:
 
-## (Option B) Provision Istio using istioctl
+```bash
+kubectl create ns mtls-test
 
-1. Alternatively you can install the open source version of Istio by following the [getting started guide](https://istio.io/latest/docs/setup/getting-started/).
+kubectl run plain-client -n mtls-test \
+  --image=curlimages/curl \
+  --restart=Never \
+  -- sleep 3600
+```
 
-   ```sh
-   # Install istio 1.17 or above
-   istioctl install --set profile=minimal -y
+Attempt to access a mesh-protected service:
 
-   # Enable sidecar injection for Kubernetes namespace(s) where microservices-demo is deployed
-   kubectl label namespace default istio-injection=enabled
+```bash
+kubectl exec -n mtls-test plain-client -- \
+  curl -s -o /dev/null -w "%{http_code}\n" \
+  http://frontend.boutique.svc.cluster.local:80
+```
 
-   # Make sure the istiod injection webhook port 15017 is accessible via GKE master nodes
-   # Otherwise your replicaset-controller may be blocked when trying to create new pods with: 
-   #   Error creating: Internal error occurred: failed calling 
-   #     webhook "namespace.sidecar-injector.istio.io" ... context deadline exceeded
-   gcloud compute firewall-rules list --filter="name~gke-[0-9a-z-]*-master"
-   NAME                          NETWORK  DIRECTION  PRIORITY  ALLOW              DENY  DISABLED
-   gke-online-boutique-c94d71e8-master  gke-vpc  INGRESS    1000      tcp:10250,tcp:443        False
+Expected:
 
-   # Update firewall rule (or create a new one) to allow webhook port 15017
-   gcloud compute firewall-rules update gke-online-boutique-c94d71e8-master \
-    --allow tcp:10250,tcp:443,tcp:15017
-   ```
+```text
+000
+```
 
-# Deploy Online Boutique with the Istio component
+This proves STRICT mTLS is enforced.
 
-Once the service mesh and namespace injection are configured, you can then deploy the Istio manifests using Kustomize. You should also include the [service-accounts component](../service-accounts) if you plan on using AuthorizationPolicies.
+Cleanup:
 
-1. Enable the service-mesh-istio component.
+```bash
+kubectl delete ns mtls-test
+```
 
-   ```sh
-   cd kustomize/
-   kustomize edit add component components/service-mesh-istio
-   ```
+---
 
-   This will update the `kustomize/kustomization.yaml` file which could be similar to:
-   ```yaml
-   apiVersion: kustomize.config.k8s.io/v1beta1
-   kind: Kustomization
-   resources:
-   - base
-   components:
-   - components/service-mesh-istio
-   ```
+## AuthorizationPolicy
 
-   _Note: `service-mesh-istio` component includes the same delete patch as the `non-public-frontend` component. Trying to use both those components in your kustomization.yaml file will result in an error._
+### What is AuthorizationPolicy?
 
-1. Deploy the manifests.
+AuthorizationPolicy controls which workloads are allowed to communicate.
 
-   ```sh
-   kubectl apply -k .
-   ```
+Unlike NetworkPolicy which works at network/IP level, AuthorizationPolicy works using workload identity and service accounts.
 
-   The output should be similar to:
-   ```
-   serviceaccount/adservice created
-   serviceaccount/cartservice created
-   serviceaccount/checkoutservice created
-   serviceaccount/currencyservice created
-   serviceaccount/emailservice created
-   serviceaccount/frontend created
-   serviceaccount/loadgenerator created
-   serviceaccount/paymentservice created
-   serviceaccount/productcatalogservice created
-   serviceaccount/recommendationservice created
-   serviceaccount/shippingservice created
-   service/adservice created
-   service/cartservice created
-   service/checkoutservice created
-   service/currencyservice created
-   service/emailservice created
-   service/frontend created
-   service/paymentservice created
-   service/productcatalogservice created
-   service/recommendationservice created
-   service/redis-cart created
-   service/shippingservice created
-   deployment.apps/adservice created
-   deployment.apps/cartservice created
-   deployment.apps/checkoutservice created
-   deployment.apps/currencyservice created
-   deployment.apps/emailservice created
-   deployment.apps/frontend created
-   deployment.apps/loadgenerator created
-   deployment.apps/paymentservice created
-   deployment.apps/productcatalogservice created
-   deployment.apps/recommendationservice created
-   deployment.apps/redis-cart created
-   deployment.apps/shippingservice created
-   gateway.gateway.networking.k8s.io/istio-gateway created
-   httproute.gateway.networking.k8s.io/frontend-route created
-   serviceentry.networking.istio.io/allow-egress-google-metadata created
-   serviceentry.networking.istio.io/allow-egress-googleapis created
-   virtualservice.networking.istio.io/frontend created
-   ```
+### Current Service Access Rules
 
-# Verify that the deployment succeeded
+```text
+istio-ingressgateway -> frontend
 
-1. Check that the pods and the gateway are in a healthy and ready state.
+frontend -> productcatalogservice
+frontend -> recommendationservice
+frontend -> cartservice
+frontend -> checkoutservice
+frontend -> currencyservice
+frontend -> shippingservice
 
-   ```sh
-   kubectl get pods,gateways,services
-   ```
+checkoutservice -> paymentservice
+checkoutservice -> emailservice
+checkoutservice -> shippingservice
+checkoutservice -> productcatalogservice
+checkoutservice -> cartservice
+checkoutservice -> currencyservice
 
-   The output should be similar to:
-   ```
-   NAME                                         READY   STATUS    RESTARTS   AGE
-   pod/adservice-6cbd9794f9-8c4gv               2/2     Running   0          47s
-   pod/cartservice-667bbd5f6-84j8v              2/2     Running   0          47s
-   pod/checkoutservice-547557f445-bw46n         2/2     Running   0          47s
-   pod/currencyservice-6bd8885d9c-2cszv         2/2     Running   0          47s
-   pod/emailservice-64997dcf97-8fpsd            2/2     Running   0          47s
-   pod/frontend-c54778dcf-wbgmr                 2/2     Running   0          46s
-   pod/istio-gateway-istio-8577b948c6-cxl8j     1/1     Running   0          45s
-   pod/loadgenerator-ccfd4d598-jh6xj            2/2     Running   0          46s
-   pod/paymentservice-79b77cd7c-6hth7           2/2     Running   0          46s
-   pod/productcatalogservice-5f75795545-nk5wv   2/2     Running   0          46s
-   pod/recommendationservice-56dd4c7df5-gnwwr   2/2     Running   0          46s
-   pod/redis-cart-799c85c644-pxsvt              2/2     Running   0          46s
-   pod/shippingservice-64f8df74f5-7wllf         2/2     Running   0          45s
+cartservice -> redis-cart
+```
 
-   NAME                                              CLASS   ADDRESS          READY   AGE
-   gateway.gateway.networking.k8s.io/istio-gateway   istio   35.247.123.146   True    45s
+### Active Policies
 
-   NAME                            TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)                        AGE
-   service/adservice               ClusterIP      10.68.231.142   <none>           9555/TCP                       49s
-   service/cartservice             ClusterIP      10.68.184.25    <none>           7070/TCP                       49s
-   service/checkoutservice         ClusterIP      10.68.177.213   <none>           5050/TCP                       49s
-   service/currencyservice         ClusterIP      10.68.249.87    <none>           7000/TCP                       49s
-   service/emailservice            ClusterIP      10.68.205.123   <none>           5000/TCP                       49s
-   service/frontend                ClusterIP      10.68.94.203    <none>           80/TCP                         48s
-   service/istio-gateway-istio     LoadBalancer   10.68.147.158   35.247.123.146   15021:30376/TCP,80:30332/TCP   45s
-   service/kubernetes              ClusterIP      10.68.0.1       <none>           443/TCP                        65m
-   service/paymentservice          ClusterIP      10.68.114.19    <none>           50051/TCP                      48s
-   service/productcatalogservice   ClusterIP      10.68.240.153   <none>           3550/TCP                       48s
-   service/recommendationservice   ClusterIP      10.68.117.97    <none>           8080/TCP                       48s
-   service/redis-cart              ClusterIP      10.68.189.126   <none>           6379/TCP                       48s
-   service/shippingservice         ClusterIP      10.68.221.62    <none>           50051/TCP                      48s
-   ```
+```bash
+kubectl get authorizationpolicy -n boutique
+```
 
-1. Find the external IP address of your Istio gateway.
+Expected:
 
-   ```sh
-   INGRESS_HOST="$(kubectl get gateway istio-gateway \
-       -o jsonpath='{.status.addresses[*].value}')"
-   ```
+```text
+cartservice-allow-required-callers
+checkoutservice-allow-frontend
+currencyservice-allow-required-callers
+emailservice-allow-checkoutservice
+frontend-allow-ingressgateway
+paymentservice-allow-checkoutservice
+productcatalogservice-allow-required-callers
+recommendationservice-allow-frontend
+redis-cart-allow-cartservice
+shippingservice-allow-required-callers
+```
 
-1. Navigate to the frontend in a web browser.
+### Negative Validation
 
-   ```
-   http://$INGRESS_HOST
-   ```
+Create an unauthorized pod:
 
-# Additional service mesh demos using Online Boutique 
+```bash
+kubectl run test-client -n boutique \
+  --image=curlimages/curl \
+  --restart=Never \
+  -- sleep 3600
+```
 
-- [Canary deployment](https://github.com/GoogleCloudPlatform/istio-samples/tree/master/istio-canary-gke)
-- [Security (mTLS, JWT, Authorization)](https://github.com/GoogleCloudPlatform/istio-samples/tree/master/security-intro)
-- [Cloud Operations (Stackdriver)](https://github.com/GoogleCloudPlatform/istio-samples/tree/master/istio-stackdriver)
-- [Stackdriver metrics (Open source Istio)](https://github.com/GoogleCloudPlatform/istio-samples/tree/master/stackdriver-metrics)
+Attempt access:
 
-# Related resources
+```bash
+kubectl exec -n boutique test-client -- \
+  curl -s -o /dev/null -w "%{http_code}\n" \
+  http://productcatalogservice:3550/products
+```
 
-- [Deploying classic istio-ingressgateway in ASM](https://cloud.google.com/service-mesh/docs/gateways#deploy_gateways)
-- [Uninstall Istio via istioctl](https://istio.io/latest/docs/setup/install/istioctl/#uninstall-istio)
-- [Uninstall Cloud Service Mesh](https://cloud.google.com/service-mesh/docs/uninstall)
+Expected:
+
+```text
+403
+```
+
+This proves unauthorized workloads are blocked.
+
+Cleanup:
+
+```bash
+kubectl delete pod test-client -n boutique
+```
+
+---
+
+## Fault Injection
+
+### What is Fault Injection?
+
+Fault injection intentionally introduces failures into application traffic to validate resilience.
+
+Common scenarios:
+
+* Slow backend responses
+* Service failures
+* Network instability
+* Dependency outages
+
+### Why not managed by GitOps?
+
+Fault injection is intended for temporary testing.
+
+Keeping it permanently enabled in Argo CD could impact normal application traffic.
+
+Therefore:
+
+```text
+Git tracked
+Not permanently deployed
+Activated only during testing
+```
+
+### Available Fault Tests
+
+#### Delay Test
+
+Simulates backend latency.
+
+Enable:
+
+```bash
+./scripts/run-recommendationservice-fault-test.sh delay
+```
+
+Validation:
+
+```bash
+for i in {1..30}; do
+  curl -s -o /dev/null -w "%{time_total}\n" http://34.45.27.5
+done
+```
+
+Expected:
+
+```text
+Most requests around 0.7s
+Some requests around 2-4s
+```
+
+#### Abort Test
+
+Simulates backend HTTP 500 errors.
+
+Enable:
+
+```bash
+./scripts/run-recommendationservice-fault-test.sh abort
+```
+
+Validation:
+
+```bash
+for i in {1..50}; do
+  curl -s -o /dev/null -w "%{http_code}\n" http://34.45.27.5
+done | sort | uniq -c
+```
+
+Expected:
+
+```text
+Mostly HTTP 200
+Some HTTP 500
+Or graceful fallback behavior
+```
+
+#### Cleanup
+
+Disable fault injection:
+
+```bash
+./scripts/run-recommendationservice-fault-test.sh clean
+```
+
+---
+
+## Validation Commands
+
+### Verify Argo CD
+
+```bash
+kubectl get application -n argocd
+```
+
+### Verify mTLS
+
+```bash
+kubectl get peerauthentication -n boutique
+```
+
+### Verify Authorization Policies
+
+```bash
+kubectl get authorizationpolicy -n boutique
+```
+
+### Verify Istio Routing
+
+```bash
+kubectl get virtualservice -n boutique
+```
+
+### Verify Application
+
+```bash
+curl -I http://34.45.27.5
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+---
+
+## Interview Summary
+
+Phase 6 focused on improving security, visibility, and resilience within the service mesh.
+
+Implemented features:
+
+* Kiali for service dependency visualization and traffic analysis
+* STRICT mTLS using PeerAuthentication
+* Service-specific AuthorizationPolicies using least-privilege principles
+* Negative security validation proving unauthorized traffic is blocked
+* Fault injection framework for latency and failure testing
+* Reusable operational script for resilience testing
+
+Key achievements:
+
+* Removed broad namespace-level allow policy
+* Implemented workload-specific access control
+* Validated mTLS enforcement
+* Validated AuthorizationPolicy enforcement
+* Added repeatable resilience testing workflows
+
+This phase demonstrates practical service mesh security and operational readiness using Istio.
+
