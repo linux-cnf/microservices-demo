@@ -1,0 +1,13 @@
+# Kiali configuration for local lab usage.
+# It connects Kiali to the existing Prometheus deployed by the observability chart.
+kiali-server:
+  auth:
+    strategy: anonymous
+
+  deployment:
+    accessible_namespaces:
+      - "**"
+
+  external_services:
+    prometheus:
+      url: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
