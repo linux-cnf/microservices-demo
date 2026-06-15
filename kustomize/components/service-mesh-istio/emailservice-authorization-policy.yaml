@@ -1,0 +1,16 @@
+# Istio AuthorizationPolicy for emailservice.
+# Allows only checkoutservice to call emailservice.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: emailservice-allow-checkoutservice
+spec:
+  selector:
+    matchLabels:
+      app: emailservice
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/boutique/sa/checkoutservice

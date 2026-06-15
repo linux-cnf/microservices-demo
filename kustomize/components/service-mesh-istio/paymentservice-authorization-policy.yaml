@@ -1,0 +1,16 @@
+# Istio AuthorizationPolicy for paymentservice.
+# Allows only checkoutservice to call paymentservice.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: paymentservice-allow-checkoutservice
+spec:
+  selector:
+    matchLabels:
+      app: paymentservice
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/boutique/sa/checkoutservice

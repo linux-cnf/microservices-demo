@@ -1,0 +1,17 @@
+# Istio AuthorizationPolicy for currencyservice.
+# Allows only frontend and checkoutservice to call currencyservice.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: currencyservice-allow-required-callers
+spec:
+  selector:
+    matchLabels:
+      app: currencyservice
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/boutique/sa/frontend
+              - cluster.local/ns/boutique/sa/checkoutservice
