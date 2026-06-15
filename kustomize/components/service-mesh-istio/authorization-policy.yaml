@@ -1,0 +1,14 @@
+# Istio AuthorizationPolicy for boutique namespace.
+# This starts with namespace-wide allow inside boutique so STRICT mTLS remains safe.
+# Later we can tighten service-to-service access one service at a time.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: boutique-allow-same-namespace
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces:
+              - boutique
