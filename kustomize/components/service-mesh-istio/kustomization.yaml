@@ -10,3 +10,4 @@ resources:
   - mtls.yaml
   - istio-podmonitor.yaml
   - authorization-policy.yaml
+  - frontend-authorization-policy.yaml

@@ -1,0 +1,17 @@
+# Istio AuthorizationPolicy for frontend.
+# Allows external traffic from Istio ingressgateway to reach frontend.
+# This is the first step toward service-by-service access control.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: frontend-allow-ingressgateway
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces:
+              - istio-system
