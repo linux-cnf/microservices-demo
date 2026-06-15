@@ -3,67 +3,47 @@
 # Cluster Bootstrap Script (GKE + Argo CD)
 # =========================================================
 #
-# WHY THIS SCRIPT?
-# This script is used to bootstrap the Kubernetes cluster
-# (install Argo CD and deploy apps) from a bastion host.
+# Purpose:
+# Bootstrap Kubernetes cluster from bastion:
+# - Connect to private/restricted GKE cluster
+# - Install Argo CD
+# - Apply Argo CD config
+# - Apply root GitOps Application
 #
-# We use bastion because:
-# - GKE control plane access is restricted (master authorized networks)
-# - GitHub-hosted runners cannot access private/restricted clusters
-# - Bastion is already whitelisted and secure
+# Run from bastion because GitHub-hosted runners cannot access
+# the restricted/private GKE control plane.
 #
-# One-liner:
-# Run Kubernetes bootstrap (Argo CD + apps) from bastion where cluster access is allowed.
-#
-# =========================================================
-# HOW TO USE
-# =========================================================
-#
-# 1. Login & set project (only once)
-#    gcloud auth login
-#    gcloud config set project <PROJECT_ID>
-#
-# 2. Export required variables
-#    export ARGOCD_REPO_URL="your_repo_url"
-#    export ARGOCD_REPO_USERNAME="your_username"
-#    export ARGOCD_REPO_PASSWORD="your_password"
-#
-# 3. Make script executable
-#    chmod +x scripts/cluster-bootstrap.sh
-#
-# 4. Run script
-#    ./scripts/cluster-bootstrap.sh
+# Usage:
+#   chmod +x scripts/cluster-bootstrap.sh
+#   ./scripts/cluster-bootstrap.sh
 #
 # =========================================================
-# SUMMARY
-# =========================================================
-#
-# infra-main (GitHub runner):
-#   → Creates cloud infra (VPC, GKE, Artifact Registry)
-#
-# this script (bastion):
-#   → Connects to GKE
-#   → Installs Argo CD
-#   → Bootstraps applications
-#
-# Later (optional):
-#   → Replace this script with GitHub self-hosted runner on bastion
-#
-# =========================================================
+
 set -euo pipefail
 
+trap 'echo "Bootstrap failed at line $LINENO"; echo; kubectl get pods -n argocd || true; echo; kubectl get application -n argocd || true' ERR
+
 ########################################
-# Config (edit if needed)
+# Config
 ########################################
 PROJECT_ID="project-9e0b2bd9-4649-487c-9d1"
 CLUSTER_NAME="kfounding"
 REGION="us-central1"
 
 ########################################
-# Preconditions check
+# Preconditions
 ########################################
 command -v gcloud >/dev/null || { echo "gcloud not installed"; exit 1; }
 command -v kubectl >/dev/null || { echo "kubectl not installed"; exit 1; }
+
+for file in \
+  argocd/install.yaml \
+  argocd/argocd-cm-health-patch.yaml \
+  argocd/argocd-notifications-cm.yaml \
+  argocd/platform-root-app.yaml
+do
+  [[ -f "$file" ]] || { echo "Missing file: $file"; exit 1; }
+done
 
 echo "Using project: $PROJECT_ID"
 gcloud config set project "$PROJECT_ID" >/dev/null
@@ -73,7 +53,7 @@ gcloud config set project "$PROJECT_ID" >/dev/null
 ########################################
 echo "Fetching GKE credentials..."
 gcloud container clusters get-credentials "$CLUSTER_NAME" \
-  --region "${REGION}" \
+  --region "$REGION" \
   --project "$PROJECT_ID"
 
 ########################################
@@ -87,16 +67,16 @@ kubectl get nodes -o wide
 # Install Argo CD
 ########################################
 echo "Installing Argo CD..."
+
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 
-#kubectl apply --server-side --force-conflicts -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 kubectl apply --server-side --force-conflicts -n argocd \
   -f argocd/install.yaml
 
 ########################################
-# Wait for Argo CD
+# Wait for Argo CD core components
 ########################################
-echo "Waiting for Argo CD components..."
+echo "Waiting for Argo CD core components..."
 
 kubectl wait --for=condition=Available deployment/argocd-server \
   -n argocd --timeout=600s
@@ -104,17 +84,23 @@ kubectl wait --for=condition=Available deployment/argocd-server \
 kubectl wait --for=condition=Available deployment/argocd-repo-server \
   -n argocd --timeout=600s
 
-echo "Argo CD is ready."
+kubectl wait --for=condition=Available deployment/argocd-applicationset-controller \
+  -n argocd --timeout=600s || true
+
+kubectl wait --for=condition=Available deployment/argocd-dex-server \
+  -n argocd --timeout=600s || true
+
+kubectl rollout status statefulset/argocd-application-controller \
+  -n argocd --timeout=600s
+
+echo "Argo CD core components are ready."
 
 ########################################
-# Apply Argo CD custom health checks
+# Apply Argo CD configuration
 ########################################
 echo "Applying Argo CD custom health checks..."
 kubectl apply -f argocd/argocd-cm-health-patch.yaml -n argocd
 
-########################################
-# Apply Argo CD notifications config
-########################################
 echo "Applying Argo CD notifications config..."
 kubectl apply -f argocd/argocd-notifications-cm.yaml -n argocd
 
@@ -125,12 +111,14 @@ echo "Restarting Argo CD components to load updated configuration..."
 
 kubectl rollout restart deployment/argocd-server -n argocd
 kubectl rollout restart deployment/argocd-repo-server -n argocd
-kubectl rollout restart deployment/argocd-notifications-controller -n argocd
+kubectl rollout restart deployment/argocd-notifications-controller -n argocd || true
 kubectl rollout restart statefulset/argocd-application-controller -n argocd
 
 ########################################
-# Wait for Argo CD components
+# Wait after restart
 ########################################
+echo "Waiting for restarted Argo CD components..."
+
 kubectl rollout status deployment/argocd-server \
   -n argocd --timeout=300s
 
@@ -138,15 +126,10 @@ kubectl rollout status deployment/argocd-repo-server \
   -n argocd --timeout=300s
 
 kubectl rollout status deployment/argocd-notifications-controller \
-  -n argocd --timeout=300s
+  -n argocd --timeout=300s || true
 
 kubectl rollout status statefulset/argocd-application-controller \
   -n argocd --timeout=300s
-
-########################################
-# Public Git repository
-########################################
-echo "Using public Git repository; no Argo CD repo credentials required."
 
 ########################################
 # Apply Argo CD Root Application
@@ -163,13 +146,32 @@ kubectl wait \
   -n argocd \
   --timeout=120s || true
 
+########################################
+# Optional wait for platform-root status
+########################################
+echo "Checking platform-root reconciliation status..."
+
+for i in {1..30}; do
+  STATUS=$(kubectl get application platform-root -n argocd \
+    -o jsonpath='{.status.sync.status} {.status.health.status}' 2>/dev/null || true)
+
+  echo "platform-root status: ${STATUS:-not ready}"
+
+  if [[ "$STATUS" == "Synced Healthy" ]]; then
+    echo "platform-root is Synced and Healthy."
+    break
+  fi
+
+  sleep 20
+done
+
 echo
 echo "========================================================="
-echo "GitOps bootstrap initiated successfully"
+echo "GitOps bootstrap request submitted successfully"
 echo "========================================================="
 echo
 echo "Argo CD has accepted the root application."
-echo "Platform reconciliation is running asynchronously."
+echo "Platform reconciliation may still be running."
 echo
 echo "Expected bootstrap sequence:"
 echo "  platform-root"
@@ -202,6 +204,7 @@ awk '$2!="Synced" || $3!="Healthy" {
 
 echo
 echo "Cluster workload summary:"
+
 kubectl get pods -A --no-headers 2>/dev/null | \
 awk '
 {
@@ -212,18 +215,14 @@ awk '
 END {
   printf "  Healthy workloads: %s/%s\n",healthy,total
 }'
-echo
 
+echo
 echo "Recommended validation commands:"
 echo
 echo "  kubectl get application -A"
 echo "  kubectl get pods -A"
 echo "  kubectl get events -A --sort-by=.lastTimestamp | tail -30"
 echo "  kubectl describe application platform-root -n argocd"
-echo
-
-echo "Bootstrap phase completed."
-echo "Argo CD will continue reconciling applications in the background."
 echo
 
 TOTAL_APPS=$(kubectl get application -n argocd --no-headers 2>/dev/null | wc -l || echo 0)
@@ -241,4 +240,5 @@ echo "Applications synced     : ${SYNCED_APPS}"
 echo "Applications healthy    : ${HEALTHY_APPS}"
 echo
 
-echo "Cluster bootstrap completed successfully 🚀"
+echo "Cluster bootstrap phase completed 🚀"
+echo "Argo CD will continue reconciling applications if anything is still pending."
