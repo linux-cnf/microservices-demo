@@ -1,0 +1,19 @@
+# Istio AuthorizationPolicy for productcatalogservice.
+# Allows only frontend, checkoutservice, and recommendationservice to call productcatalogservice.
+# This is part of service-by-service least-privilege access control.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: productcatalogservice-allow-required-callers
+spec:
+  selector:
+    matchLabels:
+      app: productcatalogservice
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/boutique/sa/frontend
+              - cluster.local/ns/boutique/sa/checkoutservice
+              - cluster.local/ns/boutique/sa/recommendationservice
