@@ -43,6 +43,11 @@ spec:
         - '.spec.template.spec.schedulerName'
         - '.spec.template.spec.securityContext'
         - '.spec.template.spec.terminationGracePeriodSeconds'
+        - '.spec.template.spec.containers[] | select(.name=="discovery").env[] | select(.name=="GOMEMLIMIT").valueFrom.resourceFieldRef.divisor'
+        - '.spec.template.spec.volumes[] | select(.name=="istio-token").projected.defaultMode'
+        - '.spec.template.spec.volumes[] | select(.name=="cacerts").secret.defaultMode'
+        - '.spec.template.spec.volumes[] | select(.name=="istio-kubeconfig").secret.defaultMode'
+        - '.spec.template.spec.volumes[] | select(.name=="istio-csr-dns-cert").secret.defaultMode'
 
   project: platform
 
