@@ -6,4 +6,4 @@ metadata:
   name: boutique-mtls
 spec:
   mtls:
-    mode: PERMISSIVE
+    mode: STRICT
