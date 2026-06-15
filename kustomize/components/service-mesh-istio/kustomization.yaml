@@ -10,4 +10,3 @@ resources:
   - mtls.yaml
   - istio-podmonitor.yaml
   - authorization-policy.yaml
-  - recommendationservice-fault-injection.yaml
