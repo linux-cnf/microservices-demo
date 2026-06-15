@@ -14,3 +14,9 @@ resources:
   - productcatalogservice-authorization-policy.yaml
   - recommendationservice-authorization-policy.yaml
   - cartservice-authorization-policy.yaml
+  - currencyservice-authorization-policy.yaml
+  - checkoutservice-authorization-policy.yaml
+  - paymentservice-authorization-policy.yaml
+  - emailservice-authorization-policy.yaml
+  - shippingservice-authorization-policy.yaml
+  - redis-cart-authorization-policy.yaml

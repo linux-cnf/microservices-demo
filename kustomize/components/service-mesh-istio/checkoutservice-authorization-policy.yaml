@@ -1,0 +1,16 @@
+# Istio AuthorizationPolicy for checkoutservice.
+# Allows only frontend to call checkoutservice.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: checkoutservice-allow-frontend
+spec:
+  selector:
+    matchLabels:
+      app: checkoutservice
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/boutique/sa/frontend
