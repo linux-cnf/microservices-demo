@@ -1,0 +1,17 @@
+# Istio AuthorizationPolicy for recommendationservice.
+# Allows only frontend to call recommendationservice.
+# This limits recommendation access to the service that actually needs it.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: recommendationservice-allow-frontend
+spec:
+  selector:
+    matchLabels:
+      app: recommendationservice
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/boutique/sa/frontend
