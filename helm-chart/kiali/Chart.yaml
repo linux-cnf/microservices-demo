@@ -1,0 +1,13 @@
+# Helm chart wrapper for installing Kiali through Argo CD.
+# Kiali gives visibility into Istio service mesh traffic, mTLS status, errors, and service dependencies.
+apiVersion: v2
+name: kiali
+description: Kiali dashboard for Istio service mesh visibility
+type: application
+version: 0.1.0
+appVersion: "2.0.0"
+
+dependencies:
+  - name: kiali-server
+    version: "2.7.0"
+    repository: "https://kiali.org/helm-charts"

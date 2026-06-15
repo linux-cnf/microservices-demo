@@ -1,5 +1,5 @@
-# Enables namespace-level mTLS in PERMISSIVE mode for boutique.
-# This lets sidecar-to-sidecar traffic use mTLS while avoiding breakage for existing non-mesh/external traffic.
+# Enforces namespace-level mTLS in STRICT mode for boutique.
+# Only Istio sidecar-to-sidecar encrypted traffic is allowed.
 apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication
 metadata:
