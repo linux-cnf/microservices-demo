@@ -9,7 +9,6 @@ resources:
   - frontend.yaml
   - mtls.yaml
   - istio-podmonitor.yaml
-  - authorization-policy.yaml
   - frontend-authorization-policy.yaml
   - productcatalogservice-authorization-policy.yaml
   - recommendationservice-authorization-policy.yaml
