@@ -6,11 +6,11 @@
 # - Create namespace
 # - Aggregate AI platform manifests
 #
-# FUTURE RESOURCES:
-# - Ollama
-# - vLLM
-# - LLM Gateway
-# - AI Agents
+# CURRENT RESOURCES:
+# - AI namespace
+# - Ollama CPU runtime
+# - Ollama internal service
+# - Ollama model cache PVC
 #
 # In short:
 # Root Kustomize layer for the AI platform.
@@ -21,3 +21,6 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
+  - ollama-pvc.yaml
+  - ollama-deployment.yaml
+  - ollama-service.yaml

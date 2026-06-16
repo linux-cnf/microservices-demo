@@ -1,0 +1,72 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Deploy Ollama as the first CPU-based LLM runtime.
+#
+# RESPONSIBILITIES:
+# - Run local model-serving API
+# - Schedule only on dedicated AI node pool
+# - Persist model cache using PVC
+#
+# NOTE:
+# This is CPU-first for cost/quota safety.
+# vLLM/GPU runtime can be added later after quota approval.
+#
+# In short:
+# First GitOps-managed LLM runtime on the AI node pool.
+# -------------------------------------------------------------------
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ai
+  labels:
+    app: ollama
+    workload: ai
+    tier: platform
+    purpose: llm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+        workload: ai
+        tier: platform
+        purpose: llm
+    spec:
+      nodeSelector:
+        workload: ai
+        purpose: llm
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: ai
+          effect: NoSchedule
+      containers:
+        - name: ollama
+          image: ollama/ollama:0.13.4
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 11434
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1500m"
+              memory: "3Gi"
+          volumeMounts:
+            - name: ollama-model-cache
+              mountPath: /root/.ollama
+      volumes:
+        - name: ollama-model-cache
+          persistentVolumeClaim:
+            claimName: ollama-model-cache
