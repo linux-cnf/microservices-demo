@@ -26,3 +26,5 @@ resources:
   - ollama-service.yaml
   - llm-gateway-deployment.yaml
   - llm-gateway-service.yaml
+  - ai-agent-orchestrator-service.yaml
+  - ai-agent-orchestrator-deployment.yaml

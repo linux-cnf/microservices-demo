@@ -1,0 +1,76 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Deploy AI Agent Orchestrator as the agent-control layer.
+#
+# RESPONSIBILITIES:
+# - Receive /agent/chat requests
+# - Add platform-specific system prompt
+# - Forward request to LLM Gateway
+# - Prepare future tool-routing integration
+#
+# DESIGN:
+# Client -> AI Agent Orchestrator -> LLM Gateway -> Ollama/vLLM
+#
+# In short:
+# First agent layer before adding real platform tools.
+# -------------------------------------------------------------------
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-agent-orchestrator
+  namespace: ai
+  labels:
+    app: ai-agent-orchestrator
+    workload: ai
+    tier: platform
+    purpose: agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-agent-orchestrator
+  template:
+    metadata:
+      labels:
+        app: ai-agent-orchestrator
+        workload: ai
+        tier: platform
+        purpose: agent
+    spec:
+      nodeSelector:
+        workload: ai
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: ai
+          effect: NoSchedule
+      containers:
+        - name: ai-agent-orchestrator
+          image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/microservices-demo/ai-agent-orchestrator:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: LLM_GATEWAY_URL
+              value: "http://llm-gateway.ai.svc.cluster.local:8080"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
