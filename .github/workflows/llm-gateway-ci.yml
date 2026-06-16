@@ -3,31 +3,47 @@
 # Build and publish the LLM Gateway container image.
 #
 # RESPONSIBILITIES:
-# - Build llm-gateway Docker image from src/llm-gateway
+# - Build llm-gateway Docker image
 # - Push immutable image tag to Artifact Registry
-# - Keep image delivery separate from Argo CD deployment
+# - Update GitOps deployment manifest
+# - Create PR with updated image tag
 #
 # GITOPS FLOW:
-# CI builds and pushes image.
-# Git manifest controls what Argo CD deploys.
+#
+# Source Code Change
+#      ↓
+# Build Container Image
+#      ↓
+# Push Image to Artifact Registry
+#      ↓
+# Update Deployment Manifest
+#      ↓
+# Create Pull Request
+#      ↓
+# Merge PR
+#      ↓
+# Argo CD Deploys
 #
 # In short:
-# Build image in CI, deploy through GitOps.
+# CI builds images.
+# Git controls deployments.
+# Argo CD reconciles desired state.
 # -------------------------------------------------------------------
 
 name: llm-gateway-ci
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - "src/llm-gateway/**"
-      - ".github/workflows/llm-gateway-ci.yml"
 
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
   id-token: write
 
 env:
@@ -40,10 +56,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Authenticate to GCP
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
@@ -58,7 +74,7 @@ jobs:
         run: |
           gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
-      - name: Build image
+      - name: Build container image
         run: |
           IMAGE_URI="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
 
@@ -66,18 +82,49 @@ jobs:
             -t "${IMAGE_URI}" \
             src/llm-gateway
 
-      - name: Push image
+      - name: Push container image
         run: |
           IMAGE_URI="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
 
           docker push "${IMAGE_URI}"
 
-      - name: Print image URI
+      - name: Update GitOps deployment manifest
         run: |
-          echo "✅ LLM Gateway image pushed successfully."
+          IMAGE_URI="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
+
+          sed -i "s|image: .*|image: ${IMAGE_URI}|g" \
+            kustomize/ai-platform/base/llm-gateway-deployment.yaml
+
+          echo "Updated deployment manifest:"
+          grep "image:" kustomize/ai-platform/base/llm-gateway-deployment.yaml
+
+      - name: Create image update pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: bot/update-llm-gateway-image-${{ github.sha }}
+          commit-message: "chore(ai): update llm gateway image"
+          title: "chore(ai): update llm gateway image"
+          body: |
+            ## AI Platform Image Update
+
+            Automated GitOps image update.
+
+            Image repository:
+            `${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}`
+
+            Workflow:
+            Build → Push → Git Update → Argo CD Deploy
+
+            Generated automatically by llm-gateway-ci.
+          add-paths: |
+            kustomize/ai-platform/base/llm-gateway-deployment.yaml
+
+      - name: Print deployment summary
+        run: |
+          echo "✅ LLM Gateway image built and pushed."
           echo ""
           echo "Image:"
           echo "${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
           echo ""
-          echo "Next GitOps step:"
-          echo "Update kustomize/ai-platform/base/llm-gateway-deployment.yaml with this immutable image tag."
+          echo "GitOps deployment PR created."
+          echo "Merge the PR to allow Argo CD to deploy the new image."
