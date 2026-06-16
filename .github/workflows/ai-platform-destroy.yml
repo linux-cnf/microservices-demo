@@ -1,0 +1,102 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# On-demand cleanup workflow for AI platform infrastructure.
+#
+# RESPONSIBILITIES:
+# - Disable the dedicated AI node pool using Terraform
+# - Remove only AI infrastructure, not the main GKE platform
+# - Keep AI cost controlled when LLM/agent workloads are not required
+#
+# SAFETY MODEL:
+# This workflow does not destroy the full platform.
+# It only applies Terraform with enable_ai_node_pool=false.
+#
+# WHY SEPARATE FROM BOOTSTRAP?
+# Destroy actions should be explicit, isolated, and protected by
+# confirmation input to avoid accidental infrastructure removal.
+# -------------------------------------------------------------------
+
+name: ai-platform-destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: "Type yes-destroy-ai-platform to confirm"
+        required: true
+        default: "no"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-live-main
+  cancel-in-progress: false
+
+jobs:
+  ai-destroy:
+    if: ${{ inputs.confirm_destroy == 'yes-destroy-ai-platform' }}
+    runs-on: ubuntu-latest
+
+    env:
+      TF_INPUT: "false"
+      TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.8
+
+      - name: Terraform init
+        working-directory: terraform/live/main
+        run: terraform init -input=false
+
+      - name: Terraform plan disable AI node pool
+        working-directory: terraform/live/main
+        run: terraform plan -input=false -var="enable_ai_node_pool=false" -out=tfplan-ai-destroy
+
+      - name: Terraform apply disable AI node pool
+        working-directory: terraform/live/main
+        run: terraform apply -input=false -auto-approve tfplan-ai-destroy
+
+      - name: Verify AI node pool removed
+        run: |
+          echo "Checking node pools after AI cleanup..."
+          gcloud container node-pools list \
+            --cluster kfounding \
+            --region us-central1
+
+          echo ""
+          echo "Checking remaining Kubernetes nodes..."
+          gcloud container clusters get-credentials kfounding \
+            --region us-central1 \
+            --project "${{ secrets.GCP_PROJECT_ID }}"
+
+          kubectl get nodes -L workload,tier,purpose
+
+      - name: AI platform destroy completion message
+        run: |
+          echo "✅ AI platform infrastructure cleanup completed."
+          echo ""
+          echo "Dedicated AI node pool has been disabled."
+          echo "Core GKE platform, application node pools, observability, and networking remain untouched."
+          echo ""
+          echo "Cost-control status:"
+          echo "  AI node pool: disabled"
+          echo "  LLM/agent compute capacity: removed"
