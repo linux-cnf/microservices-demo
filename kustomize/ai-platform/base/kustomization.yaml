@@ -24,3 +24,5 @@ resources:
   - ollama-pvc.yaml
   - ollama-deployment.yaml
   - ollama-service.yaml
+  - llm-gateway-deployment.yaml
+  - llm-gateway-service.yaml

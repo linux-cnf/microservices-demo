@@ -1,0 +1,34 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Internal Kubernetes service for LLM Gateway.
+#
+# RESPONSIBILITIES:
+# - Expose LLM Gateway inside the cluster
+# - Provide stable DNS for frontend and future AI agents
+#
+# ACCESS:
+# Internal only:
+# http://llm-gateway.ai.svc.cluster.local:8080
+#
+# In short:
+# Stable in-cluster API endpoint for AI requests.
+# -------------------------------------------------------------------
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-gateway
+  namespace: ai
+  labels:
+    app: llm-gateway
+    workload: ai
+    tier: platform
+    purpose: gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: llm-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
