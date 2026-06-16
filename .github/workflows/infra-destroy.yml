@@ -1,3 +1,32 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Safely decommission infrastructure created by Terraform.
+#
+# RESPONSIBILITIES:
+# - Remove GKE cluster resources
+# - Remove managed node pools
+# - Remove Cloud NAT resources
+# - Clean up orphaned GKE/PVC disks
+# - Report leftover static IPs for manual review
+#
+# WHY THIS EXISTS?
+# Provides a controlled teardown workflow for lab,
+# testing, and cost-optimization scenarios while
+# protecting long-lived resources such as:
+# - Artifact Registry
+# - Secret Manager
+# - Service Accounts
+# - Terraform state
+#
+# SAFETY MODEL:
+# Requires explicit confirmation before execution.
+# Uses Terraform-managed destruction only for
+# approved infrastructure components.
+#
+# In short:
+# Destroy Kubernetes infrastructure safely without
+# impacting shared platform resources.
+# -------------------------------------------------------------------
 name: infra-destroy
 
 on:
