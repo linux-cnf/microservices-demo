@@ -23,3 +23,11 @@ module "ai_node_pool_default_node_sa" {
 
   depends_on = [module.ai_node_pool_service_account]
 }
+module "ai_node_pool_artifact_registry_reader" {
+  source         = "../../modules/iam-binding"
+  gcp_project_id = var.gcp_project_id
+  role           = "roles/artifactregistry.reader"
+  member         = module.ai_node_pool_service_account.member
+
+  depends_on = [module.ai_node_pool_service_account]
+}
