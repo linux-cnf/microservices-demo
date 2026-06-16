@@ -134,4 +134,4 @@ jobs:
           echo "Run this script from the bastion node or from the machine/IP range whitelisted in GKE master authorized networks."
           echo ""
           echo "Current whitelisted CIDR:"
-          echo "  163.227.186.128/30"    
+          echo "  163.227.186.128/30"
