@@ -1,0 +1,83 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Build and publish the LLM Gateway container image.
+#
+# RESPONSIBILITIES:
+# - Build llm-gateway Docker image from src/llm-gateway
+# - Push immutable image tag to Artifact Registry
+# - Keep image delivery separate from Argo CD deployment
+#
+# GITOPS FLOW:
+# CI builds and pushes image.
+# Git manifest controls what Argo CD deploys.
+#
+# In short:
+# Build image in CI, deploy through GitOps.
+# -------------------------------------------------------------------
+
+name: llm-gateway-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/llm-gateway/**"
+      - ".github/workflows/llm-gateway-ci.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: us-central1
+  REPOSITORY: microservices-demo
+  IMAGE_NAME: llm-gateway
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build image
+        run: |
+          IMAGE_URI="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
+
+          docker build \
+            -t "${IMAGE_URI}" \
+            src/llm-gateway
+
+      - name: Push image
+        run: |
+          IMAGE_URI="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
+
+          docker push "${IMAGE_URI}"
+
+      - name: Print image URI
+        run: |
+          echo "✅ LLM Gateway image pushed successfully."
+          echo ""
+          echo "Image:"
+          echo "${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
+          echo ""
+          echo "Next GitOps step:"
+          echo "Update kustomize/ai-platform/base/llm-gateway-deployment.yaml with this immutable image tag."
