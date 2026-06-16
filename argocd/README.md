@@ -1,332 +1,433 @@
-# Argo CD GitOps Platform
+# Argo CD GitOps Control Plane
 
 ## Overview
 
-This directory contains all Argo CD configuration used to deploy and manage the Kubernetes platform using GitOps.
+This directory contains the complete GitOps control plane responsible for deploying, reconciling, monitoring, and managing the Kubernetes platform.
 
-Argo CD continuously watches this Git repository and keeps the Kubernetes cluster state aligned with Git.
+Argo CD continuously reconciles the desired state stored in Git with the live cluster state, ensuring workloads remain synchronized, recover automatically from configuration drift, and follow a fully declarative deployment model.
 
-In short:
+Core Principle:
 
 ```text
-Git = Source of Truth
+Git = Desired State
+Kubernetes = Actual State
+Argo CD = Reconciliation Engine
 ```
 
-If something changes manually inside the cluster, Argo CD detects drift and automatically restores the expected state from Git.
+Any manual modification performed inside the cluster is detected as drift and automatically corrected according to the Git-defined configuration.
 
 ---
 
-# High-Level Flow
+# GitOps Deployment Flow
 
 ```text
-Developer pushes code
-        ↓
-GitHub Actions CI builds images
-        ↓
-Images pushed to Artifact Registry
-        ↓
-CI updates Kustomize image tags
-        ↓
-Pull Request created
-        ↓
-PR merged to main
-        ↓
-Argo CD detects Git change
-        ↓
-Argo CD syncs Kubernetes cluster
+Developer
+    │
+    ▼
+GitHub Repository
+    │
+    ▼
+GitHub Actions CI/CD
+    │
+    ▼
+Artifact Registry
+    │
+    ▼
+GitOps Manifest Update
+    │
+    ▼
+Pull Request Approval
+    │
+    ▼
+Merge to Main
+    │
+    ▼
+Argo CD Reconciliation
+    │
+    ▼
+Kubernetes Cluster
 ```
+
+This workflow eliminates imperative deployments and ensures all changes are auditable and reproducible.
 
 ---
 
 # App-of-Apps Architecture
 
-This repository uses the **Argo CD app-of-apps pattern**.
+The platform follows the Argo CD App-of-Apps pattern.
 
-Instead of manually applying every application YAML one-by-one, a single root application manages all child applications.
+Rather than managing individual applications manually, a single root application controls the entire platform deployment lifecycle.
 
-Root application:
+Root Application:
 
 ```text
 platform-root-app.yaml
 ```
 
-The root app watches:
+Managed Path:
 
 ```text
-argocd/apps
+argocd/apps/
 ```
 
-and automatically deploys all child applications.
+Deployment Flow:
 
-This is the recommended production approach for large Kubernetes platforms.
-
----
-
-# Why App-of-Apps?
+```text
+platform-root
+      │
+      ├── external-secrets
+      ├── observability
+      ├── logging
+      ├── tracing
+      ├── argo-rollouts
+      ├── istio
+      ├── kiali
+      └── boutique
+```
 
 Benefits:
 
-- Centralized GitOps management
-- Easier scaling of platform applications
-- Cleaner bootstrap process
-- Better production organization
-- Easier onboarding for teams
-- Consistent deployment ordering
+* Centralized GitOps management
+* Consistent deployment ordering
+* Simplified cluster bootstrap
+* Scalable platform architecture
+* Reduced operational complexity
 
 ---
 
-# Current Platform Components
+# Platform Components
 
-## Core Platform
+## GitOps Foundation
+
+### platform-root-app.yaml
+
+Bootstrap application responsible for managing all platform applications.
 
 ### projects.yaml
 
-Defines Argo CD Projects.
+Defines Argo CD Projects used for:
 
-Projects provide:
-
-- RBAC boundaries
-- Allowed repositories
-- Allowed namespaces
-- Deployment restrictions
+* Repository restrictions
+* Namespace restrictions
+* RBAC boundaries
+* Deployment governance
 
 ---
 
-## External Secrets
+# External Secrets Platform
 
-### external-secrets-app.yaml
+## external-secrets-app.yaml
 
-Deploys External Secrets Operator using Helm.
+Deploys External Secrets Operator.
 
-This operator pulls secrets securely from Google Secret Manager into Kubernetes.
+Responsibilities:
 
----
+* Secret synchronization
+* Secret lifecycle management
+* Secret rotation support
 
-### external-secrets-resources-app.yaml
+## external-secrets-resources-app.yaml
 
 Deploys:
 
-- SecretStore
-- ExternalSecret
-- Kubernetes ServiceAccount
+* SecretStore
+* ExternalSecret
+* Service Accounts
 
-Used for secure secret synchronization.
+Provides secure integration between Kubernetes and Google Secret Manager.
 
 ---
 
-## Observability Stack
+# Progressive Delivery Platform
 
-### observability-app.yaml
+## argo-rollouts-app.yaml
+
+Deploys Argo Rollouts controller.
+
+Capabilities:
+
+* Canary deployments
+* Progressive delivery
+* Automated promotion
+* Automated rollback
+* Analysis templates
+
+Used by:
+
+```text
+frontend rollout
+```
+
+---
+
+# Service Mesh Platform
+
+## istio-base-app.yaml
+
+Installs Istio CRDs.
+
+## istiod-app.yaml
+
+Deploys Istio control plane.
+
+## istio-ingressgateway-app.yaml
+
+Deploys ingress gateway used for north-south traffic.
+
+## kiali-app.yaml
+
+Deploys Kiali service mesh dashboard.
+
+Provides:
+
+* Traffic visualization
+* mTLS visibility
+* Service dependency graph
+* Error and latency analysis
+
+---
+
+# Observability Platform
+
+## observability-app.yaml
 
 Deploys:
 
-- Prometheus
-- Grafana
-- Alertmanager
+* Prometheus
+* Alertmanager
+* Grafana
 
-Used for metrics, dashboards, and alerting.
+Responsibilities:
+
+* Metrics collection
+* Alerting
+* Dashboard visualization
 
 ---
 
-## Logging Stack
+# Logging Platform
 
-### eck-operator-app.yaml
+## eck-operator-app.yaml
 
 Deploys Elastic Cloud on Kubernetes Operator.
 
-Required before Elasticsearch resources can be created.
+Required before Elasticsearch resources are created.
 
----
-
-### logging-app.yaml
+## logging-app.yaml
 
 Deploys:
 
-- Elasticsearch
-- Kibana
+* Elasticsearch
+* Kibana
 
-Used for centralized logging.
+Responsibilities:
 
----
+* Centralized log aggregation
+* Log retention
+* Log analysis
 
-### logging-agent-app.yaml
+## logging-agent-app.yaml
 
 Deploys Elastic Agent.
 
-Collects logs from Kubernetes nodes and workloads.
+Responsibilities:
+
+* Node log collection
+* Workload log collection
+* Elasticsearch ingestion
 
 ---
 
-## Tracing Stack
+# Distributed Tracing Platform
 
-### tracing-app.yaml
+## tracing-app.yaml
 
-Deploys distributed tracing components.
+Deploys:
 
-Used for request tracing and observability.
+* Tempo
+* OpenTelemetry Collector
+
+Responsibilities:
+
+* Distributed tracing
+* Request path visualization
+* Service latency analysis
 
 ---
 
-## Application Workloads
+# Application Platform
 
-### boutique-app.yaml
+## boutique-app.yaml
 
-Deploys the Online Boutique microservices application using Kustomize.
+Deploys the Online Boutique microservices application.
 
----
-
-# Sync Waves
-
-Applications are deployed using Argo CD sync waves.
-
-Sync waves control deployment order.
-
-Example:
+Managed through:
 
 ```text
-Lower number deploys first
-Higher number deploys later
+Kustomize
++
+Argo CD
++
+Argo Rollouts
++
+Istio
 ```
-
-Current order:
-
-| Sync Wave | Component |
-|---|---|
-| -3 | Namespace + Service Accounts |
-| -2 | External Secrets Operator |
-| -1 | External Secrets resources |
-| 0 | ECK Operator |
-| 1 | Observability |
-| 2 | Logging |
-| 3 | Logging Agent |
-| 4 | Tracing |
-| 5 | Boutique Application |
-
-This prevents dependency and CRD timing issues.
 
 ---
 
-# Health Checks
+# Deployment Ordering (Sync Waves)
 
-Custom health checks are configured using:
+Platform applications are deployed using Argo CD Sync Waves.
+
+Purpose:
+
+* CRDs deployed before CRs
+* Dependencies deployed before consumers
+* Deterministic bootstrap sequence
+
+Current Ordering:
+
+| Wave | Component                    |
+| ---- | ---------------------------- |
+| -3   | Namespaces, Service Accounts |
+| -2   | External Secrets Operator    |
+| -1   | External Secrets Resources   |
+| 0    | ECK Operator                 |
+| 1    | Observability                |
+| 2    | Logging                      |
+| 3    | Logging Agent                |
+| 4    | Tracing                      |
+| 5    | Argo Rollouts                |
+| 6    | Istio                        |
+| 7    | Kiali                        |
+| 8    | Boutique                     |
+
+---
+
+# Health Management
+
+## argocd-cm-health-patch.yaml
+
+Custom health checks extend native Argo CD health evaluation.
+
+Benefits:
+
+* Improved application visibility
+* Better App-of-Apps health reporting
+* Rollout status visibility
+* Reduced false unhealthy states
+
+Additional documentation:
 
 ```text
-argocd-cm-health-patch.yaml
+HEALTH-CUSTOMIZATION.md
 ```
-
-This improves visibility for:
-
-- app-of-apps health
-- child app health
-- sync status
-- progressive deployment tracking
 
 ---
 
-# Notifications
+# Notification Platform
 
-Argo CD notifications are configured using:
+## argocd-notifications-cm.yaml
 
-```text
-argocd-notifications-cm.yaml
-```
+Provides Slack integration for operational events.
 
-Notifications are sent to Slack for:
+Events:
 
-- Sync failures
-- Health degradation
-- Drift detection
-- OutOfSync applications
+* Sync failures
+* Health degradation
+* OutOfSync applications
+* Drift detection
+* Deployment failures
 
 ---
 
-# Secret Management
+# Secret Management Architecture
 
-Secrets are NOT stored in Git.
+Secrets are never stored inside Git.
 
-Secrets are securely managed using:
-
-- Google Secret Manager
-- External Secrets Operator
-- GKE Workload Identity
-
-Flow:
+Architecture:
 
 ```text
 Google Secret Manager
-        ↓
+          │
+          ▼
 External Secrets Operator
-        ↓
+          │
+          ▼
 Kubernetes Secret
-        ↓
-Argo CD Notifications
+          │
+          ▼
+Application Consumption
 ```
 
-This is production-grade secret management.
+Security Components:
+
+* Google Secret Manager
+* External Secrets Operator
+* Workload Identity
+* Kubernetes RBAC
 
 ---
 
-# Bootstrap Flow
+# Bootstrap Workflow
 
-Cluster bootstrap workflow:
+Cluster initialization sequence:
 
 ```text
-Terraform creates infrastructure
-        ↓
-cluster-bootstrap workflow runs
-        ↓
-Argo CD installed
-        ↓
-Health checks applied
-        ↓
-Notifications configured
-        ↓
-Root app deployed
-        ↓
-Child apps automatically synced
+Terraform Infrastructure
+          │
+          ▼
+GKE Cluster Creation
+          │
+          ▼
+Argo CD Installation
+          │
+          ▼
+Health Customization
+          │
+          ▼
+Notifications Configuration
+          │
+          ▼
+platform-root Deployment
+          │
+          ▼
+Platform Applications
+          │
+          ▼
+Application Workloads
 ```
 
 ---
 
-# Manual Testing
+# Operational Commands
 
-Apply only root app:
-
-```bash
-kubectl apply -f argocd/platform-root-app.yaml -n argocd
-```
-
-Argo CD will automatically deploy child apps.
-
----
-
-# Useful Commands
-
-## List Argo CD applications
+## List Applications
 
 ```bash
 kubectl get application -n argocd
 ```
 
----
-
-## Check application health
+## Check Application Details
 
 ```bash
-kubectl get application -n argocd
+argocd app get <application-name>
 ```
 
----
-
-## Force refresh application
+## Refresh Application
 
 ```bash
-kubectl annotate application boutique \
+kubectl annotate application <application-name> \
   -n argocd \
-  argocd.argoproj.io/refresh=hard --overwrite
+  argocd.argoproj.io/refresh=hard \
+  --overwrite
 ```
 
----
+## Check Projects
+
+```bash
+kubectl get appproject -n argocd
+```
 
 ## Check External Secrets
 
@@ -334,12 +435,10 @@ kubectl annotate application boutique \
 kubectl get externalsecret -A
 ```
 
----
-
-## Check Argo CD projects
+## Check Sync Status
 
 ```bash
-kubectl get appproject -n argocd
+argocd app list
 ```
 
 ---
@@ -348,14 +447,16 @@ kubectl get appproject -n argocd
 
 ```text
 argocd/
-├── README.md
 ├── install.yaml
 ├── platform-root-app.yaml
 ├── argocd-cm-health-patch.yaml
 ├── argocd-notifications-cm.yaml
+├── HEALTH-CUSTOMIZATION.md
 │
 ├── apps/
 │   ├── projects.yaml
+│   ├── argo-rollouts-app.yaml
+│   ├── boutique-app.yaml
 │   ├── external-secrets-app.yaml
 │   ├── external-secrets-resources-app.yaml
 │   ├── eck-operator-app.yaml
@@ -363,27 +464,58 @@ argocd/
 │   ├── logging-app.yaml
 │   ├── logging-agent-app.yaml
 │   ├── tracing-app.yaml
-│   ├── boutique-app.yaml
-│   │
-│   └── external-secrets/
-│       ├── kustomization.yaml
-│       ├── secret-store.yaml
-│       └── argocd-slack-token.yaml
+│   ├── istio-base-app.yaml
+│   ├── istiod-app.yaml
+│   ├── istio-ingressgateway-app.yaml
+│   └── kiali-app.yaml
 ```
 
 ---
 
-# Production Design Goals
+# Design Principles
 
-This setup focuses on:
+This GitOps control plane is designed around:
 
-- GitOps-first deployments
-- Secure secret management
-- Private GKE cluster design
-- Production-grade observability
-- Automated drift correction
-- Slack alerting
-- Infrastructure as Code
-- Clean bootstrap automation
-- Beginner-friendly operational flow
+* Declarative Infrastructure
+* GitOps-First Operations
+* Automated Drift Remediation
+* Progressive Delivery
+* Platform Observability
+* Secure Secret Management
+* Service Mesh Security
+* Production-Grade Kubernetes Operations
+* Reproducible Cluster Bootstrap
+* Least-Privilege Access Control
+
+---
+
+# Key Outcomes
+
+Implemented capabilities include:
+
+✅ App-of-Apps GitOps Architecture
+
+✅ Automated Reconciliation
+
+✅ Self-Healing Deployments
+
+✅ Progressive Delivery
+
+✅ Service Mesh Integration
+
+✅ Centralized Logging
+
+✅ Distributed Tracing
+
+✅ Metrics and Alerting
+
+✅ Secure Secret Management
+
+✅ Health Monitoring
+
+✅ Slack Notifications
+
+✅ Production-Oriented Platform Automation
+
+This directory represents the GitOps control plane responsible for operating the entire Kubernetes platform.
 
