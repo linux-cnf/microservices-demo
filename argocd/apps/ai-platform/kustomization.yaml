@@ -1,0 +1,17 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Placeholder Kustomization for future Argo CD AI resources.
+#
+# FUTURE RESOURCES:
+# - AI Applications
+# - AI Projects
+# - Shared AI Platform Resources
+#
+# In short:
+# Reserved for future AI GitOps expansion.
+# -------------------------------------------------------------------
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources: []
