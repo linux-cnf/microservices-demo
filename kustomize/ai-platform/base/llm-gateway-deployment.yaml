@@ -1,0 +1,79 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Deploy LLM Gateway as the controlled API layer for AI requests.
+#
+# RESPONSIBILITIES:
+# - Receive /chat requests
+# - Forward prompts to Ollama runtime
+# - Hide runtime implementation from frontend and future agents
+#
+# DESIGN:
+# Frontend/Agent -> LLM Gateway -> Ollama today
+# Frontend/Agent -> LLM Gateway -> vLLM later
+#
+# In short:
+# Stable abstraction layer for all LLM traffic.
+# -------------------------------------------------------------------
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-gateway
+  namespace: ai
+  labels:
+    app: llm-gateway
+    workload: ai
+    tier: platform
+    purpose: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-gateway
+  template:
+    metadata:
+      labels:
+        app: llm-gateway
+        workload: ai
+        tier: platform
+        purpose: gateway
+    spec:
+      nodeSelector:
+        workload: ai
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: ai
+          effect: NoSchedule
+      containers:
+        - name: llm-gateway
+          image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/microservices-demo/llm-gateway:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: OLLAMA_URL
+              value: "http://ollama.ai.svc.cluster.local:11434"
+            - name: DEFAULT_MODEL
+              value: "tinyllama"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
