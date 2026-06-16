@@ -1,0 +1,47 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Argo CD application responsible for managing the AI platform.
+#
+# RESPONSIBILITIES:
+# - Create AI namespace resources
+# - Deploy AI platform workloads
+# - Enable GitOps management for AI services
+#
+# FUTURE WORKLOADS:
+# - Ollama
+# - vLLM
+# - LLM Gateway
+# - AI Agent Orchestrator
+#
+# In short:
+# Single GitOps entrypoint for all AI platform components.
+# -------------------------------------------------------------------
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ai-platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/linux-cnf/microservices-demo.git
+    targetRevision: main
+    path: kustomize/ai-platform/base
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ai
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - PruneLast=true

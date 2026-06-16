@@ -1,0 +1,29 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Dedicated namespace for AI platform workloads.
+#
+# WORKLOADS:
+# - Ollama
+# - vLLM
+# - LLM Gateway
+# - AI Agent Orchestrator
+#
+# DESIGN:
+# Keeps AI services isolated from:
+# - Boutique workloads
+# - Observability stack
+# - Platform services
+#
+# In short:
+# Logical boundary for all AI platform resources.
+# -------------------------------------------------------------------
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai
+
+  labels:
+    workload: ai
+    tier: platform
+    purpose: llm
