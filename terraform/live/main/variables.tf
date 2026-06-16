@@ -53,3 +53,30 @@ variable "memorystore_enabled" {
   description = "If true, Online Boutique's in-cluster Redis cache will be replaced with a Google Cloud Memorystore Redis cache"
   default     = false
 }
+
+# AI vars start here
+variable "enable_ai_node_pool" {
+  description = "Enable dedicated AI node pool"
+  type        = bool
+  default     = false
+}
+
+variable "ai_node_pool_machine_type" {
+  description = "Machine type for AI node pool"
+  type        = string
+  default     = "e2-standard-2"
+}
+
+variable "ai_node_pool_min_count" {
+  description = "Minimum number of AI nodes across all zones"
+  type        = number
+  default     = 1
+}
+
+variable "ai_node_pool_max_count" {
+  description = "Maximum number of AI nodes across all zones"
+  type        = number
+  default     = 2
+}
+# AI vars end here
+
