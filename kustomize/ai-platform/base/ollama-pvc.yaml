@@ -1,0 +1,28 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Persistent storage for Ollama model cache.
+#
+# WHY THIS EXISTS?
+# Ollama stores downloaded models under /root/.ollama.
+# Using a PVC avoids re-downloading models after pod restarts.
+#
+# In short:
+# Keep local model cache persistent across pod restarts.
+# -------------------------------------------------------------------
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-model-cache
+  namespace: ai
+  labels:
+    app: ollama
+    workload: ai
+    tier: platform
+    purpose: llm
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
