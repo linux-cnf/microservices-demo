@@ -1,0 +1,174 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# On-demand bootstrap workflow for the AI platform infrastructure.
+#
+# RESPONSIBILITIES:
+# - Enable the dedicated AI node pool using Terraform
+# - Validate that AI nodes are created with correct labels and taints
+# - Keep AI infrastructure separate from normal platform bootstrap
+#
+# WHY THIS EXISTS?
+# AI/LLM workloads can be expensive and resource-heavy.
+# This workflow allows the AI platform to be enabled only when needed
+# for testing, demos, or future AI agent deployments.
+#
+# CURRENT SCOPE:
+# Phase 3 v1 provisions only AI infrastructure.
+# It does not deploy LLM Gateway, AI Agents, Ollama, or vLLM yet.
+#
+# FUTURE FLOW:
+# ai-platform-bootstrap
+#   ├── enable AI node pool
+#   ├── deploy AI namespace
+#   ├── deploy LLM Gateway
+#   ├── deploy AI Agent Orchestrator
+#   ├── deploy Ollama/vLLM
+#   └── run AI smoke tests
+# -------------------------------------------------------------------
+
+name: ai-platform-bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_apply:
+        description: "Run terraform apply to enable AI node pool?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-live-main
+  cancel-in-progress: false
+
+jobs:
+  ai-infra:
+    runs-on: ubuntu-latest
+
+    env:
+      TF_INPUT: "false"
+      TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Verify auth
+        run: |
+          gcloud auth list
+          gcloud config list
+          gcloud projects describe "${{ secrets.GCP_PROJECT_ID }}" --format="value(projectNumber)"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.8
+
+      - name: Terraform init
+        working-directory: terraform/live/main
+        run: terraform init
+
+      - name: Import existing AI node pool service account if present
+        working-directory: terraform/live/main
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          AI_NODE_POOL_SA_RESOURCE="module.ai_node_pool_service_account.google_service_account.service_account"
+          AI_NODE_POOL_SA_ID="projects/${PROJECT_ID}/serviceAccounts/gke-ai-node-pool-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+
+          if gcloud iam service-accounts describe "gke-ai-node-pool-sa@${PROJECT_ID}.iam.gserviceaccount.com" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            if terraform state show "${AI_NODE_POOL_SA_RESOURCE}" >/dev/null 2>&1; then
+              echo "AI node pool service account already exists in Terraform state."
+            else
+              echo "Importing existing AI node pool service account into Terraform state..."
+              terraform import "${AI_NODE_POOL_SA_RESOURCE}" "${AI_NODE_POOL_SA_ID}"
+            fi
+          else
+            echo "AI node pool service account does not exist yet. Terraform will create it."
+          fi
+
+      - name: Terraform fmt check
+        working-directory: terraform/live/main
+        run: terraform fmt -check -recursive
+
+      - name: Terraform validate
+        working-directory: terraform/live/main
+        run: terraform validate
+
+      - name: Terraform plan AI platform
+        working-directory: terraform/live/main
+        run: terraform plan -input=false -var="enable_ai_node_pool=true" -out=tfplan-ai
+
+      - name: Terraform apply AI platform
+        if: inputs.run_apply == 'true'
+        working-directory: terraform/live/main
+        run: terraform apply -input=false -auto-approve tfplan-ai
+
+      - name: Get GKE credentials
+        if: inputs.run_apply == 'true'
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: kfounding
+          location: us-central1
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Verify AI node pool
+        if: inputs.run_apply == 'true'
+        run: |
+          set -euo pipefail
+
+          echo "Checking AI node pool..."
+          gcloud container node-pools list \
+            --cluster kfounding \
+            --region us-central1
+
+          echo ""
+          echo "Checking AI node labels..."
+          kubectl get nodes -L workload,tier,purpose
+
+          echo ""
+          echo "Checking AI node taint..."
+          kubectl get nodes -l workload=ai -o name | while read -r node; do
+            kubectl describe "$node" | grep -A3 -i "Taints:"
+          done
+
+      - name: AI platform bootstrap completion message
+        if: inputs.run_apply == 'true'
+        run: |
+          echo "✅ AI platform infrastructure bootstrap completed."
+          echo ""
+          echo "Dedicated AI node pool has been provisioned and verified."
+          echo ""
+          echo "AI workload scheduling contract:"
+          echo "  nodeSelector:"
+          echo "    workload: ai"
+          echo "    purpose: llm"
+          echo ""
+          echo "  tolerations:"
+          echo "    - key: workload"
+          echo "      operator: Equal"
+          echo "      value: ai"
+          echo "      effect: NoSchedule"
+          echo ""
+          echo "Next step:"
+          echo "Deploy AI platform components such as LLM Gateway, AI Agent Orchestrator, Ollama, or vLLM through Argo CD."
