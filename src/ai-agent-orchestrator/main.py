@@ -8,9 +8,10 @@ Responsibilities:
 - Receive user prompts
 - Detect whether platform metrics are needed
 - Query Prometheus for live cluster metrics
+- Convert Prometheus results into clean tool output
 - Add platform-specific context
 - Call llm-gateway /chat
-- Return a structured response
+- Return structured response with tool results
 
 Current tools:
 - Prometheus query tool
@@ -20,6 +21,7 @@ Loki, Tempo, Kubernetes API tools, guardrails.
 """
 
 import os
+from typing import Any
 
 import requests
 from fastapi import FastAPI
@@ -49,8 +51,11 @@ Responsibilities:
 - Help with Observability
 - Help with AI Platform Operations
 
-When tool context is provided, use it as live cluster data.
-Keep responses concise and technical.
+Rules:
+- If tool context is provided, treat it as the live source of truth.
+- Do not invent kubectl output.
+- Do not suggest commands when the answer is already present in tool context.
+- Keep responses concise and technical.
 """.strip()
 
 
@@ -58,7 +63,7 @@ class ChatRequest(BaseModel):
     prompt: str
 
 
-def query_prometheus(query: str) -> dict:
+def query_prometheus(query: str) -> dict[str, Any]:
     response = requests.get(
         f"{PROMETHEUS_URL}/api/v1/query",
         params={"query": query},
@@ -66,6 +71,19 @@ def query_prometheus(query: str) -> dict:
     )
     response.raise_for_status()
     return response.json()
+
+
+def extract_prometheus_value(result: dict[str, Any]) -> float | str:
+    try:
+        values = result["data"]["result"]
+
+        if not values:
+            return 0
+
+        return float(values[0]["value"][1])
+
+    except Exception as exc:
+        return f"error: {exc}"
 
 
 def should_use_prometheus(prompt: str) -> bool:
@@ -89,7 +107,7 @@ def should_use_prometheus(prompt: str) -> bool:
     return any(keyword in prompt_lower for keyword in keywords)
 
 
-def build_prometheus_context(prompt: str) -> str:
+def build_prometheus_tool_result() -> dict[str, Any]:
     queries = {
         "ai_pods_ready": (
             'sum(kube_pod_status_ready{namespace="ai",condition="true"})'
@@ -106,19 +124,37 @@ def build_prometheus_context(prompt: str) -> str:
         "ollama_ready": (
             'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ollama-.*"})'
         ),
+        "ai_agent_ready": (
+            'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ai-agent-orchestrator-.*"})'
+        ),
     }
 
-    results = {}
+    results: dict[str, Any] = {}
 
     for name, promql in queries.items():
         try:
-            results[name] = query_prometheus(promql)
+            raw_result = query_prometheus(promql)
+            results[name] = {
+                "query": promql,
+                "value": extract_prometheus_value(raw_result),
+            }
         except Exception as exc:
-            results[name] = {"error": str(exc), "query": promql}
+            results[name] = {
+                "query": promql,
+                "error": str(exc),
+            }
 
+    return results
+
+
+def build_tool_context(tool_result: dict[str, Any]) -> str:
     return f"""
-Prometheus tool context:
-{results}
+Live Prometheus metrics from the ai namespace:
+
+{tool_result}
+
+Answer using only these metrics.
+Do not invent pod names or kubectl output.
 """.strip()
 
 
@@ -138,17 +174,25 @@ def readyz():
 
 @app.post("/agent/chat")
 def agent_chat(req: ChatRequest):
-    tool_context = ""
+    tool_used = "none"
+    tool_result = {}
 
     if should_use_prometheus(req.prompt):
-        tool_context = build_prometheus_context(req.prompt)
+        tool_used = "prometheus"
+        tool_result = build_prometheus_tool_result()
+
+    tool_context = (
+        build_tool_context(tool_result)
+        if tool_used == "prometheus"
+        else "No live tool context used."
+    )
 
     final_prompt = f"""
 System:
 {SYSTEM_PROMPT}
 
 Tool Context:
-{tool_context or "No live tool context used."}
+{tool_context}
 
 User:
 {req.prompt}
@@ -163,6 +207,7 @@ User:
 
     return {
         "agent": "ai-platform-agent",
-        "tool_used": "prometheus" if tool_context else "none",
+        "tool_used": tool_used,
+        "tool_result": tool_result,
         "response": response.json(),
     }
