@@ -109,3 +109,29 @@ jobs:
     needs: infra
     uses: ./.github/workflows/mirror-platform-images.yml
     secrets: inherit
+
+  bootstrap-complete-message:
+    name: Bootstrap completion message
+    needs:
+      - terraform-validate
+      - infra
+      - mirror-platform-images
+    if: ${{ success() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Print next-step instructions
+        run: |
+          echo "✅ Platform bootstrap completed."
+          echo ""
+          echo "Infra for app workloads and platform observability has been provisioned."
+          echo ""
+          echo "Now deploy the serving/application layer from this microservices repo:"
+          echo ""
+          echo "  ./scripts/cluster-bootstrap.sh"
+          echo ""
+          echo "NOTE:"
+          echo "Run this script from the bastion node or from the machine/IP range whitelisted in GKE master authorized networks."
+          echo ""
+          echo "Current whitelisted CIDR:"
+          echo "  163.227.186.128/30"    
