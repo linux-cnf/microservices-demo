@@ -93,15 +93,12 @@ jobs:
             --region us-central1
 
           echo ""
-          echo "Checking remaining Kubernetes nodes..."
-          gcloud container clusters get-credentials kfounding \
-            --region us-central1 \
-            --project "${{ secrets.GCP_PROJECT_ID }}"
-
-          kubectl get nodes -L workload,tier,purposei || {
-            echo "Terraform cleanup completed, but kubectl verification failed."
-            exit 1
-          }
+          echo "✅ Terraform cleanup completed."
+          echo "AI node pool has been removed/disabled."
+          echo ""
+          echo "Note:"
+          echo "Kubernetes node verification is skipped in GitHub Actions because"
+          echo "the GKE control plane is accessible only from whitelisted networks/bastion."
 
       - name: AI platform destroy completion message
         run: |
