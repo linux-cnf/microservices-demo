@@ -58,6 +58,12 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+      - name: Install GKE auth plugin
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-cloud-cli-gke-gcloud-auth-plugin
+          gke-gcloud-auth-plugin --version
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -88,7 +94,10 @@ jobs:
             --region us-central1 \
             --project "${{ secrets.GCP_PROJECT_ID }}"
 
-          kubectl get nodes -L workload,tier,purpose
+          kubectl get nodes -L workload,tier,purposei || {
+            echo "Terraform cleanup completed, but kubectl verification failed."
+            exit 1
+          }
 
       - name: AI platform destroy completion message
         run: |
