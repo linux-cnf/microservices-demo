@@ -60,8 +60,12 @@ jobs:
 
       - name: Install GKE auth plugin
         run: |
-          sudo apt-get update
-          sudo apt-get install -y google-cloud-cli-gke-gcloud-auth-plugin
+          gcloud components install gke-gcloud-auth-plugin --quiet
+
+          echo "Plugin path:"
+          which gke-gcloud-auth-plugin
+
+          echo "Plugin version:"
           gke-gcloud-auth-plugin --version
 
       - name: Setup Terraform
