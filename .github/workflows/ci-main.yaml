@@ -1,12 +1,16 @@
 # IMPORTANT:
-# This pipeline can intentionally rebuild and retag ALL microservices even when
-# no direct src/<service>/ application code changes are detected.
+# This workflow is the main CI pipeline for application container images.
 #
-# This happens when "shared" files change, because such changes can impact the
-# build, runtime behavior, generated artifacts, manifests, or deployment logic
-# across multiple/all services.
+# Purpose:
+# - Detect changed microservices from src/<service>/ changes.
+# - Detect shared changes that can impact all services.
+# - Detect missing images in Artifact Registry for the current Git SHA.
+# - Run code tests and validate rendered Kustomize manifests.
+# - Build and push required service images to Artifact Registry.
+# - Open an automated PR updating image tags in:
+#   kustomize/components/container-images-tag/kustomization.yaml
 #
-# Shared change detection is currently triggered for changes in:
+# Shared change detection rebuilds all services when these files/paths change:
 # - .github/workflows/ci-main.yaml
 # - kustomize/base/
 # - proto/
@@ -15,17 +19,12 @@
 # - Dockerfile
 # - Makefile
 #
-# In these cases, the workflow marks all services as changed, rebuilds all
-# images, pushes fresh tags to Artifact Registry, and opens an automated PR
-# updating all image tags in:
-# kustomize/components/container-images-tag/kustomization.yaml
+# This also protects new or recreated GCP projects where the Artifact Registry
+# repository exists but application images are missing.
 #
-# Example:
-# A CI pipeline logic change in ci-main.yaml can trigger full image rebuilds
-# and tag updates even without direct microservice source-code changes.
-# In short:
-# code/shared-change -> test -> validate manifests -> build affected images
-# -> push to Artifact Registry -> update Kustomize tags via PR
+# Flow:
+# code/shared/missing-image detection -> tests -> manifest validation
+# -> build and push images -> update Kustomize tags via PR
 # -> merge PR -> Argo CD syncs deployment to GKE.
 ---
 name: "Continuous Integration :- Main/Release"
@@ -66,19 +65,29 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.detect.outputs.services }}
-      has_service_changes: >-
-        ${{ steps.detect.outputs.has_service_changes }}
-      shared_changed: >-
-        ${{ steps.detect.outputs.shared_changed }}
+      has_service_changes: ${{ steps.detect.outputs.has_service_changes }}
+      shared_changed: ${{ steps.detect.outputs.shared_changed }}
+      missing_images: ${{ steps.detect.outputs.missing_images }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Detect changed files and services
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Detect changed files, services, and missing images
         id: detect
         shell: bash
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
 
@@ -120,6 +129,7 @@ jobs:
 
           declare -a CHANGED_SERVICES=()
           SHARED_CHANGED="false"
+          MISSING_IMAGES="false"
 
           for service in "${SERVICES[@]}"; do
             if echo "${DIFF_FILES}" | grep -qE "^src/${service}/"; then
@@ -134,6 +144,24 @@ jobs:
             CHANGED_SERVICES=("${SERVICES[@]}")
           fi
 
+          REGISTRY="${REGISTRY_REGION}-docker.pkg.dev/${PROJECT_ID}/${IMAGE_REPOSITORY}"
+
+          echo "Checking Artifact Registry for expected images using tag: ${CURRENT_SHA}"
+
+          for service in "${SERVICES[@]}"; do
+            IMAGE="${REGISTRY}/${service}:${CURRENT_SHA}"
+
+            echo "Checking image: ${IMAGE}"
+
+            if ! gcloud artifacts docker images describe "${IMAGE}" >/dev/null 2>&1; then
+              echo "Missing image detected: ${IMAGE}"
+              MISSING_IMAGES="true"
+              CHANGED_SERVICES+=("${service}")
+            else
+              echo "Image already exists: ${IMAGE}"
+            fi
+          done
+
           if [[ ${#CHANGED_SERVICES[@]} -gt 0 ]]; then
             mapfile -t UNIQUE_CHANGED_SERVICES < <(
               printf "%s\n" "${CHANGED_SERVICES[@]}" | sort -u
@@ -143,7 +171,7 @@ jobs:
           fi
 
           if [[ ${#UNIQUE_CHANGED_SERVICES[@]} -eq 0 ]]; then
-            echo "No service changes detected."
+            echo "No service changes or missing images detected."
             echo 'services=[]' >> "$GITHUB_OUTPUT"
             echo 'has_service_changes=false' >> "$GITHUB_OUTPUT"
           else
@@ -152,12 +180,13 @@ jobs:
               jq -R . |
               jq -cs .
             )"
-            echo "Changed services JSON: ${JSON}"
+            echo "Services selected for build: ${JSON}"
             echo "services=${JSON}" >> "$GITHUB_OUTPUT"
             echo 'has_service_changes=true' >> "$GITHUB_OUTPUT"
           fi
 
           echo "shared_changed=${SHARED_CHANGED}" >> "$GITHUB_OUTPUT"
+          echo "missing_images=${MISSING_IMAGES}" >> "$GITHUB_OUTPUT"
 
   code-tests:
     name: Code Tests
