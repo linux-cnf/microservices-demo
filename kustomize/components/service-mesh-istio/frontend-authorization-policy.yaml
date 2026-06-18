@@ -1,6 +1,6 @@
 # Istio AuthorizationPolicy for frontend.
-# Allows external traffic from Istio ingressgateway to reach frontend.
-# This is the first step toward service-by-service access control.
+# Allows external traffic from Istio ingressgateway and internal traffic
+# from loadgenerator to reach frontend.
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
@@ -15,3 +15,6 @@ spec:
         - source:
             namespaces:
               - istio-system
+        - source:
+            principals:
+              - cluster.local/ns/boutique/sa/loadgenerator # Allow load testing traffic from loadgenerator
