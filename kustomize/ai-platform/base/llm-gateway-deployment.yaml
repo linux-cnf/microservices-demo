@@ -47,7 +47,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: llm-gateway
-          image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/microservices-demo/llm-gateway:91a6f009c5d8e3a822ff4a963112f045a9cffbf0
+          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/llm-gateway:91a6f009c5d8e3a822ff4a963112f045a9cffbf0
           imagePullPolicy: Always
           ports:
             - name: http

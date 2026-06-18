@@ -26,7 +26,7 @@ trap 'echo "Bootstrap failed at line $LINENO"; echo; kubectl get pods -n argocd 
 ########################################
 # Config
 ########################################
-PROJECT_ID="project-9e0b2bd9-4649-487c-9d1"
+PROJECT_ID="project-19d98bfe-795f-49b8-af0"
 CLUSTER_NAME="kfounding"
 REGION="us-central1"
 

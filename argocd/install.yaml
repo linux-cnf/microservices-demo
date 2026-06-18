@@ -11,7 +11,7 @@
 # Production rule:
 #   Keep this manifest pinned and replace public images with approved
 #   mirrored images from Artifact Registry:
-#   us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability
+#   us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability
 #
 # Update process:
 #   1. Download a new pinned upstream Argo CD version.
@@ -31766,7 +31766,7 @@ spec:
               key: applicationsetcontroller.status.max.resources.count
               name: argocd-cmd-params-cm
               optional: true
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/argocd:v3.4.1
+        image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability/argocd:v3.4.1
         imagePullPolicy: Always
         name: argocd-applicationset-controller
         ports:
@@ -31895,7 +31895,7 @@ spec:
               key: dexserver.connector.failure.continue
               name: argocd-cmd-params-cm
               optional: true
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/dex:v2.43.1
+        image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability/dex:v2.43.1
         imagePullPolicy: Always
         name: dex
         ports:
@@ -31925,7 +31925,7 @@ spec:
         - -n
         - /usr/local/bin/argocd
         - /shared/argocd-dex
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/argocd:v3.4.1
+        image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability/argocd:v3.4.1
         imagePullPolicy: Always
         name: copyutil
         securityContext:
@@ -32027,7 +32027,7 @@ spec:
               key: notificationscontroller.repo.server.plaintext
               name: argocd-cmd-params-cm
               optional: true
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/argocd:v3.4.1
+        image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability/argocd:v3.4.1
         imagePullPolicy: Always
         livenessProbe:
           tcpSocket:
@@ -32113,7 +32113,7 @@ spec:
             secretKeyRef:
               key: auth
               name: argocd-redis
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/redis:7.2.8-alpine
+        image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability/redis:7.2.8-alpine
         imagePullPolicy: Always
         name: redis
         ports:
@@ -32129,7 +32129,7 @@ spec:
         - argocd
         - admin
         - redis-initial-password
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/argocd:v3.4.1
+        image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability/argocd:v3.4.1
         imagePullPolicy: IfNotPresent
         name: secret-init
         securityContext:
@@ -32438,7 +32438,7 @@ spec:
           value: /helm-working-dir
         - name: HELM_DATA_HOME
           value: /helm-working-dir
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/argocd:v3.4.1
+        image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability/argocd:v3.4.1
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 3
@@ -32491,7 +32491,7 @@ spec:
         command:
         - sh
         - -c
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/argocd:v3.4.1
+        image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability/argocd:v3.4.1
         name: copyutil
         securityContext:
           allowPrivilegeEscalation: false
@@ -32918,7 +32918,7 @@ spec:
               key: server.sync.replace.allowed
               name: argocd-cmd-params-cm
               optional: true
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/argocd:v3.4.1
+        image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability/argocd:v3.4.1
         imagePullPolicy: Always
         livenessProbe:
           httpGet:
@@ -33350,7 +33350,7 @@ spec:
               optional: true
         - name: KUBECACHEDIR
           value: /tmp/kubecache
-        image: us-central1-docker.pkg.dev/project-9e0b2bd9-4649-487c-9d1/platform-observability/argocd:v3.4.1
+        image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/platform-observability/argocd:v3.4.1
         imagePullPolicy: Always
         name: argocd-application-controller
         ports:

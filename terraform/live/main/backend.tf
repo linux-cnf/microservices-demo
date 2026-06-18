@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket = "project-9e0b2bd9-4649-487c-9d1-tfstate"
+    bucket = "project-19d98bfe-795f-49b8-af0-tfstate"
     prefix = "live/main"
   }
 }
