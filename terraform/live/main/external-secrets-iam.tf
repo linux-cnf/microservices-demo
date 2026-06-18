@@ -1,11 +1,15 @@
 resource "google_service_account_iam_member" "external_secrets_argocd_workload_identity" {
-  service_account_id = "projects/project-19d98bfe-795f-49b8-af0/serviceAccounts/external-secrets-gsm@project-19d98bfe-795f-49b8-af0.iam.gserviceaccount.com"
+  service_account_id = module.external_secrets_gsm_sa.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:project-19d98bfe-795f-49b8-af0.svc.id.goog[argocd/argocd-external-secrets]"
+  member             = "serviceAccount:${var.gcp_project_id}.svc.id.goog[argocd/argocd-external-secrets]"
+
+  depends_on = [module.external_secrets_gsm_sa]
 }
 
 resource "google_project_iam_member" "external_secrets_secret_accessor" {
-  project = "project-19d98bfe-795f-49b8-af0"
+  project = var.gcp_project_id
   role    = "roles/secretmanager.secretAccessor"
-  member  = "serviceAccount:external-secrets-gsm@project-19d98bfe-795f-49b8-af0.iam.gserviceaccount.com"
+  member  = module.external_secrets_gsm_sa.member
+
+  depends_on = [module.external_secrets_gsm_sa]
 }
