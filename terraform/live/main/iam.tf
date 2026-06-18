@@ -61,6 +61,25 @@ module "github_actions_deployer_compute_storage_admin" {
   member         = module.github_actions_deployer_sa.member
 }
 
+data "google_project" "current" {
+  project_id = var.gcp_project_id
+}
+
+resource "google_project_iam_member" "gke_default_node_artifact_registry_reader" {
+  project = var.gcp_project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+
+  depends_on = [module.project_services]
+}
+resource "google_project_iam_member" "gke_default_node_artifact_registry_reader" {
+  project = var.gcp_project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+
+  depends_on = [module.project_services]
+}
+
 # Later, if firewall rules are added, uncomment this.
 # module "github_actions_deployer_compute_security_admin" {
 #   source         = "../../modules/iam-binding"
