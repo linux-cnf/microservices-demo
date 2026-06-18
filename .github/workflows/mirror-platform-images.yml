@@ -1,21 +1,24 @@
 # NOTE:
 # This workflow mirrors approved third-party/platform container images into
-# the private Google Artifact Registry repository used by the cluster.
+# private Google Artifact Registry repositories used by the cluster.
 #
-# The main purpose is to avoid direct public image pulls from Kubernetes nodes,
-# improve reliability for private-node GKE clusters, reduce dependency on
-# external registries during deployments, and support environments running
-# without Cloud NAT/public internet access.
+# Purpose:
+# - Seed platform/observability images.
+# - Seed required third-party application images such as Redis.
+# - Avoid direct public image pulls from private GKE nodes.
+# - Improve reliability for private/restricted clusters.
+# - Support environments running without Cloud NAT/public internet access.
 #
-# Image inventory is maintained in:
-# terraform/live/main/artifact_registry_seed_platform_images.txt
+# Image inventories:
+# - terraform/live/main/artifact_registry_seed_platform_images.txt
+# - terraform/live/main/artifact_registry_seed_images.txt
 #
-# The actual mirroring logic is handled by:
-# scripts/mirror-platform-images.sh
+# Mirroring logic:
+# - scripts/mirror-platform-images.sh
 #
-# In short:
-# approved external images -> mirror into private Artifact Registry
-# -> GKE pulls only trusted internal images.
+# Flow:
+# approved external images -> internal Artifact Registry mirror
+# -> GKE pulls trusted private images only.
 name: mirror-platform-images
 
 on:
@@ -27,6 +30,7 @@ on:
     branches: [main]
     paths:
       - "terraform/live/main/artifact_registry_seed_platform_images.txt"
+      - "terraform/live/main/artifact_registry_seed_images.txt"
       - "scripts/mirror-platform-images.sh"
       - ".github/workflows/mirror-platform-images.yml"
 
@@ -53,7 +57,7 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Mirror platform images
+      - name: Mirror required images
         run: |
           chmod +x scripts/mirror-platform-images.sh
           ./scripts/mirror-platform-images.sh
