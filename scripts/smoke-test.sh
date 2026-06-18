@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-PROJECT_ID="${PROJECT_ID:-project-9e0b2bd9-4649-487c-9d1}"
+PROJECT_ID="${PROJECT_ID:-project-19d98bfe-795f-49b8-af0}"
 CLUSTER_NAME="${CLUSTER_NAME:-kfounding}"
 REGION="${REGION:-us-central1}"
 
