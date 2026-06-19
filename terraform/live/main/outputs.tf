@@ -40,3 +40,18 @@ output "gke_node_pool_name" {
   description = "Name of the GKE node pool"
   value       = module.gke_node_pool.node_pool_name
 }
+
+output "ai_artifact_registry_repository" {
+  description = "Artifact Registry repository ID for AI microservices images"
+  value       = module.artifact_registry_ai_microservices.repository_id
+}
+
+output "ai_artifact_registry_location" {
+  description = "Artifact Registry location for AI microservices images"
+  value       = module.artifact_registry_ai_microservices.location
+}
+
+output "ai_artifact_registry_url" {
+  description = "Artifact Registry URL for AI microservices images"
+  value       = module.artifact_registry_ai_microservices.repository_url
+}

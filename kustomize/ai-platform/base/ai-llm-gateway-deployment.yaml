@@ -18,10 +18,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: llm-gateway
+  name: ai-llm-gateway
   namespace: ai
   labels:
-    app: llm-gateway
+    app: ai-llm-gateway
     workload: ai
     tier: platform
     purpose: gateway
@@ -29,11 +29,11 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: llm-gateway
+      app: ai-llm-gateway
   template:
     metadata:
       labels:
-        app: llm-gateway
+        app: ai-llm-gateway
         workload: ai
         tier: platform
         purpose: gateway
@@ -46,8 +46,8 @@ spec:
           value: ai
           effect: NoSchedule
       containers:
-        - name: llm-gateway
-          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/llm-gateway:91a6f009c5d8e3a822ff4a963112f045a9cffbf0
+        - name: ai-llm-gateway
+          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/ai-microservices/ai-llm-gateway:91a6f009c5d8e3a822ff4a963112f045a9cffbf0
           imagePullPolicy: Always
           ports:
             - name: http
