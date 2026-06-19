@@ -38,6 +38,7 @@ spec:
         tier: platform
         purpose: agent
     spec:
+      serviceAccountName: ai-agent-orchestrator
       nodeSelector:
         workload: ai
       tolerations:

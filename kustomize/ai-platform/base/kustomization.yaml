@@ -29,3 +29,5 @@ resources:
   - ai-agent-orchestrator-service.yaml
   - ai-agent-orchestrator-deployment.yaml
   - ai-ollama-model-pull-job.yaml
+  - ai-agent-orchestrator-serviceaccount.yaml
+  - ai-agent-orchestrator-rbac.yaml
