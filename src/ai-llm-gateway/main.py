@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 OLLAMA_URL = os.getenv(
     "OLLAMA_URL",
-    "http://ollama.ai.svc.cluster.local:11434",
+    "http://ai-ollama.ai.svc.cluster.local:11434",
 )
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "tinyllama")
 

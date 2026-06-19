@@ -122,7 +122,7 @@ def build_prometheus_tool_result() -> dict[str, Any]:
             'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ai-llm-gateway-.*"})'
         ),
         "ollama_ready": (
-            'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ollama-.*"})'
+            'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ai-ollama-.*"})'
         ),
         "ai_agent_ready": (
             'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ai-agent-orchestrator-.*"})'

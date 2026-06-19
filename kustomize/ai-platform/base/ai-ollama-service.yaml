@@ -8,7 +8,7 @@
 #
 # ACCESS:
 # Internal only:
-# http://ollama.ai.svc.cluster.local:11434
+# http://ai-ollama.ai.svc.cluster.local:11434
 #
 # In short:
 # Stable in-cluster endpoint for model inference.
@@ -17,17 +17,17 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: ollama
+  name: ai-ollama
   namespace: ai
   labels:
-    app: ollama
+    app: ai-ollama
     workload: ai
     tier: platform
     purpose: llm
 spec:
   type: ClusterIP
   selector:
-    app: ollama
+    app: ai-ollama
   ports:
     - name: http
       port: 11434
