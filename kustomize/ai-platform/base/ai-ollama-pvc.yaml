@@ -13,10 +13,10 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: ollama-model-cache
+  name: ai-ollama-model-cache
   namespace: ai
   labels:
-    app: ollama
+    app: ai-ollama
     workload: ai
     tier: platform
     purpose: llm

@@ -21,9 +21,9 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
-  - ollama-pvc.yaml
-  - ollama-deployment.yaml
-  - ollama-service.yaml
+  - ai-ollama-pvc.yaml
+  - ai-ollama-deployment.yaml
+  - ai-ollama-service.yaml
   - ai-llm-gateway-deployment.yaml
   - ai-llm-gateway-service.yaml
   - ai-agent-orchestrator-service.yaml

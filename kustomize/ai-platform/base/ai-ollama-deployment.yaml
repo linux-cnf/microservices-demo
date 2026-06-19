@@ -18,10 +18,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ollama
+  name: ai-ollama
   namespace: ai
   labels:
-    app: ollama
+    app: ai-ollama
     workload: ai
     tier: platform
     purpose: llm
@@ -29,11 +29,11 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ollama
+      app: ai-ollama
   template:
     metadata:
       labels:
-        app: ollama
+        app: ai-ollama
         workload: ai
         tier: platform
         purpose: llm
@@ -47,7 +47,7 @@ spec:
           value: ai
           effect: NoSchedule
       containers:
-        - name: ollama
+        - name: ai-ollama
           image: ollama/ollama:0.13.4
           imagePullPolicy: IfNotPresent
           ports:
@@ -64,9 +64,9 @@ spec:
               cpu: "1500m"
               memory: "3Gi"
           volumeMounts:
-            - name: ollama-model-cache
+            - name: ai-ollama-model-cache
               mountPath: /root/.ollama
       volumes:
-        - name: ollama-model-cache
+        - name: ai-ollama-model-cache
           persistentVolumeClaim:
-            claimName: ollama-model-cache
+            claimName: ai-ollama-model-cache
