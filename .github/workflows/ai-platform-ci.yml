@@ -25,7 +25,7 @@
 # One production-style CI workflow for all AI platform microservices.
 # -------------------------------------------------------------------
 
-name: ai-microservices-ci
+name: ai-platform-ci
 
 on:
   push:
@@ -34,7 +34,7 @@ on:
     paths:
       - "src/ai-llm-gateway/**"
       - "src/ai-agent-orchestrator/**"
-      - ".github/workflows/ai-microservices-ci.yml"
+      - ".github/workflows/ai-platform-ci.yml"
 
   workflow_dispatch:
     inputs:
@@ -112,9 +112,11 @@ jobs:
             ANY_AI_SERVICE_CHANGED="true"
           fi
 
-          echo "llm_gateway_changed=${LLM_GATEWAY_CHANGED}" >> "${GITHUB_OUTPUT}"
-          echo "ai_agent_orchestrator_changed=${AI_AGENT_ORCHESTRATOR_CHANGED}" >> "${GITHUB_OUTPUT}"
-          echo "any_ai_service_changed=${ANY_AI_SERVICE_CHANGED}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "llm_gateway_changed=${LLM_GATEWAY_CHANGED}"
+            echo "ai_agent_orchestrator_changed=${AI_AGENT_ORCHESTRATOR_CHANGED}"
+            echo "any_ai_service_changed=${ANY_AI_SERVICE_CHANGED}"
+          } >> "${GITHUB_OUTPUT}"
 
           echo "ai-llm-gateway changed: ${LLM_GATEWAY_CHANGED}"
           echo "ai-agent-orchestrator changed: ${AI_AGENT_ORCHESTRATOR_CHANGED}"
@@ -193,7 +195,10 @@ jobs:
       - name: Build and push ai-agent-orchestrator
         if: needs.detect-changes.outputs.ai_agent_orchestrator_changed == 'true'
         run: |
-          IMAGE_URI="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/ai-agent-orchestrator:${GITHUB_SHA}"
+          PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
+          IMAGE_REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
+
+          IMAGE_URI="${IMAGE_REGISTRY}/ai-agent-orchestrator:${GITHUB_SHA}"
 
           docker build \
             -t "${IMAGE_URI}" \
@@ -205,10 +210,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${{ needs.detect-changes.outputs.llm_gateway_changed }}" = "true" ]; then
-            LLM_GATEWAY_IMAGE="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/ai-llm-gateway:${GITHUB_SHA}"
+          PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
+          IMAGE_REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
 
-            sed -i "s|image: .*ai-llm-gateway:.*|image: ${LLM_GATEWAY_IMAGE}|g" \
+          if [ "${{ needs.detect-changes.outputs.llm_gateway_changed }}" = "true" ]; then
+            LLM_GATEWAY_IMAGE="${IMAGE_REGISTRY}/ai-llm-gateway:${GITHUB_SHA}"
+
+            sed -i \
+              "s|image: .*ai-llm-gateway:.*|image: ${LLM_GATEWAY_IMAGE}|g" \
               kustomize/ai-platform/base/ai-llm-gateway-deployment.yaml
 
             echo "Updated ai-llm-gateway image:"
@@ -216,9 +225,10 @@ jobs:
           fi
 
           if [ "${{ needs.detect-changes.outputs.ai_agent_orchestrator_changed }}" = "true" ]; then
-            AI_AGENT_IMAGE="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/ai-agent-orchestrator:${GITHUB_SHA}"
+            AI_AGENT_IMAGE="${IMAGE_REGISTRY}/ai-agent-orchestrator:${GITHUB_SHA}"
 
-            sed -i "s|image: .*ai-agent-orchestrator:.*|image: ${AI_AGENT_IMAGE}|g" \
+            sed -i \
+              "s|image: .*ai-agent-orchestrator:.*|image: ${AI_AGENT_IMAGE}|g" \
               kustomize/ai-platform/base/ai-agent-orchestrator-deployment.yaml
 
             echo "Updated ai-agent-orchestrator image:"
@@ -249,7 +259,7 @@ jobs:
             Workflow:
             Detect → Validate → Build → Push → Git Update → Argo CD Deploy
 
-            Generated automatically by ai-microservices-ci.
+            Generated automatically by ai-platform-ci.
           add-paths: |
             kustomize/ai-platform/base/ai-llm-gateway-deployment.yaml
             kustomize/ai-platform/base/ai-agent-orchestrator-deployment.yaml
