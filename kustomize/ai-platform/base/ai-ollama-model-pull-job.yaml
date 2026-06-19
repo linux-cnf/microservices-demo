@@ -1,0 +1,82 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Pull required Ollama model into the AI model cache.
+#
+# RESPONSIBILITIES:
+# - Wait for ai-ollama service to become reachable
+# - Pull the tinyllama model through Ollama API
+# - Make model bootstrap GitOps-managed
+#
+# ARGO CD:
+# Runs as a PostSync hook after ai-ollama is deployed.
+#
+# In short:
+# Ensures AI runtime has the required model after bootstrap/recreate.
+# -------------------------------------------------------------------
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ai-ollama-model-pull
+  namespace: ai
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+
+  template:
+    metadata:
+      labels:
+        app: ai-ollama-model-pull
+        workload: ai
+        tier: platform
+        purpose: model-bootstrap
+
+    spec:
+      restartPolicy: OnFailure
+
+      nodeSelector:
+        workload: ai
+
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: ai
+          effect: NoSchedule
+
+      containers:
+        - name: ai-ollama-model-pull
+          image: curlimages/curl:8.10.1
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: AI_OLLAMA_URL
+              value: "http://ai-ollama.ai.svc.cluster.local:11434"
+            - name: AI_MODEL_NAME
+              value: "tinyllama"
+
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              echo "Waiting for ai-ollama..."
+              for i in $(seq 1 30); do
+                if curl -sf "${AI_OLLAMA_URL}/api/tags" >/dev/null; then
+                  echo "ai-ollama is reachable."
+                  break
+                fi
+
+                echo "Attempt ${i}: ai-ollama not ready yet..."
+                sleep 10
+              done
+
+              echo "Pulling model: ${AI_MODEL_NAME}"
+              curl -sf "${AI_OLLAMA_URL}/api/pull" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"${AI_MODEL_NAME}\"}"
+
+              echo "Model pull completed: ${AI_MODEL_NAME}"

@@ -28,3 +28,4 @@ resources:
   - ai-llm-gateway-service.yaml
   - ai-agent-orchestrator-service.yaml
   - ai-agent-orchestrator-deployment.yaml
+  - ai-ollama-model-pull-job.yaml
