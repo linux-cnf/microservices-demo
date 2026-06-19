@@ -2,22 +2,23 @@
 AI Agent Orchestrator
 
 Purpose:
-Adds agent-level logic before calling the LLM Gateway.
+Adds agent-level logic before calling the AI LLM Gateway.
 
 Responsibilities:
 - Receive user prompts
-- Detect whether platform metrics are needed
-- Query Prometheus for live cluster metrics
-- Convert Prometheus results into clean tool output
+- Detect whether platform data is needed
+- Query Prometheus for live metrics
+- Query Kubernetes API for live resource state
 - Add platform-specific context
 - Call ai-llm-gateway /chat
 - Return structured response with tool results
 
 Current tools:
 - Prometheus query tool
+- Kubernetes API tool
 
 Future:
-Loki, Tempo, Kubernetes API tools, guardrails.
+Loki, Tempo, product/catalog API tools, guardrails.
 """
 
 import os
@@ -25,6 +26,7 @@ from typing import Any
 
 import requests
 from fastapi import FastAPI
+from kubernetes import client, config
 from pydantic import BaseModel
 
 
@@ -40,6 +42,8 @@ PROMETHEUS_URL = os.getenv(
     "http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090",
 )
 
+DEFAULT_K8S_NAMESPACE = os.getenv("DEFAULT_K8S_NAMESPACE", "ai")
+
 SYSTEM_PROMPT = """
 You are an AI Platform Assistant.
 
@@ -54,9 +58,19 @@ Responsibilities:
 Rules:
 - If tool context is provided, treat it as the live source of truth.
 - Do not invent kubectl output.
+- Do not invent pod names, deployment names, events, or metrics.
 - Do not suggest commands when the answer is already present in tool context.
 - Keep responses concise and technical.
 """.strip()
+
+
+try:
+    config.load_incluster_config()
+    K8S_CORE = client.CoreV1Api()
+    K8S_APPS = client.AppsV1Api()
+except Exception:
+    K8S_CORE = None
+    K8S_APPS = None
 
 
 class ChatRequest(BaseModel):
@@ -90,17 +104,42 @@ def should_use_prometheus(prompt: str) -> bool:
     keywords = [
         "cpu",
         "memory",
-        "pod",
-        "pods",
-        "restart",
+        "restart count",
         "restarts",
-        "ready",
+        "ready count",
         "availability",
         "prometheus",
         "metrics",
         "usage",
-        "running",
-        "health",
+        "running count",
+        "health count",
+    ]
+
+    prompt_lower = prompt.lower()
+    return any(keyword in prompt_lower for keyword in keywords)
+
+
+def should_use_kubernetes(prompt: str) -> bool:
+    keywords = [
+        "kubernetes",
+        "k8s",
+        "pod",
+        "pods",
+        "deployment",
+        "deployments",
+        "event",
+        "events",
+        "namespace",
+        "imagepullbackoff",
+        "crashloopbackoff",
+        "pending",
+        "notready",
+        "not ready",
+        "rollout",
+        "service",
+        "services",
+        "replicaset",
+        "replicasets",
     ]
 
     prompt_lower = prompt.lower()
@@ -118,10 +157,10 @@ def build_prometheus_tool_result() -> dict[str, Any]:
         "ai_container_restarts": (
             'sum(kube_pod_container_status_restarts_total{namespace="ai"})'
         ),
-        "llm_gateway_ready": (
+        "ai_llm_gateway_ready": (
             'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ai-llm-gateway-.*"})'
         ),
-        "ollama_ready": (
+        "ai_ollama_ready": (
             'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ai-ollama-.*"})'
         ),
         "ai_agent_ready": (
@@ -147,14 +186,67 @@ def build_prometheus_tool_result() -> dict[str, Any]:
     return results
 
 
-def build_tool_context(tool_result: dict[str, Any]) -> str:
+def build_kubernetes_tool_result(namespace: str = DEFAULT_K8S_NAMESPACE) -> dict[str, Any]:
+    if not K8S_CORE or not K8S_APPS:
+        return {"error": "Kubernetes client is not initialized"}
+
+    pods = K8S_CORE.list_namespaced_pod(namespace=namespace)
+    deployments = K8S_APPS.list_namespaced_deployment(namespace=namespace)
+    events = K8S_CORE.list_namespaced_event(namespace=namespace)
+
+    return {
+        "namespace": namespace,
+        "pods": [
+            {
+                "name": pod.metadata.name,
+                "phase": pod.status.phase,
+                "node": pod.spec.node_name,
+                "restart_count": sum(
+                    container.restart_count
+                    for container in (pod.status.container_statuses or [])
+                ),
+                "containers_ready": all(
+                    container.ready
+                    for container in (pod.status.container_statuses or [])
+                ),
+            }
+            for pod in pods.items
+        ],
+        "deployments": [
+            {
+                "name": deploy.metadata.name,
+                "replicas": deploy.status.replicas or 0,
+                "ready_replicas": deploy.status.ready_replicas or 0,
+                "available_replicas": deploy.status.available_replicas or 0,
+            }
+            for deploy in deployments.items
+        ],
+        "recent_events": [
+            {
+                "type": event.type,
+                "reason": event.reason,
+                "object": f"{event.involved_object.kind}/{event.involved_object.name}",
+                "message": event.message,
+            }
+            for event in sorted(
+                events.items,
+                key=lambda item: item.last_timestamp or item.event_time or item.metadata.creation_timestamp,
+            )[-10:]
+        ],
+    }
+
+
+def build_tool_context(tool_used: str, tool_result: dict[str, Any]) -> str:
+    if tool_used == "none":
+        return "No live tool context used."
+
     return f"""
-Live Prometheus metrics from the ai namespace:
+Live {tool_used} tool result from the platform:
 
 {tool_result}
 
-Answer using only these metrics.
-Do not invent pod names or kubectl output.
+Answer using only this live tool result.
+Do not invent kubectl output, metrics, pod names, or events.
 """.strip()
 
 
@@ -169,23 +261,23 @@ def readyz():
         "status": "ready",
         "llm_gateway": LLM_GATEWAY_URL,
         "prometheus": PROMETHEUS_URL,
+        "kubernetes_client": "ready" if K8S_CORE and K8S_APPS else "not_ready",
     }
 
 
 @app.post("/agent/chat")
 def agent_chat(req: ChatRequest):
     tool_used = "none"
-    tool_result = {}
+    tool_result: dict[str, Any] = {}
 
-    if should_use_prometheus(req.prompt):
+    if should_use_kubernetes(req.prompt):
+        tool_used = "kubernetes"
+        tool_result = build_kubernetes_tool_result()
+    elif should_use_prometheus(req.prompt):
         tool_used = "prometheus"
         tool_result = build_prometheus_tool_result()
 
-    tool_context = (
-        build_tool_context(tool_result)
-        if tool_used == "prometheus"
-        else "No live tool context used."
-    )
+    tool_context = build_tool_context(tool_used, tool_result)
 
     final_prompt = f"""
 System:
