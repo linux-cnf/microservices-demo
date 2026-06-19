@@ -9,8 +9,8 @@ ai-platform-bootstrap.yml
 scripts/ai-cluster-bootstrap.sh
   → Registers the optional ai-platform Argo CD application
 
-llm-gateway-ci.yml
-  → Builds and pushes llm-gateway image after src/llm-gateway changes
+ai-microservices-ci.yml
+  → Builds and pushes AI microservice images after src/ai-* changes
   → Creates a GitOps image-tag update PR
 
 ai-agent-orchestrator-ci.yml

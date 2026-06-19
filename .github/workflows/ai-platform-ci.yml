@@ -1,0 +1,265 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# CI/CD workflow for AI platform microservices.
+#
+# RESPONSIBILITIES:
+# - Detect changed AI microservices from src/<service>/ changes
+# - Run Python syntax checks for changed AI services
+# - Validate rendered AI Kustomize manifests
+# - Build and push required AI service images to Artifact Registry
+# - Open an automated GitOps PR updating image tags in:
+#   kustomize/ai-platform/base/*-deployment.yaml
+#
+# AI SERVICES:
+# - ai-llm-gateway
+# - ai-agent-orchestrator
+#
+# ARTIFACT REGISTRY:
+# Images are pushed to dedicated AI repository:
+# ai-microservices
+#
+# GITOPS FLOW:
+# Code change -> Build image -> Push image -> Update manifest PR -> Merge -> Argo CD deploys
+#
+# In short:
+# One production-style CI workflow for all AI platform microservices.
+# -------------------------------------------------------------------
+
+name: ai-microservices-ci
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/ai-llm-gateway/**"
+      - "src/ai-agent-orchestrator/**"
+      - ".github/workflows/ai-microservices-ci.yml"
+
+  workflow_dispatch:
+    inputs:
+      build_llm_gateway:
+        description: "Build ai-llm-gateway?"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+      build_ai_agent_orchestrator:
+        description: "Build ai-agent-orchestrator?"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+env:
+  REGION: us-central1
+  REPOSITORY: ai-microservices
+
+jobs:
+  detect-changes:
+    name: Detect changed AI services
+    runs-on: ubuntu-latest
+
+    outputs:
+      llm_gateway_changed: ${{ steps.detect.outputs.llm_gateway_changed }}
+      ai_agent_orchestrator_changed: ${{ steps.detect.outputs.ai_agent_orchestrator_changed }}
+      any_ai_service_changed: ${{ steps.detect.outputs.any_ai_service_changed }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed AI microservices
+        id: detect
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            LLM_GATEWAY_CHANGED="${{ inputs.build_llm_gateway }}"
+            AI_AGENT_ORCHESTRATOR_CHANGED="${{ inputs.build_ai_agent_orchestrator }}"
+          else
+            CHANGED_FILES="$(git diff --name-only HEAD~1 HEAD)"
+
+            echo "Changed files:"
+            echo "${CHANGED_FILES}"
+
+            LLM_GATEWAY_CHANGED="false"
+            AI_AGENT_ORCHESTRATOR_CHANGED="false"
+
+            if echo "${CHANGED_FILES}" | grep -q '^src/ai-llm-gateway/'; then
+              LLM_GATEWAY_CHANGED="true"
+            fi
+
+            if echo "${CHANGED_FILES}" | grep -q '^src/ai-agent-orchestrator/'; then
+              AI_AGENT_ORCHESTRATOR_CHANGED="true"
+            fi
+          fi
+
+          ANY_AI_SERVICE_CHANGED="false"
+          if [ "${LLM_GATEWAY_CHANGED}" = "true" ] || [ "${AI_AGENT_ORCHESTRATOR_CHANGED}" = "true" ]; then
+            ANY_AI_SERVICE_CHANGED="true"
+          fi
+
+          echo "llm_gateway_changed=${LLM_GATEWAY_CHANGED}" >> "${GITHUB_OUTPUT}"
+          echo "ai_agent_orchestrator_changed=${AI_AGENT_ORCHESTRATOR_CHANGED}" >> "${GITHUB_OUTPUT}"
+          echo "any_ai_service_changed=${ANY_AI_SERVICE_CHANGED}" >> "${GITHUB_OUTPUT}"
+
+          echo "ai-llm-gateway changed: ${LLM_GATEWAY_CHANGED}"
+          echo "ai-agent-orchestrator changed: ${AI_AGENT_ORCHESTRATOR_CHANGED}"
+          echo "any AI service changed: ${ANY_AI_SERVICE_CHANGED}"
+
+  validate:
+    name: Validate AI services and manifests
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any_ai_service_changed == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Python syntax check - ai-llm-gateway
+        if: needs.detect-changes.outputs.llm_gateway_changed == 'true'
+        run: |
+          python -m py_compile src/ai-llm-gateway/main.py
+
+      - name: Python syntax check - ai-agent-orchestrator
+        if: needs.detect-changes.outputs.ai_agent_orchestrator_changed == 'true'
+        run: |
+          python -m py_compile src/ai-agent-orchestrator/main.py
+
+      - name: Validate AI Kustomize manifests
+        run: |
+          kubectl kustomize kustomize/ai-platform/base >/tmp/ai-platform-rendered.yaml
+
+          echo "Rendered AI platform manifests:"
+          grep -E "kind:|name:" /tmp/ai-platform-rendered.yaml | head -80
+
+  build-and-push:
+    name: Build and push AI images
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - validate
+    if: needs.detect-changes.outputs.any_ai_service_changed == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push ai-llm-gateway
+        if: needs.detect-changes.outputs.llm_gateway_changed == 'true'
+        run: |
+          IMAGE_URI="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/ai-llm-gateway:${GITHUB_SHA}"
+
+          docker build \
+            -t "${IMAGE_URI}" \
+            src/ai-llm-gateway
+
+          docker push "${IMAGE_URI}"
+
+      - name: Build and push ai-agent-orchestrator
+        if: needs.detect-changes.outputs.ai_agent_orchestrator_changed == 'true'
+        run: |
+          IMAGE_URI="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/ai-agent-orchestrator:${GITHUB_SHA}"
+
+          docker build \
+            -t "${IMAGE_URI}" \
+            src/ai-agent-orchestrator
+
+          docker push "${IMAGE_URI}"
+
+      - name: Update GitOps image tags
+        run: |
+          set -euo pipefail
+
+          if [ "${{ needs.detect-changes.outputs.llm_gateway_changed }}" = "true" ]; then
+            LLM_GATEWAY_IMAGE="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/ai-llm-gateway:${GITHUB_SHA}"
+
+            sed -i "s|image: .*ai-llm-gateway:.*|image: ${LLM_GATEWAY_IMAGE}|g" \
+              kustomize/ai-platform/base/ai-llm-gateway-deployment.yaml
+
+            echo "Updated ai-llm-gateway image:"
+            grep "image:" kustomize/ai-platform/base/ai-llm-gateway-deployment.yaml
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.ai_agent_orchestrator_changed }}" = "true" ]; then
+            AI_AGENT_IMAGE="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}/ai-agent-orchestrator:${GITHUB_SHA}"
+
+            sed -i "s|image: .*ai-agent-orchestrator:.*|image: ${AI_AGENT_IMAGE}|g" \
+              kustomize/ai-platform/base/ai-agent-orchestrator-deployment.yaml
+
+            echo "Updated ai-agent-orchestrator image:"
+            grep "image:" kustomize/ai-platform/base/ai-agent-orchestrator-deployment.yaml
+          fi
+
+      - name: Create GitOps image update pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: bot/update-ai-microservices-images-${{ github.sha }}
+          commit-message: "chore(ai): update ai microservices image tags"
+          title: "chore(ai): update AI microservices image tags"
+          body: |
+            ## AI Microservices Image Update
+
+            Automated GitOps image update for AI platform microservices.
+
+            Repository:
+            `${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}`
+
+            Image tag:
+            `${{ github.sha }}`
+
+            Updated services:
+            - ai-llm-gateway: `${{ needs.detect-changes.outputs.llm_gateway_changed }}`
+            - ai-agent-orchestrator: `${{ needs.detect-changes.outputs.ai_agent_orchestrator_changed }}`
+
+            Workflow:
+            Detect → Validate → Build → Push → Git Update → Argo CD Deploy
+
+            Generated automatically by ai-microservices-ci.
+          add-paths: |
+            kustomize/ai-platform/base/ai-llm-gateway-deployment.yaml
+            kustomize/ai-platform/base/ai-agent-orchestrator-deployment.yaml
+
+      - name: Print deployment summary
+        run: |
+          echo "✅ AI microservices CI completed."
+          echo ""
+          echo "Artifact Registry repository:"
+          echo "${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}"
+          echo ""
+          echo "GitOps image update PR created."
+          echo "Merge the PR to allow Argo CD to deploy updated AI images."

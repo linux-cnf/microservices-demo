@@ -10,7 +10,7 @@ Responsibilities:
 - Query Prometheus for live cluster metrics
 - Convert Prometheus results into clean tool output
 - Add platform-specific context
-- Call llm-gateway /chat
+- Call ai-llm-gateway /chat
 - Return structured response with tool results
 
 Current tools:
@@ -32,7 +32,7 @@ app = FastAPI(title="ai-agent-orchestrator")
 
 LLM_GATEWAY_URL = os.getenv(
     "LLM_GATEWAY_URL",
-    "http://llm-gateway.ai.svc.cluster.local:8080",
+    "http://ai-llm-gateway.ai.svc.cluster.local:8080",
 )
 
 PROMETHEUS_URL = os.getenv(
@@ -119,7 +119,7 @@ def build_prometheus_tool_result() -> dict[str, Any]:
             'sum(kube_pod_container_status_restarts_total{namespace="ai"})'
         ),
         "llm_gateway_ready": (
-            'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"llm-gateway-.*"})'
+            'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ai-llm-gateway-.*"})'
         ),
         "ollama_ready": (
             'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ollama-.*"})'

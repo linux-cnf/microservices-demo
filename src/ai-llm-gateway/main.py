@@ -44,7 +44,7 @@ class ChatResponse(BaseModel):
 
 @app.get("/healthz")
 def healthz() -> dict:
-    return {"status": "ok", "service": "llm-gateway"}
+    return {"status": "ok", "service": "ai-llm-gateway"}
 
 
 @app.get("/readyz")

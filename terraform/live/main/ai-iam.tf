@@ -15,6 +15,7 @@ module "ai_node_pool_service_account" {
   account_id   = "gke-ai-node-pool-sa"
   display_name = "GKE AI Node Pool Service Account"
 }
+
 module "ai_node_pool_default_node_sa" {
   source         = "../../modules/iam-binding"
   gcp_project_id = var.gcp_project_id
@@ -23,6 +24,7 @@ module "ai_node_pool_default_node_sa" {
 
   depends_on = [module.ai_node_pool_service_account]
 }
+
 module "ai_node_pool_artifact_registry_reader" {
   source         = "../../modules/iam-binding"
   gcp_project_id = var.gcp_project_id
