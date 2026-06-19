@@ -41,6 +41,14 @@ name: "Continuous Integration :- Main/Release"
       - "argocd/**"
       - "docs/**"
       - "scripts/**"
+
+      # AI platform
+      - "src/ai*/**"
+      - "kustomize/ai-platform/**"
+      - ".github/workflows/ai-*.yml"
+      - ".github/workflows/ai-*.yaml"
+
+      # Existing GitOps image tag PRs
       - "kustomize/components/container-images-tag/kustomization.yaml"
 
   workflow_dispatch:
