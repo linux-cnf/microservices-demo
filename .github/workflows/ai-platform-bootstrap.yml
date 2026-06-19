@@ -137,20 +137,27 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "Checking AI node pool..."
+          echo "Checking AI node pool from GCP API..."
           gcloud container node-pools list \
             --cluster kfounding \
             --region us-central1
 
           echo ""
-          echo "Checking AI node labels..."
-          kubectl get nodes -L workload,tier,purpose
+          echo "Verifying ai-node-pool exists..."
+          gcloud container node-pools describe ai-node-pool \
+            --cluster kfounding \
+            --region us-central1 \
+            --format="table(name,config.machineType,config.diskSizeGb,status)"
 
           echo ""
-          echo "Checking AI node taint..."
-          kubectl get nodes -l workload=ai -o name | while read -r node; do
-            kubectl describe "$node" | grep -A3 -i "Taints:"
-          done
+          echo "✅ AI node pool exists."
+          echo ""
+          echo "NOTE:"
+          echo "Kubernetes node label/taint verification is skipped in GitHub Actions"
+          echo "because the GKE control plane is reachable only from bastion/whitelisted IPs."
+          echo ""
+          echo "Run this from bastion after this workflow:"
+          echo "  ./scripts/ai-cluster-bootstrap.sh"
 
       - name: AI platform bootstrap completion message
         if: inputs.run_apply == 'true'
@@ -172,3 +179,4 @@ jobs:
           echo ""
           echo "Next step:"
           echo "Deploy AI platform components such as LLM Gateway, AI Agent Orchestrator, Ollama, or vLLM through Argo CD."
+          echo "Run ./scripts/ai-cluster-bootstrap.sh from bastion/whitelisted machine."

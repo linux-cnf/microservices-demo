@@ -1,65 +1,59 @@
 #!/usr/bin/env bash
 
 # =========================================================
-
-# AI Platform Bootstrap Script
-
+# AI Cluster Bootstrap Script
 # =========================================================
-
 #
-
-# Purpose:
-
+# PURPOSE:
 # Deploy optional AI platform workloads through Argo CD.
-
 #
-
-# Components:
-
+# RESPONSIBILITIES:
+# - Register optional ai-platform Argo CD Application
+# - Keep AI workloads out of the default platform-root sync
+# - Allow AI platform deployment only when explicitly requested
+#
+# COMPONENTS:
+# - AI namespace
 # - Ollama
-
-# - vLLM (future)
-
 # - LLM Gateway
-
 # - AI Agent Orchestrator
-
+# - vLLM future runtime
 #
-
-# Usage:
-
-# chmod +x scripts/ai-platform-bootstrap.sh
-
-# ./scripts/ai-platform-bootstrap.sh
-
+# USAGE:
+# chmod +x scripts/ai-cluster-bootstrap.sh
+# ./scripts/ai-cluster-bootstrap.sh
 #
-
+# In short:
+# Bootstrap optional AI workloads through GitOps on demand.
 # =========================================================
 
 set -euo pipefail
 
+APP_MANIFEST="argocd/optional-apps/ai-platform/ai-platform-app.yaml"
+
 echo "========================================================="
-echo "Deploying AI Platform"
+echo "Deploying optional AI Platform through Argo CD"
 echo "========================================================="
 echo
 
-kubectl apply 
--f argocd/optional-apps/ai-platform/ai-platform-app.yaml 
--n argocd
+if [ ! -f "${APP_MANIFEST}" ]; then
+  echo "ERROR: Missing ${APP_MANIFEST}"
+  exit 1
+fi
+
+echo "Applying AI Platform Argo CD application..."
+kubectl apply -n argocd -f "${APP_MANIFEST}"
 
 echo
-echo "Waiting for AI application registration..."
-
-kubectl wait 
---for=jsonpath='{.metadata.name}'=ai-platform 
-application/ai-platform 
--n argocd 
---timeout=120s || true
+echo "Waiting for ai-platform application registration..."
+kubectl wait \
+  --for=jsonpath='{.metadata.name}'=ai-platform \
+  application/ai-platform \
+  -n argocd \
+  --timeout=120s || true
 
 echo
-echo "AI Platform deployment submitted successfully."
-echo
-echo "Current status:"
+echo "Current Argo CD application status:"
 kubectl get application ai-platform -n argocd || true
 
 echo
@@ -67,6 +61,5 @@ echo "AI namespace workloads:"
 kubectl get pods -n ai || true
 
 echo
-echo "Bootstrap request completed."
-echo "Argo CD will continue reconciliation in the background."
-
+echo "✅ AI Platform bootstrap request completed."
+echo "Argo CD will continue reconciliation from Git."
