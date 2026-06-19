@@ -289,17 +289,24 @@ Tool Context:
 User:
 {req.prompt}
 """
+    try:
+        response = requests.post(
+            f"{LLM_GATEWAY_URL}/chat",
+            json={"prompt": final_prompt},
+            timeout=120,
+        )
+        response.raise_for_status()
+        llm_response = response.json()
+        llm_error = None
 
-    response = requests.post(
-        f"{LLM_GATEWAY_URL}/chat",
-        json={"prompt": final_prompt},
-        timeout=120,
-    )
-    response.raise_for_status()
+    except Exception as exc:
+        llm_response = None
+        llm_error = str(exc)
 
     return {
         "agent": "ai-platform-agent",
         "tool_used": tool_used,
         "tool_result": tool_result,
-        "response": response.json(),
+        "response": llm_response,
+        "llm_error": llm_error,
     }
