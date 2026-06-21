@@ -1,0 +1,9 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Example variable values for GitHub governance Terraform.
+# Copy this file to terraform.tfvars and adjust values locally.
+# -------------------------------------------------------------------
+github_owner              = "linux-cnf"
+repository_name           = "microservices-demo"
+destroy_environment_name  = "production-destroy"
+destroy_reviewer_username = "linux-cnf"
