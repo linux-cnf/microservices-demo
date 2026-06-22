@@ -6,13 +6,13 @@
 # - Receive /agent/chat requests
 # - Add platform-specific system prompt
 # - Forward request to LLM Gateway
-# - Prepare future tool-routing integration
+# - Route requests to platform tools such as Prometheus, Kubernetes, and Elasticsearch
 #
 # DESIGN:
-# Client -> AI Agent Orchestrator -> LLM Gateway -> Ollama/vLLM
+# Client -> AI Agent Orchestrator -> Platform Tools -> LLM Gateway -> Ollama/vLLM
 #
 # In short:
-# First agent layer before adding real platform tools.
+# Agent layer for AI-powered platform troubleshooting.
 # -------------------------------------------------------------------
 
 apiVersion: apps/v1
@@ -58,6 +58,20 @@ spec:
               value: "http://ai-llm-gateway.ai.svc.cluster.local:8080"
             - name: PROMETHEUS_URL
               value: "http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090"
+            - name: ELASTICSEARCH_URL
+              value: "https://elasticsearch-es-http.logging.svc.cluster.local:9200"
+            - name: ELASTICSEARCH_USERNAME
+              value: "elastic"
+            - name: ELASTICSEARCH_SECRET_NAMESPACE
+              value: "logging"
+            - name: ELASTICSEARCH_PASSWORD_SECRET_NAME
+              value: "elasticsearch-es-elastic-user"
+            - name: ELASTICSEARCH_PASSWORD_SECRET_KEY
+              value: "elastic"
+            - name: ELASTICSEARCH_CA_SECRET_NAME
+              value: "elasticsearch-es-http-certs-public"
+            - name: ELASTICSEARCH_CA_SECRET_KEY
+              value: "ca.crt"
           readinessProbe:
             httpGet:
               path: /readyz

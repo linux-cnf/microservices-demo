@@ -1,0 +1,39 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Grant the AI Agent read-only access to Elasticsearch credentials
+# and TLS certificates required for log retrieval.
+#
+# RESPONSIBILITIES:
+# - Allow access to Elasticsearch authentication secrets
+# - Follow least-privilege RBAC principles
+# - Enable AI-powered log analysis without secret duplication
+#
+# In short:
+# Securely connects the AI Agent to Elasticsearch for Phase 8.3 Logs Tool.
+# -------------------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-agent-elasticsearch-secret-reader
+  namespace: logging
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - elasticsearch-es-elastic-user
+      - elasticsearch-es-http-certs-public
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-agent-elasticsearch-secret-reader
+  namespace: logging
+subjects:
+  - kind: ServiceAccount
+    name: ai-agent-orchestrator
+    namespace: ai
+roleRef:
+  kind: Role
+  name: ai-agent-elasticsearch-secret-reader
+  apiGroup: rbac.authorization.k8s.io
