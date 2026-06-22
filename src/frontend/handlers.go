@@ -232,7 +232,7 @@ func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Reques
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to add to cart"), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("location", baseUrl + "/cart")
+	w.Header().Set("location", baseUrl+"/cart")
 	w.WriteHeader(http.StatusFound)
 }
 
@@ -244,7 +244,7 @@ func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Reques
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to empty cart"), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("location", baseUrl + "/")
+	w.Header().Set("location", baseUrl+"/")
 	w.WriteHeader(http.StatusFound)
 }
 
@@ -401,6 +401,7 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (fe *frontendServer) assistantHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	currencies, err := fe.getCurrencies(r.Context())
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
@@ -423,7 +424,7 @@ func (fe *frontendServer) logoutHandler(w http.ResponseWriter, r *http.Request) 
 		c.MaxAge = -1
 		http.SetCookie(w, c)
 	}
-	w.Header().Set("Location", baseUrl + "/")
+	w.Header().Set("Location", baseUrl+"/")
 	w.WriteHeader(http.StatusFound)
 }
 
@@ -450,50 +451,130 @@ func (fe *frontendServer) getProductByID(w http.ResponseWriter, r *http.Request)
 
 func (fe *frontendServer) chatBotHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+
+	type BotRequest struct {
+		Message string `json:"message"`
+		Image   string `json:"image,omitempty"`
+	}
+
+	type GatewayRequest struct {
+		Prompt string `json:"prompt"`
+	}
+
+	type GatewayResponse struct {
+		Model    string `json:"model"`
+		Response string `json:"response"`
+	}
+
 	type Response struct {
 		Message string `json:"message"`
+		Error   string `json:"error,omitempty"`
 	}
 
-	type LLMResponse struct {
-		Content string         `json:"content"`
-		Details map[string]any `json:"details"`
-	}
+	w.Header().Set("Content-Type", "application/json")
 
-	var response LLMResponse
-
-	url := "http://" + fe.shoppingAssistantSvcAddr
-	req, err := http.NewRequest(http.MethodPost, url, r.Body)
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to create request"), http.StatusInternalServerError)
+	if fe.llmGatewayAddr == "" {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(Response{
+			Message: "AI Assistant is currently unavailable. Boutique frontend is still running normally.",
+			Error:   "LLM_GATEWAY_ADDR is not configured",
+		})
 		return
 	}
+
+	var botReq BotRequest
+	if err := json.NewDecoder(r.Body).Decode(&botReq); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(Response{
+			Message: "Invalid assistant request.",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	prompt := strings.TrimSpace(botReq.Message)
+	if prompt == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(Response{
+			Message: "Please enter a message for the assistant.",
+			Error:   "empty prompt",
+		})
+		return
+	}
+
+	payload, err := json.Marshal(GatewayRequest{Prompt: prompt})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(Response{
+			Message: "Failed to prepare assistant request.",
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		strings.TrimRight(fe.llmGatewayAddr, "/")+"/chat",
+		strings.NewReader(string(payload)),
+	)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(Response{
+			Message: "Failed to create assistant request.",
+			Error:   err.Error(),
+		})
+		return
+	}
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to send request"), http.StatusInternalServerError)
+		log.WithField("error", err).Warn("llm gateway request failed")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(Response{
+			Message: "AI Assistant is currently unavailable. Boutique frontend is still running normally.",
+			Error:   err.Error(),
+		})
 		return
 	}
+	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to read response"), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(Response{
+			Message: "Failed to read assistant response.",
+			Error:   err.Error(),
+		})
 		return
 	}
 
-	fmt.Printf("%+v\n", body)
-	fmt.Printf("%+v\n", res)
-
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		renderHTTPError(log, r, w, errors.Wrap(err, "failed to unmarshal body"), http.StatusInternalServerError)
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(Response{
+			Message: "AI Assistant is currently unavailable. Boutique frontend is still running normally.",
+			Error:   string(body),
+		})
 		return
 	}
 
-	// respond with the same message
-	json.NewEncoder(w).Encode(Response{Message: response.Content})
+	var gatewayResp GatewayResponse
+	if err := json.Unmarshal(body, &gatewayResp); err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(Response{
+			Message: "Failed to parse assistant response.",
+			Error:   err.Error(),
+		})
+		return
+	}
 
-	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(Response{Message: gatewayResp.Response})
 }
 
 func (fe *frontendServer) setCurrencyHandler(w http.ResponseWriter, r *http.Request) {
