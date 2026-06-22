@@ -42,6 +42,27 @@ PROMETHEUS_URL = os.getenv(
     "http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090",
 )
 
+ELASTICSEARCH_URL = os.getenv(
+    "ELASTICSEARCH_URL",
+    "https://elasticsearch-es-http.logging.svc.cluster.local:9200",
+)
+
+ELASTICSEARCH_USERNAME = os.getenv("ELASTICSEARCH_USERNAME", "elastic")
+ELASTICSEARCH_SECRET_NAMESPACE = os.getenv("ELASTICSEARCH_SECRET_NAMESPACE", "logging")
+ELASTICSEARCH_PASSWORD_SECRET_NAME = os.getenv(
+    "ELASTICSEARCH_PASSWORD_SECRET_NAME",
+    "elasticsearch-es-elastic-user",
+)
+ELASTICSEARCH_PASSWORD_SECRET_KEY = os.getenv(
+    "ELASTICSEARCH_PASSWORD_SECRET_KEY",
+    "elastic",
+)
+ELASTICSEARCH_CA_SECRET_NAME = os.getenv(
+    "ELASTICSEARCH_CA_SECRET_NAME",
+    "elasticsearch-es-http-certs-public",
+)
+ELASTICSEARCH_CA_SECRET_KEY = os.getenv("ELASTICSEARCH_CA_SECRET_KEY", "ca.crt")
+
 DEFAULT_K8S_NAMESPACE = os.getenv("DEFAULT_K8S_NAMESPACE", "ai")
 
 SYSTEM_PROMPT = """
@@ -145,6 +166,22 @@ def should_use_kubernetes(prompt: str) -> bool:
     prompt_lower = prompt.lower()
     return any(keyword in prompt_lower for keyword in keywords)
 
+def should_use_elasticsearch(prompt: str) -> bool:
+    keywords = [
+        "log",
+        "logs",
+        "error log",
+        "exception",
+        "traceback",
+        "failed request",
+        "500",
+        "elastic",
+        "elasticsearch",
+        "crash logs",
+    ]
+
+    prompt_lower = prompt.lower()
+    return any(keyword in prompt_lower for keyword in keywords)
 
 def build_prometheus_tool_result() -> dict[str, Any]:
     queries = {
@@ -235,6 +272,80 @@ def build_kubernetes_tool_result(namespace: str = DEFAULT_K8S_NAMESPACE) -> dict
         ],
     }
 
+def read_kubernetes_secret_value(namespace: str, name: str, key: str) -> str:
+    if not K8S_CORE:
+        raise RuntimeError("Kubernetes client is not initialized")
+
+    secret = K8S_CORE.read_namespaced_secret(name=name, namespace=namespace)
+    if not secret.data or key not in secret.data:
+        raise RuntimeError(f"Secret key {key} not found in {namespace}/{name}")
+
+    import base64
+    return base64.b64decode(secret.data[key]).decode("utf-8")
+
+
+def build_elasticsearch_logs_tool_result() -> dict[str, Any]:
+    try:
+        elasticsearch_password = read_kubernetes_secret_value(
+            ELASTICSEARCH_SECRET_NAMESPACE,
+            ELASTICSEARCH_PASSWORD_SECRET_NAME,
+            ELASTICSEARCH_PASSWORD_SECRET_KEY,
+        )
+    except Exception as exc:
+        return {"error": f"failed to read Elasticsearch secret: {exc}"}
+
+    query = {
+        "size": 20,
+        "sort": [{"@timestamp": {"order": "desc"}}],
+        "query": {
+            "bool": {
+                "filter": [
+                    {"range": {"@timestamp": {"gte": "now-30m"}}}
+                ],
+                "should": [
+                    {"match": {"message": "error"}},
+                    {"match": {"message": "exception"}},
+                    {"match": {"message": "failed"}},
+                    {"match": {"log": "error"}},
+                ],
+                "minimum_should_match": 0,
+            }
+        },
+    }
+
+    try:
+        response = requests.get(
+            f"{ELASTICSEARCH_URL}/_search",
+            auth=(ELASTICSEARCH_USERNAME, elasticsearch_password),
+            json=query,
+            verify=False,
+            timeout=20,
+        )
+        response.raise_for_status()
+        result = response.json()
+
+        hits = result.get("hits", {}).get("hits", [])
+
+        return {
+            "source": ELASTICSEARCH_URL,
+            "time_range": "last_30_minutes",
+            "total_hits": result.get("hits", {}).get("total", {}),
+            "logs": [
+                {
+                    "index": hit.get("_index"),
+                    "timestamp": hit.get("_source", {}).get("@timestamp"),
+                    "namespace": hit.get("_source", {}).get("kubernetes", {}).get("namespace_name"),
+                    "pod": hit.get("_source", {}).get("kubernetes", {}).get("pod_name"),
+                    "container": hit.get("_source", {}).get("kubernetes", {}).get("container_name"),
+                    "message": hit.get("_source", {}).get("message")
+                    or hit.get("_source", {}).get("log"),
+                }
+                for hit in hits
+            ],
+        }
+
+    except Exception as exc:
+        return {"error": str(exc)}
 
 def build_tool_context(tool_used: str, tool_result: dict[str, Any]) -> str:
     if tool_used == "none":
@@ -262,6 +373,7 @@ def readyz():
         "llm_gateway": LLM_GATEWAY_URL,
         "prometheus": PROMETHEUS_URL,
         "kubernetes_client": "ready" if K8S_CORE and K8S_APPS else "not_ready",
+        "elasticsearch": ELASTICSEARCH_URL,
     }
 
 
@@ -270,7 +382,10 @@ def agent_chat(req: ChatRequest):
     tool_used = "none"
     tool_result: dict[str, Any] = {}
 
-    if should_use_kubernetes(req.prompt):
+    if should_use_elasticsearch(req.prompt):
+        tool_used = "elasticsearch_logs"
+        tool_result = build_elasticsearch_logs_tool_result()
+    elif should_use_kubernetes(req.prompt):
         tool_used = "kubernetes"
         tool_result = build_kubernetes_tool_result()
     elif should_use_prometheus(req.prompt):

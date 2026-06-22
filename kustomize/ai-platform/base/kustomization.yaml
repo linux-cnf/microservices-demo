@@ -31,3 +31,4 @@ resources:
   - ai-ollama-model-pull-job.yaml
   - ai-agent-orchestrator-serviceaccount.yaml
   - ai-agent-orchestrator-rbac.yaml
+  - ai-agent-elasticsearch-rbac.yaml
