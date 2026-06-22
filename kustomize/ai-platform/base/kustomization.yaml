@@ -32,3 +32,4 @@ resources:
   - ai-agent-orchestrator-serviceaccount.yaml
   - ai-agent-orchestrator-rbac.yaml
   - ai-agent-elasticsearch-rbac.yaml
+  - ai-agent-productcatalog-rbac.yaml
