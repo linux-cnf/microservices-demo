@@ -9,6 +9,8 @@ Responsibilities:
 - Detect whether platform data is needed
 - Query Prometheus for live metrics
 - Query Kubernetes API for live resource state
+- Query Elasticsearch for recent logs
+- Query Tempo for distributed traces
 - Add platform-specific context
 - Call ai-llm-gateway /chat
 - Return structured response with tool results
@@ -16,9 +18,11 @@ Responsibilities:
 Current tools:
 - Prometheus query tool
 - Kubernetes API tool
+- Elasticsearch Logs tool
+- Tempo trace tool
 
 Future:
-Loki, Tempo, product/catalog API tools, guardrails.
+Product/catalog API tools, guardrails.
 """
 
 import os
@@ -40,6 +44,11 @@ LLM_GATEWAY_URL = os.getenv(
 PROMETHEUS_URL = os.getenv(
     "PROMETHEUS_URL",
     "http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090",
+)
+
+TEMPO_URL = os.getenv(
+    "TEMPO_URL",
+    "http://tracing-tempo.tracing.svc.cluster.local:3200",
 )
 
 ELASTICSEARCH_URL = os.getenv(
@@ -79,7 +88,7 @@ Responsibilities:
 Rules:
 - If tool context is provided, treat it as the live source of truth.
 - Do not invent kubectl output.
-- Do not invent pod names, deployment names, events, or metrics.
+- Do not invent pod names, deployment names, events, metrics, logs, or traces.
 - Do not suggest commands when the answer is already present in tool context.
 - Keep responses concise and technical.
 """.strip()
@@ -166,6 +175,7 @@ def should_use_kubernetes(prompt: str) -> bool:
     prompt_lower = prompt.lower()
     return any(keyword in prompt_lower for keyword in keywords)
 
+
 def should_use_elasticsearch(prompt: str) -> bool:
     keywords = [
         "log",
@@ -182,6 +192,24 @@ def should_use_elasticsearch(prompt: str) -> bool:
 
     prompt_lower = prompt.lower()
     return any(keyword in prompt_lower for keyword in keywords)
+
+
+def should_use_tempo(prompt: str) -> bool:
+    keywords = [
+        "trace",
+        "traces",
+        "tempo",
+        "distributed tracing",
+        "span",
+        "spans",
+        "latency trace",
+        "request flow",
+        "service map",
+    ]
+
+    prompt_lower = prompt.lower()
+    return any(keyword in prompt_lower for keyword in keywords)
+
 
 def build_prometheus_tool_result() -> dict[str, Any]:
     queries = {
@@ -267,10 +295,13 @@ def build_kubernetes_tool_result(namespace: str = DEFAULT_K8S_NAMESPACE) -> dict
             }
             for event in sorted(
                 events.items,
-                key=lambda item: item.last_timestamp or item.event_time or item.metadata.creation_timestamp,
+                key=lambda item: item.last_timestamp
+                or item.event_time
+                or item.metadata.creation_timestamp,
             )[-10:]
         ],
     }
+
 
 def read_kubernetes_secret_value(namespace: str, name: str, key: str) -> str:
     if not K8S_CORE:
@@ -281,6 +312,7 @@ def read_kubernetes_secret_value(namespace: str, name: str, key: str) -> str:
         raise RuntimeError(f"Secret key {key} not found in {namespace}/{name}")
 
     import base64
+
     return base64.b64decode(secret.data[key]).decode("utf-8")
 
 
@@ -299,9 +331,7 @@ def build_elasticsearch_logs_tool_result() -> dict[str, Any]:
         "sort": [{"@timestamp": {"order": "desc"}}],
         "query": {
             "bool": {
-                "filter": [
-                    {"range": {"@timestamp": {"gte": "now-30m"}}}
-                ],
+                "filter": [{"range": {"@timestamp": {"gte": "now-30m"}}}],
                 "should": [
                     {"match": {"message": "error"}},
                     {"match": {"message": "exception"}},
@@ -334,9 +364,13 @@ def build_elasticsearch_logs_tool_result() -> dict[str, Any]:
                 {
                     "index": hit.get("_index"),
                     "timestamp": hit.get("_source", {}).get("@timestamp"),
-                    "namespace": hit.get("_source", {}).get("kubernetes", {}).get("namespace_name"),
+                    "namespace": hit.get("_source", {})
+                    .get("kubernetes", {})
+                    .get("namespace_name"),
                     "pod": hit.get("_source", {}).get("kubernetes", {}).get("pod_name"),
-                    "container": hit.get("_source", {}).get("kubernetes", {}).get("container_name"),
+                    "container": hit.get("_source", {})
+                    .get("kubernetes", {})
+                    .get("container_name"),
                     "message": hit.get("_source", {}).get("message")
                     or hit.get("_source", {}).get("log"),
                 }
@@ -346,6 +380,31 @@ def build_elasticsearch_logs_tool_result() -> dict[str, Any]:
 
     except Exception as exc:
         return {"error": str(exc)}
+
+
+def build_tempo_tool_result() -> dict[str, Any]:
+    try:
+        response = requests.get(
+            f"{TEMPO_URL}/api/search",
+            params={"limit": 20},
+            timeout=20,
+        )
+        response.raise_for_status()
+        result = response.json()
+
+        traces = result.get("traces", [])
+
+        return {
+            "source": TEMPO_URL,
+            "query": "/api/search",
+            "total_traces": len(traces),
+            "traces": traces,
+            "metrics": result.get("metrics", {}),
+        }
+
+    except Exception as exc:
+        return {"error": str(exc)}
+
 
 def build_tool_context(tool_used: str, tool_result: dict[str, Any]) -> str:
     if tool_used == "none":
@@ -357,7 +416,7 @@ Live {tool_used} tool result from the platform:
 {tool_result}
 
 Answer using only this live tool result.
-Do not invent kubectl output, metrics, pod names, or events.
+Do not invent kubectl output, metrics, pod names, events, logs, or traces.
 """.strip()
 
 
@@ -372,6 +431,7 @@ def readyz():
         "status": "ready",
         "llm_gateway": LLM_GATEWAY_URL,
         "prometheus": PROMETHEUS_URL,
+        "tempo": TEMPO_URL,
         "kubernetes_client": "ready" if K8S_CORE and K8S_APPS else "not_ready",
         "elasticsearch": ELASTICSEARCH_URL,
     }
@@ -382,7 +442,10 @@ def agent_chat(req: ChatRequest):
     tool_used = "none"
     tool_result: dict[str, Any] = {}
 
-    if should_use_elasticsearch(req.prompt):
+    if should_use_tempo(req.prompt):
+        tool_used = "tempo"
+        tool_result = build_tempo_tool_result()
+    elif should_use_elasticsearch(req.prompt):
         tool_used = "elasticsearch_logs"
         tool_result = build_elasticsearch_logs_tool_result()
     elif should_use_kubernetes(req.prompt):
@@ -404,6 +467,7 @@ Tool Context:
 User:
 {req.prompt}
 """
+
     try:
         response = requests.post(
             f"{LLM_GATEWAY_URL}/chat",

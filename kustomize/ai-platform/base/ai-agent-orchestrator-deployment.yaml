@@ -72,6 +72,8 @@ spec:
               value: "elasticsearch-es-http-certs-public"
             - name: ELASTICSEARCH_CA_SECRET_KEY
               value: "ca.crt"
+            - name: TEMPO_URL
+              value: "http://tracing-tempo.tracing.svc.cluster.local:3200"
           readinessProbe:
             httpGet:
               path: /readyz
