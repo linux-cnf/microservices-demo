@@ -505,8 +505,11 @@ def build_product_catalog_tool_result() -> dict[str, Any]:
                 log_text = K8S_CORE.read_namespaced_pod_log(
                     name=pod_name,
                     namespace=namespace,
+                    container="server",
                     tail_lines=20,
                 )
+
+
                 recent_logs.append(
                     {
                         "pod": pod_name,
