@@ -11,6 +11,7 @@ Responsibilities:
 - Query Kubernetes API for live resource state
 - Query Elasticsearch for recent logs
 - Query Tempo for distributed traces
+- Query Product Catalog service health and logs
 - Add platform-specific context
 - Call ai-llm-gateway /chat
 - Return structured response with tool results
@@ -20,9 +21,10 @@ Current tools:
 - Kubernetes API tool
 - Elasticsearch Logs tool
 - Tempo trace tool
+- Product Catalog troubleshooting tool
 
 Future:
-Product/catalog API tools, guardrails.
+Guardrails.
 """
 
 import os
@@ -56,6 +58,9 @@ ELASTICSEARCH_URL = os.getenv(
     "https://elasticsearch-es-http.logging.svc.cluster.local:9200",
 )
 
+PRODUCT_CATALOG_NAMESPACE = os.getenv("PRODUCT_CATALOG_NAMESPACE", "boutique")
+PRODUCT_CATALOG_APP_LABEL = os.getenv("PRODUCT_CATALOG_APP_LABEL", "productcatalogservice")
+
 ELASTICSEARCH_USERNAME = os.getenv("ELASTICSEARCH_USERNAME", "elastic")
 ELASTICSEARCH_SECRET_NAMESPACE = os.getenv("ELASTICSEARCH_SECRET_NAMESPACE", "logging")
 ELASTICSEARCH_PASSWORD_SECRET_NAME = os.getenv(
@@ -88,7 +93,7 @@ Responsibilities:
 Rules:
 - If tool context is provided, treat it as the live source of truth.
 - Do not invent kubectl output.
-- Do not invent pod names, deployment names, events, metrics, logs, or traces.
+- Do not invent pod names, deployment names, events, metrics, logs, traces, or service data.
 - Do not suggest commands when the answer is already present in tool context.
 - Keep responses concise and technical.
 """.strip()
@@ -205,6 +210,20 @@ def should_use_tempo(prompt: str) -> bool:
         "latency trace",
         "request flow",
         "service map",
+    ]
+
+    prompt_lower = prompt.lower()
+    return any(keyword in prompt_lower for keyword in keywords)
+
+
+def should_use_product_catalog(prompt: str) -> bool:
+    keywords = [
+        "product",
+        "products",
+        "catalog",
+        "product catalog",
+        "productcatalogservice",
+        "boutique catalog",
     ]
 
     prompt_lower = prompt.lower()
@@ -406,6 +425,116 @@ def build_tempo_tool_result() -> dict[str, Any]:
         return {"error": str(exc)}
 
 
+def build_product_catalog_tool_result() -> dict[str, Any]:
+    if not K8S_CORE or not K8S_APPS:
+        return {"error": "Kubernetes client is not initialized"}
+
+    namespace = PRODUCT_CATALOG_NAMESPACE
+    label_selector = f"app={PRODUCT_CATALOG_APP_LABEL}"
+
+    try:
+        pods = K8S_CORE.list_namespaced_pod(
+            namespace=namespace,
+            label_selector=label_selector,
+        )
+        services = K8S_CORE.list_namespaced_service(namespace=namespace)
+        endpoints = K8S_CORE.list_namespaced_endpoints(namespace=namespace)
+
+        catalog_services = [
+            {
+                "name": svc.metadata.name,
+                "type": svc.spec.type,
+                "cluster_ip": svc.spec.cluster_ip,
+                "ports": [
+                    {
+                        "port": port.port,
+                        "target_port": str(port.target_port),
+                        "protocol": port.protocol,
+                    }
+                    for port in (svc.spec.ports or [])
+                ],
+            }
+            for svc in services.items
+            if svc.metadata.name == "productcatalogservice"
+        ]
+
+        catalog_endpoints = [
+            {
+                "name": endpoint.metadata.name,
+                "addresses": [
+                    address.ip
+                    for subset in (endpoint.subsets or [])
+                    for address in (subset.addresses or [])
+                ],
+                "ports": [
+                    {
+                        "port": port.port,
+                        "protocol": port.protocol,
+                    }
+                    for subset in (endpoint.subsets or [])
+                    for port in (subset.ports or [])
+                ],
+            }
+            for endpoint in endpoints.items
+            if endpoint.metadata.name == "productcatalogservice"
+        ]
+
+        catalog_pods = []
+        recent_logs = []
+
+        for pod in pods.items:
+            pod_name = pod.metadata.name
+
+            catalog_pods.append(
+                {
+                    "name": pod_name,
+                    "phase": pod.status.phase,
+                    "node": pod.spec.node_name,
+                    "restart_count": sum(
+                        container.restart_count
+                        for container in (pod.status.container_statuses or [])
+                    ),
+                    "containers_ready": all(
+                        container.ready
+                        for container in (pod.status.container_statuses or [])
+                    ),
+                }
+            )
+
+            try:
+                log_text = K8S_CORE.read_namespaced_pod_log(
+                    name=pod_name,
+                    namespace=namespace,
+                    tail_lines=20,
+                )
+                recent_logs.append(
+                    {
+                        "pod": pod_name,
+                        "logs": log_text.splitlines()[-20:],
+                    }
+                )
+            except Exception as log_exc:
+                recent_logs.append(
+                    {
+                        "pod": pod_name,
+                        "error": str(log_exc),
+                    }
+                )
+
+        return {
+            "namespace": namespace,
+            "app_label": label_selector,
+            "service_type": "grpc",
+            "pods": catalog_pods,
+            "services": catalog_services,
+            "endpoints": catalog_endpoints,
+            "recent_logs": recent_logs,
+        }
+
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 def build_tool_context(tool_used: str, tool_result: dict[str, Any]) -> str:
     if tool_used == "none":
         return "No live tool context used."
@@ -416,7 +545,7 @@ Live {tool_used} tool result from the platform:
 {tool_result}
 
 Answer using only this live tool result.
-Do not invent kubectl output, metrics, pod names, events, logs, or traces.
+Do not invent kubectl output, metrics, pod names, events, logs, traces, or service data.
 """.strip()
 
 
@@ -434,6 +563,8 @@ def readyz():
         "tempo": TEMPO_URL,
         "kubernetes_client": "ready" if K8S_CORE and K8S_APPS else "not_ready",
         "elasticsearch": ELASTICSEARCH_URL,
+        "product_catalog_namespace": PRODUCT_CATALOG_NAMESPACE,
+        "product_catalog_app_label": PRODUCT_CATALOG_APP_LABEL,
     }
 
 
@@ -445,6 +576,9 @@ def agent_chat(req: ChatRequest):
     if should_use_tempo(req.prompt):
         tool_used = "tempo"
         tool_result = build_tempo_tool_result()
+    elif should_use_product_catalog(req.prompt):
+        tool_used = "product_catalog"
+        tool_result = build_product_catalog_tool_result()
     elif should_use_elasticsearch(req.prompt):
         tool_used = "elasticsearch_logs"
         tool_result = build_elasticsearch_logs_tool_result()
