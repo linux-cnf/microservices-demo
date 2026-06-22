@@ -1,4 +1,16 @@
 # -------------------------------------------------------------------
+# WARNING
+# This workflow assumes:
+# - GKE cluster exists
+# - Core platform is running
+#
+# DO NOT run after:
+# platform-full-destroy.yml
+#
+# Purpose:
+# Cost optimization only.
+# Disables AI node pool.
+# --------------------------------------
 # PURPOSE:
 # On-demand cleanup workflow for AI platform infrastructure.
 #
@@ -22,7 +34,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_destroy:
-        description: "Type yes-destroy-ai-platform to confirm"
+        description: "Type yes-disable-ai-node-pool-only to confirm"
         required: true
         default: "no"
 
@@ -36,7 +48,7 @@ concurrency:
 
 jobs:
   ai-destroy:
-    if: ${{ inputs.confirm_destroy == 'yes-destroy-ai-platform' }}
+    if: ${{ inputs.confirm_destroy == 'yes-disable-ai-node-pool-only' }}
     runs-on: ubuntu-latest
 
     env:
@@ -72,6 +84,25 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.14.8
+
+      - name: Guard - block AI destroy after full platform destroy
+        run: |
+          if ! gcloud container clusters describe kfounding \
+            --region us-central1 \
+            --project "${TF_VAR_gcp_project_id}" >/dev/null 2>&1; then
+
+            echo ""
+            echo "❌ Cluster not found."
+            echo "Full platform appears to have been destroyed."
+            echo "AI node pool cleanup workflow cannot run."
+            echo ""
+            echo "Blocked order:"
+            echo "  platform-full-destroy.yml -> ai-platform-destroy.yml"
+            echo ""
+            exit 1
+          fi
+
+          echo "✅ Cluster exists. Safe to continue with AI node pool cleanup."
 
       - name: Terraform init
         working-directory: terraform/live/main

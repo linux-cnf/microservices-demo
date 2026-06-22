@@ -59,6 +59,15 @@ on:
           - "true"
           - "false"
 
+      run_github_governance:
+        description: "Apply GitHub governance controls?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
       run_infra:
         description: "Run infra-main workflow?"
         required: true
@@ -96,6 +105,37 @@ jobs:
     uses: ./.github/workflows/terraform-validate-ci.yaml
     secrets: inherit
 
+  github-governance:
+    if: ${{ !cancelled() && inputs.run_github_governance == 'true' }}
+    needs: terraform-validate
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: terraform/live/github-governance
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.TERRAFORM_GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init - GitHub governance
+        run: terraform init -input=false
+
+      - name: Terraform validate - GitHub governance
+        run: terraform validate
+
+      - name: Terraform plan - GitHub governance
+        run: terraform plan -input=false
+
+      - name: Terraform apply - GitHub governance
+        run: terraform apply -input=false -auto-approve      
+
   infra:
     if: ${{ !cancelled() && inputs.run_infra == 'true' }}
     needs: terraform-validate
@@ -114,9 +154,10 @@ jobs:
     name: Bootstrap completion message
     needs:
       - terraform-validate
+      - github-governance
       - infra
       - mirror-platform-images
-    if: ${{ success() }}
+    if: ${{ always() && !failure() && !cancelled() }}
     runs-on: ubuntu-latest
 
     steps:

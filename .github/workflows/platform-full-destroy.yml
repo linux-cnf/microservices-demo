@@ -33,7 +33,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_destroy:
-        description: "Type yes-destroy-kfounding to confirm"
+        description: "Type yes-destroy-entire-platform to confirm"
         required: true
         default: "no"
 
@@ -47,8 +47,9 @@ concurrency:
 
 jobs:
   destroy:
-    if: ${{ inputs.confirm_destroy == 'yes-destroy-kfounding' }}
+    if: ${{ inputs.confirm_destroy == 'yes-destroy-entire-platform' }}
     runs-on: ubuntu-latest
+    environment: production-destroy
 
     defaults:
       run:
