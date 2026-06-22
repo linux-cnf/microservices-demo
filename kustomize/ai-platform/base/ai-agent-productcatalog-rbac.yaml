@@ -1,0 +1,30 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-agent-productcatalog-reader
+  namespace: boutique
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - services
+      - endpoints
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-agent-productcatalog-reader
+  namespace: boutique
+subjects:
+  - kind: ServiceAccount
+    name: ai-agent-orchestrator
+    namespace: ai
+roleRef:
+  kind: Role
+  name: ai-agent-productcatalog-reader
+  apiGroup: rbac.authorization.k8s.io
