@@ -134,7 +134,7 @@ jobs:
         run: terraform plan -input=false
 
       - name: Terraform apply - GitHub governance
-        run: terraform apply -input=false -auto-approve      
+        run: terraform apply -input=false -auto-approve
 
   infra:
     if: ${{ !cancelled() && inputs.run_infra == 'true' }}
