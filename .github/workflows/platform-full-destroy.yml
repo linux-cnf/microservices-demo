@@ -27,7 +27,7 @@
 # Destroy Kubernetes infrastructure safely without
 # impacting shared platform resources.
 # -------------------------------------------------------------------
-name: infra-destroy
+name: platform-full-destroy
 
 on:
   workflow_dispatch:
@@ -58,6 +58,8 @@ jobs:
     env:
       TF_INPUT: "false"
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      GKE_CLUSTER: kfounding
+      GKE_REGION: us-central1
 
     steps:
       - name: Checkout
@@ -78,11 +80,53 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false
 
+      - name: Pre-delete GKE node pools safely
+        run: |
+          set +e
+
+          echo "Checking if cluster exists..."
+          gcloud container clusters describe "$GKE_CLUSTER" \
+            --region "$GKE_REGION" \
+            --project "$TF_VAR_gcp_project_id" >/dev/null 2>&1
+
+          if [ $? -ne 0 ]; then
+            echo "Cluster does not exist. Skipping node pool pre-delete."
+            exit 0
+          fi
+
+          for NODE_POOL in primary-node-pool platform-observability ai-node-pool default-pool; do
+            echo "Checking node pool: $NODE_POOL"
+
+            gcloud container node-pools describe "$NODE_POOL" \
+              --cluster "$GKE_CLUSTER" \
+              --region "$GKE_REGION" \
+              --project "$TF_VAR_gcp_project_id" >/dev/null 2>&1
+
+            if [ $? -eq 0 ]; then
+              echo "Deleting node pool through gcloud first: $NODE_POOL"
+
+              gcloud container node-pools delete "$NODE_POOL" \
+                --cluster "$GKE_CLUSTER" \
+                --region "$GKE_REGION" \
+                --project "$TF_VAR_gcp_project_id" \
+                --quiet || true
+            else
+              echo "Node pool not found: $NODE_POOL"
+            fi
+          done
+
+          echo "Waiting for GKE/MIG reconciliation..."
+          sleep 300
+
+      - name: Remove pre-deleted node pools from Terraform state
+        run: |
+          terraform state rm module.gke_node_pool.google_container_node_pool.primary_nodes || true
+          terraform state rm module.gke_node_pool_platform_observability.google_container_node_pool.primary_nodes || true
+          terraform state rm module.ai_node_pool.google_container_node_pool.primary_nodes || true
+
       - name: Terraform Destroy GKE and NAT only
         run: |
           terraform destroy -input=false -auto-approve \
-            -target=module.gke_node_pool \
-            -target=module.gke_node_pool_platform_observability \
             -target=module.gke_cluster \
             -target=module.cloud_nat.google_compute_router_nat.this \
             -target=module.cloud_nat.google_compute_router.this
@@ -93,7 +137,9 @@ jobs:
           echo "Finding unattached PVC/default-pool/GKE node disks..."
 
           DISK_FILTER="(name~'^pvc-' OR name~'^gke-kfounding-default-pool-'"
-          DISK_FILTER="${DISK_FILTER} OR name~'^gke-kfounding-primary-node-pool-')"
+          DISK_FILTER="${DISK_FILTER} OR name~'^gke-kfounding-primary-node-pool-'"
+          DISK_FILTER="${DISK_FILTER} OR name~'^gke-kfounding-platform-observability-'"
+          DISK_FILTER="${DISK_FILTER} OR name~'^gke-kfounding-ai-node-pool-')"
           DISK_FILTER="${DISK_FILTER} AND -users:*"
 
           gcloud compute disks list \
@@ -117,8 +163,11 @@ jobs:
         run: |
           echo "=== Regional Static IPs ==="
           gcloud compute addresses list \
+            --project="${TF_VAR_gcp_project_id}" \
             --format="table(name,address,status,region,purpose)"
 
           echo "=== Global Static IPs ==="
-          gcloud compute addresses list --global \
+          gcloud compute addresses list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --global \
             --format="table(name,address,status,purpose)"
