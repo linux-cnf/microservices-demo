@@ -165,7 +165,7 @@ jobs:
       - infra
     uses: ./.github/workflows/ai-platform-bootstrap.yml
     with:
-      run_apply: "true"
+      run_apply: true
     secrets: inherit
 
   bootstrap-complete-message:

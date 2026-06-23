@@ -45,8 +45,8 @@ on:
       run_apply:
         description: "Run terraform apply to enable AI node pool?"
         required: false
-        default: "true"
-        type: string
+        default: true
+        type: boolean
 
 permissions:
   contents: read
