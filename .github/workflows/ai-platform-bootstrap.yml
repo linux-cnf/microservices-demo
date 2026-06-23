@@ -40,6 +40,14 @@ on:
           - "true"
           - "false"
 
+  workflow_call:
+    inputs:
+      run_apply:
+        description: "Run terraform apply to enable AI node pool?"
+        required: false
+        default: "true"
+        type: string
+
 permissions:
   contents: read
   id-token: write

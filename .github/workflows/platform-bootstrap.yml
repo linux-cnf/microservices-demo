@@ -95,6 +95,15 @@ on:
           - "true"
           - "false"
 
+      run_ai_platform:
+        description: "Provision AI platform?"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
 permissions:
   contents: read
   id-token: write
@@ -150,6 +159,15 @@ jobs:
     uses: ./.github/workflows/mirror-platform-images.yml
     secrets: inherit
 
+  ai-platform-bootstrap:
+    if: ${{ !cancelled() && inputs.run_ai_platform == 'true' }}
+    needs:
+      - infra
+    uses: ./.github/workflows/ai-platform-bootstrap.yml
+    with:
+      run_apply: "true"
+    secrets: inherit
+
   bootstrap-complete-message:
     name: Bootstrap completion message
     needs:
@@ -157,6 +175,7 @@ jobs:
       - github-governance
       - infra
       - mirror-platform-images
+      - ai-platform-bootstrap
     if: ${{ always() && !failure() && !cancelled() }}
     runs-on: ubuntu-latest
 
