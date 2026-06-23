@@ -1,0 +1,24 @@
+# PURPOSE:
+# Enables the custom AI Assistant UI in the frontend.
+# Use only when the ai namespace and ai-llm-gateway are deployed.
+# Keeps base frontend production-safe by enabling AI through an optional component.
+
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+- patch: |-
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    metadata:
+      name: frontend
+    spec:
+      template:
+        spec:
+          containers:
+          - name: server
+            env:
+            - name: ENABLE_ASSISTANT
+              value: "true"
+            - name: LLM_GATEWAY_ADDR
+              value: "http://ai-llm-gateway.ai.svc.cluster.local:8080"

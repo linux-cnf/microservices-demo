@@ -5,61 +5,110 @@
 # =========================================================
 #
 # PURPOSE:
-# Deploy optional AI platform workloads through Argo CD.
+# Manage optional AI platform and frontend AI Assistant toggle.
 #
-# RESPONSIBILITIES:
-# - Register optional ai-platform Argo CD Application
-# - Keep AI workloads out of the default platform-root sync
-# - Allow AI platform deployment only when explicitly requested
+# COMMANDS:
+# ./scripts/ai-cluster-bootstrap.sh platform
+#   Deploy AI infra/workloads only.
 #
-# COMPONENTS:
-# - AI namespace
-# - Ollama
-# - LLM Gateway
-# - AI Agent Orchestrator
-# - vLLM future runtime
+# ./scripts/ai-cluster-bootstrap.sh enable-assistant
+#   Temporarily enable frontend AI chat in live cluster.
 #
-# USAGE:
-# chmod +x scripts/ai-cluster-bootstrap.sh
-# ./scripts/ai-cluster-bootstrap.sh
+# ./scripts/ai-cluster-bootstrap.sh disable-assistant
+#   Temporarily disable frontend AI chat in live cluster.
 #
-# In short:
-# Bootstrap optional AI workloads through GitOps on demand.
+# ./scripts/ai-cluster-bootstrap.sh all
+#   Deploy AI platform and enable frontend AI chat.
+#
+# NOTE:
+# enable-assistant/disable-assistant use live kubectl patching.
+# For permanent production enablement, use GitOps/PR.
 # =========================================================
 
 set -euo pipefail
 
-APP_MANIFEST="argocd/optional-apps/ai-platform/ai-platform-app.yaml"
+COMMAND="${1:-platform}"
+AI_APP_MANIFEST="argocd/optional-apps/ai-platform/ai-platform-app.yaml"
+LLM_GATEWAY_ADDR="http://ai-llm-gateway.ai.svc.cluster.local:8080"
 
-echo "========================================================="
-echo "Deploying optional AI Platform through Argo CD"
-echo "========================================================="
-echo
+deploy_platform() {
+  echo "Deploying optional AI Platform through Argo CD..."
 
-if [ ! -f "${APP_MANIFEST}" ]; then
-  echo "ERROR: Missing ${APP_MANIFEST}"
-  exit 1
-fi
+  if [ ! -f "${AI_APP_MANIFEST}" ]; then
+    echo "ERROR: Missing ${AI_APP_MANIFEST}"
+    exit 1
+  fi
 
-echo "Applying AI Platform Argo CD application..."
-kubectl apply -n argocd -f "${APP_MANIFEST}"
+  kubectl apply -n argocd -f "${AI_APP_MANIFEST}"
 
-echo
-echo "Waiting for ai-platform application registration..."
-kubectl wait \
-  --for=jsonpath='{.metadata.name}'=ai-platform \
-  application/ai-platform \
-  -n argocd \
-  --timeout=120s || true
+  kubectl wait \
+    --for=jsonpath='{.metadata.name}'=ai-platform \
+    application/ai-platform \
+    -n argocd \
+    --timeout=120s || true
 
-echo
-echo "Current Argo CD application status:"
-kubectl get application ai-platform -n argocd || true
+  echo "Waiting for AI LLM Gateway rollout..."
+  kubectl rollout status deploy/ai-llm-gateway -n ai --timeout=300s
 
-echo
-echo "AI namespace workloads:"
-kubectl get pods -n ai || true
+  echo "Checking LLM Gateway readiness..."
+  kubectl run ai-gateway-check -n ai --rm -i --restart=Never \
+    --image=curlimages/curl -- \
+    curl -fsS "${LLM_GATEWAY_ADDR}/readyz"
 
-echo
-echo "✅ AI Platform bootstrap request completed."
-echo "Argo CD will continue reconciliation from Git."
+  echo "AI namespace workloads:"
+  kubectl get pods -n ai
+
+  echo "✅ AI Platform is ready."
+}
+
+enable_assistant() {
+  echo "Enabling frontend AI Assistant temporarily..."
+
+  kubectl rollout status deploy/ai-llm-gateway -n ai --timeout=300s
+
+  kubectl run ai-gateway-check -n ai --rm -i --restart=Never \
+    --image=curlimages/curl -- \
+    curl -fsS "${LLM_GATEWAY_ADDR}/readyz"
+
+  kubectl -n boutique set env rollout/frontend \
+    ENABLE_ASSISTANT=true \
+    LLM_GATEWAY_ADDR="${LLM_GATEWAY_ADDR}"
+
+  kubectl argo rollouts get rollout frontend -n boutique
+  echo "✅ Frontend AI Assistant enabled temporarily."
+}
+
+disable_assistant() {
+  echo "Disabling frontend AI Assistant temporarily..."
+
+  kubectl -n boutique set env rollout/frontend \
+    ENABLE_ASSISTANT=false \
+    LLM_GATEWAY_ADDR-
+
+  kubectl argo rollouts get rollout frontend -n boutique
+  echo "✅ Frontend AI Assistant disabled temporarily."
+}
+
+case "${COMMAND}" in
+  platform)
+    deploy_platform
+    ;;
+  enable-assistant)
+    enable_assistant
+    ;;
+  disable-assistant)
+    disable_assistant
+    ;;
+  all)
+    deploy_platform
+    enable_assistant
+    ;;
+  *)
+    echo "Usage:"
+    echo "  $0 platform"
+    echo "  $0 enable-assistant"
+    echo "  $0 disable-assistant"
+    echo "  $0 all"
+    exit 1
+    ;;
+esac
