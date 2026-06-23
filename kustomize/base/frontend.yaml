@@ -93,7 +93,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: us-central1-docker.pkg.dev/google-samples/microservices-demo/frontend:v0.10.511
+          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/frontend:0eb222b52d5e240d27f7027d3c4e037c2827abec
           ports:
           - containerPort: 8080
           readinessProbe:
@@ -142,9 +142,9 @@ spec:
           - name: ENABLE_PROFILER
             value: "0"
           - name: ENABLE_ASSISTANT
-            value: "false"
-          # - name: LLM_GATEWAY_ADDR
-          #   value: "http://ai-llm-gateway.ai.svc.cluster.local:8080"
+            value: "true"
+          - name: LLM_GATEWAY_ADDR
+            value: "http://ai-llm-gateway.ai.svc.cluster.local:8080"
           # - name: CYMBAL_BRANDING
           #   value: "true"
           # - name: ENABLE_ASSISTANT

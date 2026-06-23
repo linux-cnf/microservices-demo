@@ -30,5 +30,3 @@ resources:
 - namespace/limitrange.yaml
 - namespace/resourcequota.yaml
 - frontend-pdb.yaml
-components:
-- ../components/frontend-ai-assistant
