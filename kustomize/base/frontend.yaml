@@ -129,8 +129,8 @@ spec:
             value: "checkoutservice:5050"
           - name: AD_SERVICE_ADDR
             value: "adservice:9555"
-          - name: SHOPPING_ASSISTANT_SERVICE_ADDR
-            value: "shoppingassistantservice:80"
+          # - name: SHOPPING_ASSISTANT_SERVICE_ADDR #old variable, but it is no longer used:
+          #   value: "shoppingassistantservice:80"
           # # ENV_PLATFORM: One of: local, gcp, aws, azure, onprem, alibaba
           # # When not set, defaults to "local" unless running in GKE, otherwies auto-sets to gcp
           # - name: ENV_PLATFORM
@@ -141,6 +141,10 @@ spec:
             value: "run-20260615202036"
           - name: ENABLE_PROFILER
             value: "0"
+          - name: ENABLE_ASSISTANT
+            value: "true"
+          - name: LLM_GATEWAY_ADDR
+            value: "http://ai-llm-gateway.ai.svc.cluster.local:8080"
           # - name: CYMBAL_BRANDING
           #   value: "true"
           # - name: ENABLE_ASSISTANT
