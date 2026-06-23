@@ -1,7 +1,4 @@
 # -------------------------------------------------------------------
-# PURPOSE:
-# Safely decommission infrastructure created by Terraform.
-#
 # RESPONSIBILITIES:
 # - Remove GKE cluster resources
 # - Remove managed node pools
@@ -26,6 +23,10 @@
 # In short:
 # Destroy Kubernetes infrastructure safely without
 # impacting shared platform resources.
+# -------------------------------------------------------------------
+# -------------------------------------------------------------------
+# PURPOSE:
+# Safely decommission infrastructure created by Terraform.
 # -------------------------------------------------------------------
 name: platform-full-destroy
 
@@ -85,24 +86,21 @@ jobs:
           set +e
 
           echo "Checking if cluster exists..."
-          gcloud container clusters describe "$GKE_CLUSTER" \
+          if ! gcloud container clusters describe "$GKE_CLUSTER" \
             --region "$GKE_REGION" \
-            --project "$TF_VAR_gcp_project_id" >/dev/null 2>&1
-
-          if [ $? -ne 0 ]; then
-            echo "Cluster does not exist. Skipping node pool pre-delete."
+            --project "$TF_VAR_gcp_project_id" >/dev/null 2>&1; then
+            echo "Cluster does not exist. Skipping node pool cleanup."
             exit 0
           fi
 
           for NODE_POOL in primary-node-pool platform-observability ai-node-pool default-pool; do
             echo "Checking node pool: $NODE_POOL"
 
-            gcloud container node-pools describe "$NODE_POOL" \
+            if gcloud container node-pools describe "$NODE_POOL" \
               --cluster "$GKE_CLUSTER" \
               --region "$GKE_REGION" \
-              --project "$TF_VAR_gcp_project_id" >/dev/null 2>&1
+              --project "$TF_VAR_gcp_project_id" >/dev/null 2>&1; then
 
-            if [ $? -eq 0 ]; then
               echo "Deleting node pool through gcloud first: $NODE_POOL"
 
               gcloud container node-pools delete "$NODE_POOL" \
@@ -134,7 +132,7 @@ jobs:
       - name: Delete orphan GKE disks
         if: ${{ !cancelled() }}
         run: |
-          echo "Finding unattached PVC/default-pool/GKE node disks..."
+          echo "Finding unattached GKE/PVC disks..."
 
           DISK_FILTER="(name~'^pvc-' OR name~'^gke-kfounding-default-pool-'"
           DISK_FILTER="${DISK_FILTER} OR name~'^gke-kfounding-primary-node-pool-'"
@@ -147,15 +145,15 @@ jobs:
             --filter="${DISK_FILTER}" \
             --format="csv[no-heading](name,zone.basename())" | while IFS=, read -r DISK ZONE; do
 
-              if [ -z "$DISK" ] || [ -z "$ZONE" ]; then
-                continue
-              fi
+              [ -z "$DISK" ] && continue
+              [ -z "$ZONE" ] && continue
 
-              echo "Deleting orphan disk: $DISK in $ZONE"
+              echo "Deleting orphan disk: $DISK ($ZONE)"
+
               gcloud compute disks delete "$DISK" \
                 --project="${TF_VAR_gcp_project_id}" \
                 --zone "$ZONE" \
-                --quiet
+                --quiet || true
             done
 
       - name: Check leftover static IPs
