@@ -128,12 +128,12 @@ jobs:
         run: terraform plan -input=false -var="enable_ai_node_pool=true" -out=tfplan-ai
 
       - name: Terraform apply AI platform
-        if: inputs.run_apply == true
+        if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}
         working-directory: terraform/live/main
         run: terraform apply -input=false -auto-approve tfplan-ai
 
       - name: Get GKE credentials
-        if: inputs.run_apply == true
+        if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}
         uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: kfounding
@@ -141,7 +141,7 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Verify AI node pool
-        if: inputs.run_apply == true
+        if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}
         run: |
           set -euo pipefail
 
@@ -168,7 +168,7 @@ jobs:
           echo "  ./scripts/ai-cluster-bootstrap.sh"
 
       - name: AI platform bootstrap completion message
-        if: inputs.run_apply == true
+        if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}
         run: |
           echo "✅ AI platform infrastructure bootstrap completed."
           echo ""
