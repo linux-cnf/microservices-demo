@@ -7,18 +7,12 @@
 # PURPOSE:
 # Manage optional AI platform and frontend AI Assistant toggle.
 #
-# COMMANDS:
+# USAGE:
 # ./scripts/ai-cluster-bootstrap.sh platform
-#   Deploy AI infra/workloads only.
-#
 # ./scripts/ai-cluster-bootstrap.sh enable-assistant
-#   Temporarily enable frontend AI chat in live cluster.
-#
 # ./scripts/ai-cluster-bootstrap.sh disable-assistant
-#   Temporarily disable frontend AI chat in live cluster.
-#
 # ./scripts/ai-cluster-bootstrap.sh all
-#   Deploy AI platform and enable frontend AI chat.
+# ./scripts/ai-cluster-bootstrap.sh help
 #
 # NOTE:
 # enable-assistant/disable-assistant use live kubectl patching.
@@ -27,9 +21,26 @@
 
 set -euo pipefail
 
-COMMAND="${1:-platform}"
 AI_APP_MANIFEST="argocd/optional-apps/ai-platform/ai-platform-app.yaml"
 LLM_GATEWAY_ADDR="http://ai-llm-gateway.ai.svc.cluster.local:8080"
+
+usage() {
+  cat <<EOF
+Usage:
+  $0 platform            Deploy AI infra/workloads only
+  $0 enable-assistant    Enable frontend AI chat temporarily
+  $0 disable-assistant   Disable frontend AI chat temporarily
+  $0 all                 Deploy AI platform and enable frontend AI chat
+  $0 help                Show this help
+
+Examples:
+  $0 platform
+  $0 all
+  $0 enable-assistant
+EOF
+}
+
+COMMAND="${1:-help}"
 
 deploy_platform() {
   echo "Deploying optional AI Platform through Argo CD..."
@@ -103,12 +114,13 @@ case "${COMMAND}" in
     deploy_platform
     enable_assistant
     ;;
+  help|-h|--help)
+    usage
+    ;;
   *)
-    echo "Usage:"
-    echo "  $0 platform"
-    echo "  $0 enable-assistant"
-    echo "  $0 disable-assistant"
-    echo "  $0 all"
+    echo "ERROR: Invalid command: ${COMMAND}"
+    echo
+    usage
     exit 1
     ;;
 esac
