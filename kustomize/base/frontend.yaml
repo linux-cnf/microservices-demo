@@ -135,10 +135,10 @@ spec:
           # # When not set, defaults to "local" unless running in GKE, otherwies auto-sets to gcp
           # - name: ENV_PLATFORM
           #   value: "aws"
-          - name: PHASE4_METRIC_TEST
-            value: "run-20260614190244"
-          - name: ROLLOUT_TRIGGER
-            value: "run-20260615202036"
+          # - name: PHASE4_METRIC_TEST
+          #   value: "run-20260614190244"
+          # - name: ROLLOUT_TRIGGER
+          #   value: "run-20260615202036"
           - name: ENABLE_PROFILER
             value: "0"
           - name: ENABLE_ASSISTANT
