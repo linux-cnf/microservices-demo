@@ -393,7 +393,7 @@ jobs:
             ' "${TAG_FILE}"
 
             if [[ "${service}" == "frontend" ]]; then
-              FRONTEND_IMAGE="${REGISTRY}/${service}:${TAG}"
+              export FRONTEND_IMAGE="${REGISTRY}/${service}:${TAG}"
 
               yq -i '
                 (select(.kind == "Rollout" and .metadata.name == "frontend")
