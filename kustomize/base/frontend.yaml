@@ -1,16 +1,6 @@
 # Copyright 2018 Google LLC
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Licensed under the Apache License, Version 2.0
 
 #apiVersion: apps/v1
 #kind: Deployment
@@ -91,7 +81,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: ""
+          image: "us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/frontend:44e8113840c07f58ac78ee96f7b090006e076717"
           ports:
             - containerPort: 8080
           readinessProbe:
@@ -127,31 +117,12 @@ spec:
               value: "checkoutservice:5050"
             - name: AD_SERVICE_ADDR
               value: "adservice:9555"
-            # - name: SHOPPING_ASSISTANT_SERVICE_ADDR #old variable, but it is no longer used:
-            #   value: "shoppingassistantservice:80"
-            # # ENV_PLATFORM: One of: local, gcp, aws, azure, onprem, alibaba
-            # # When not set, defaults to "local" unless running in GKE, otherwies auto-sets to gcp
-            # - name: ENV_PLATFORM
-            #   value: "aws"
-            # - name: PHASE4_METRIC_TEST
-            #   value: "run-20260614190244"
-            # - name: ROLLOUT_TRIGGER
-            #   value: "run-20260615202036"
             - name: ENABLE_PROFILER
               value: "0"
             - name: ENABLE_ASSISTANT
               value: "true"
             - name: LLM_GATEWAY_ADDR
               value: "http://ai-llm-gateway.ai.svc.cluster.local:8080"
-          # - name: CYMBAL_BRANDING
-          #   value: "true"
-          # - name: ENABLE_ASSISTANT
-          #   value: "true"
-          # - name: FRONTEND_MESSAGE
-          #   value: "Replace this with a message you want to display on all pages."
-          # As part of an optional Google Cloud demo, you can run an optional microservice called the "packaging service".
-          # - name: PACKAGING_SERVICE_URL
-          #   value: "" # This value would look like "http://123.123.123"
           resources:
             requests:
               cpu: 50m
@@ -174,15 +145,8 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
-  template:
-    spec:
-      containers: []
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: frontend
-spec:
-  template:
-    spec:
-      containers: []

@@ -395,11 +395,9 @@ jobs:
             if [[ "${service}" == "frontend" ]]; then
               FRONTEND_IMAGE="${REGISTRY}/${service}:${TAG}"
 
-              echo "Updating frontend Rollout image:"
-              echo "  image: ${FRONTEND_IMAGE}"
-
               yq -i '
-                (.spec.template.spec.containers[] | select(.name == "server").image) = strenv(FRONTEND_IMAGE)
+                (select(.kind == "Rollout" and .metadata.name == "frontend")
+                  .spec.template.spec.containers[] | select(.name == "server").image) = strenv(FRONTEND_IMAGE)
               ' kustomize/base/frontend.yaml
             fi
           done
