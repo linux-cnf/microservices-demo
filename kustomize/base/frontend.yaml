@@ -23,7 +23,7 @@ metadata:
 spec:
   replicas: 3
   strategy:
-    canary:    
+    canary:
       maxSurge: 0
       maxUnavailable: 1
       trafficRouting:
@@ -37,19 +37,19 @@ spec:
             canarySubsetName: canary
             stableSubsetName: stable
       steps:
-      - setWeight: 10
-      - pause:
-          duration: 2m
-      - analysis:
-          templates:
-          - templateName: frontend-success-rate
-      - setWeight: 25
-      - pause:
-          duration: 2m
-      - setWeight: 50
-      - pause:
-          duration: 2m
-      - setWeight: 100
+        - setWeight: 10
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: frontend-success-rate
+        - setWeight: 25
+        - pause:
+            duration: 2m
+        - setWeight: 50
+        - pause:
+            duration: 2m
+        - setWeight: 100
   selector:
     matchLabels:
       app: frontend
@@ -67,7 +67,6 @@ spec:
           labelSelector:
             matchLabels:
               app: frontend
-
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -77,7 +76,6 @@ spec:
                   matchLabels:
                     app: frontend
                 topologyKey: kubernetes.io/hostname
-
       serviceAccountName: frontend
       securityContext:
         fsGroup: 1000
@@ -93,58 +91,58 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/frontend:0eb222b52d5e240d27f7027d3c4e037c2827abec
+          image: ""
           ports:
-          - containerPort: 8080
+            - containerPort: 8080
           readinessProbe:
             initialDelaySeconds: 10
             httpGet:
               path: "/_healthz"
               port: 8080
               httpHeaders:
-              - name: "Cookie"
-                value: "shop_session-id=x-readiness-probe"
+                - name: "Cookie"
+                  value: "shop_session-id=x-readiness-probe"
           livenessProbe:
             initialDelaySeconds: 10
             httpGet:
               path: "/_healthz"
               port: 8080
               httpHeaders:
-              - name: "Cookie"
-                value: "shop_session-id=x-liveness-probe"
+                - name: "Cookie"
+                  value: "shop_session-id=x-liveness-probe"
           env:
-          - name: PORT
-            value: "8080"
-          - name: PRODUCT_CATALOG_SERVICE_ADDR
-            value: "productcatalogservice:3550"
-          - name: CURRENCY_SERVICE_ADDR
-            value: "currencyservice:7000"
-          - name: CART_SERVICE_ADDR
-            value: "cartservice:7070"
-          - name: RECOMMENDATION_SERVICE_ADDR
-            value: "recommendationservice:8080"
-          - name: SHIPPING_SERVICE_ADDR
-            value: "shippingservice:50051"
-          - name: CHECKOUT_SERVICE_ADDR
-            value: "checkoutservice:5050"
-          - name: AD_SERVICE_ADDR
-            value: "adservice:9555"
-          # - name: SHOPPING_ASSISTANT_SERVICE_ADDR #old variable, but it is no longer used:
-          #   value: "shoppingassistantservice:80"
-          # # ENV_PLATFORM: One of: local, gcp, aws, azure, onprem, alibaba
-          # # When not set, defaults to "local" unless running in GKE, otherwies auto-sets to gcp
-          # - name: ENV_PLATFORM
-          #   value: "aws"
-          # - name: PHASE4_METRIC_TEST
-          #   value: "run-20260614190244"
-          # - name: ROLLOUT_TRIGGER
-          #   value: "run-20260615202036"
-          - name: ENABLE_PROFILER
-            value: "0"
-          - name: ENABLE_ASSISTANT
-            value: "true"
-          - name: LLM_GATEWAY_ADDR
-            value: "http://ai-llm-gateway.ai.svc.cluster.local:8080"
+            - name: PORT
+              value: "8080"
+            - name: PRODUCT_CATALOG_SERVICE_ADDR
+              value: "productcatalogservice:3550"
+            - name: CURRENCY_SERVICE_ADDR
+              value: "currencyservice:7000"
+            - name: CART_SERVICE_ADDR
+              value: "cartservice:7070"
+            - name: RECOMMENDATION_SERVICE_ADDR
+              value: "recommendationservice:8080"
+            - name: SHIPPING_SERVICE_ADDR
+              value: "shippingservice:50051"
+            - name: CHECKOUT_SERVICE_ADDR
+              value: "checkoutservice:5050"
+            - name: AD_SERVICE_ADDR
+              value: "adservice:9555"
+            # - name: SHOPPING_ASSISTANT_SERVICE_ADDR #old variable, but it is no longer used:
+            #   value: "shoppingassistantservice:80"
+            # # ENV_PLATFORM: One of: local, gcp, aws, azure, onprem, alibaba
+            # # When not set, defaults to "local" unless running in GKE, otherwies auto-sets to gcp
+            # - name: ENV_PLATFORM
+            #   value: "aws"
+            # - name: PHASE4_METRIC_TEST
+            #   value: "run-20260614190244"
+            # - name: ROLLOUT_TRIGGER
+            #   value: "run-20260615202036"
+            - name: ENABLE_PROFILER
+              value: "0"
+            - name: ENABLE_ASSISTANT
+              value: "true"
+            - name: LLM_GATEWAY_ADDR
+              value: "http://ai-llm-gateway.ai.svc.cluster.local:8080"
           # - name: CYMBAL_BRANDING
           #   value: "true"
           # - name: ENABLE_ASSISTANT
@@ -173,11 +171,18 @@ spec:
   selector:
     app: frontend
   ports:
-  - name: http
-    port: 80
-    targetPort: 8080
+    - name: http
+      port: 80
+      targetPort: 8080
+  template:
+    spec:
+      containers: []
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: frontend
+spec:
+  template:
+    spec:
+      containers: []
