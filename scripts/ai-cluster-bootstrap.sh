@@ -58,6 +58,16 @@ deploy_platform() {
     -n argocd \
     --timeout=120s || true
 
+  echo "Waiting for ai-platform app to sync..."
+  kubectl wait application/ai-platform -n argocd \
+    --for=jsonpath='{.status.sync.status}'=Synced \
+    --timeout=300s
+
+  echo "Waiting for ai-platform app to become healthy..."
+  kubectl wait application/ai-platform -n argocd \
+    --for=jsonpath='{.status.health.status}'=Healthy \
+    --timeout=600s
+
   echo "Waiting for AI LLM Gateway rollout..."
   kubectl rollout status deploy/ai-llm-gateway -n ai --timeout=300s
 
