@@ -5,9 +5,9 @@ metadata:
   namespace: boutique
 spec:
   hard:
-    requests.cpu: "8"
-    requests.memory: 16Gi
-    limits.cpu: "30"
-    limits.memory: 40Gi
-    pods: "50"
+    requests.cpu: "12"
+    requests.memory: 24Gi
+    limits.cpu: "40"
+    limits.memory: 50Gi
+    pods: "75"
     services: "20"
