@@ -513,6 +513,7 @@ func (fe *frontendServer) chatBotHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	// Keep a longer timeout because local LLM responses can be slow on small AI nodes.
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(
