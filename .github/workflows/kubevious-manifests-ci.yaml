@@ -6,13 +6,12 @@ on:
       - main
     paths:
       - "helm-chart/**"
-      - "kustomize/**"
       - "kubernetes-manifests/**"
       - ".github/workflows/kubevious-manifests-ci.yaml"
+
   pull_request:
     paths:
       - "helm-chart/**"
-      - "kustomize/**"
       - "kubernetes-manifests/**"
       - ".github/workflows/kubevious-manifests-ci.yaml"
 
@@ -23,6 +22,7 @@ jobs:
   kubevious-kubernetes-manifests:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
+
     steps:
       - uses: actions/checkout@v6
 
@@ -32,23 +32,10 @@ jobs:
           manifests: kubernetes-manifests
           other_args: "--skip-rules container-latest-image --skip-rules unknown-property"
 
-  kubevious-kustomize:
-    if: false
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Validate kustomize
-        uses: kubevious/cli@v1.0.64
-        with:
-          manifests: kustomize
-          ignore_unknown: true
-          other_args: "--skip-rules container-latest-image --skip-rules unknown-property"
-
   kubevious-helm-charts:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+
     strategy:
       fail-fast: false
       matrix:
@@ -65,8 +52,7 @@ jobs:
       - name: Add Helm repositories
         run: |
           helm repo add elastic https://helm.elastic.co
-          helm repo add prometheus-community \
-            https://prometheus-community.github.io/helm-charts
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
           helm repo update
 
       - name: Build chart dependencies
