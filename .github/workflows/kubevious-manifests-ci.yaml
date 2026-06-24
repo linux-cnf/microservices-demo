@@ -30,7 +30,7 @@ jobs:
         uses: kubevious/cli@v1.0.64
         with:
           manifests: kubernetes-manifests
-          skip_rules: container-latest-image,unknown-property
+          other_args: "--skip-rules container-latest-image --skip-rules unknown-property"
 
   kubevious-kustomize:
     runs-on: ubuntu-24.04
@@ -43,7 +43,7 @@ jobs:
         with:
           manifests: kustomize
           ignore_unknown: true
-          skip_rules: container-latest-image,unknown-property
+          other_args: "--skip-rules container-latest-image --skip-rules unknown-property"
 
   kubevious-helm-charts:
     runs-on: ubuntu-24.04
