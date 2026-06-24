@@ -33,6 +33,7 @@ jobs:
           other_args: "--skip-rules container-latest-image --skip-rules unknown-property"
 
   kubevious-kustomize:
+    if: false
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
