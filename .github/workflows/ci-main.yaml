@@ -8,20 +8,7 @@
 # - Build and push required service images to Artifact Registry.
 # - Open an automated PR updating image tags in:
 #   kustomize/components/container-images-tag/kustomization.yaml
-#
-# Normal behavior:
-# - src/<service>/ change -> build only that service image.
-# - proto/, pb/, genproto/, Dockerfile, Makefile change -> rebuild all services.
-# - docs/, scripts/, argocd/, terraform/, workflow-only changes -> no app image rebuild.
-#
-# DR / new project behavior:
-# - Run workflow manually with rebuild_missing_images=true.
-# - This checks Artifact Registry and builds only missing images for the current Git SHA.
-#
-# Flow:
-# detect changes -> tests -> manifest validation
-# -> build and push images -> update Kustomize tags via PR
-# -> merge PR -> Argo CD syncs deployment to GKE.
+# - Additionally update kustomize/base/frontend.yaml for frontend Rollout.
 ---
 name: "Continuous Integration :- Main/Release"
 
@@ -50,6 +37,7 @@ name: "Continuous Integration :- Main/Release"
 
       # Existing GitOps image tag PRs
       - "kustomize/components/container-images-tag/kustomization.yaml"
+      - "kustomize/base/frontend.yaml"
 
   workflow_dispatch:
     inputs:
@@ -372,41 +360,55 @@ jobs:
         shell: bash
         env:
           CHANGED_SERVICES_JSON: ${{ needs.detect-changes.outputs.services }}
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
 
-          FILE="${TAG_FILE}"
           TAG="${GITHUB_SHA}"
+          REGISTRY="${REGISTRY_REGION}-docker.pkg.dev/${PROJECT_ID}/${IMAGE_REPOSITORY}"
 
-          if [[ ! -f "${FILE}" ]]; then
-            echo "Tag file not found: ${FILE}"
+          if [[ ! -f "${TAG_FILE}" ]]; then
+            echo "Tag file not found: ${TAG_FILE}"
             exit 1
           fi
 
-          echo "Before update:"
-          cat "${FILE}"
+          echo "Before component tag update:"
+          cat "${TAG_FILE}"
 
           mapfile -t CHANGED_SERVICES < <(
             echo "${CHANGED_SERVICES_JSON}" | jq -r '.[]'
           )
 
           for service in "${CHANGED_SERVICES[@]}"; do
-            IMAGE_NAME="us-central1-docker.pkg.dev/google-samples"
-            IMAGE_NAME="${IMAGE_NAME}/microservices-demo/${service}"
+            echo "Updating service: ${service}"
 
-            echo "Updating tag for service: ${service}"
-            echo "Matching image name: ${IMAGE_NAME}"
+            COMPONENT_IMAGE_NAME="us-central1-docker.pkg.dev/google-samples/microservices-demo/${service}"
+
+            echo "Updating component image tag:"
+            echo "  image: ${COMPONENT_IMAGE_NAME}"
+            echo "  tag:   ${TAG}"
 
             yq -i '
-              (.images[] | select(.name == "'"${IMAGE_NAME}"'").newTag) = "'"${TAG}"'"
-            ' "${FILE}"
+              (.images[] | select(.name == "'"${COMPONENT_IMAGE_NAME}"'").newTag) = "'"${TAG}"'"
+            ' "${TAG_FILE}"
+
+            if [[ "${service}" == "frontend" ]]; then
+              FRONTEND_IMAGE="${REGISTRY}/${service}:${TAG}"
+
+              echo "Updating frontend Rollout image:"
+              echo "  image: ${FRONTEND_IMAGE}"
+
+              yq -i '
+                (.spec.template.spec.containers[] | select(.name == "server").image) = strenv(FRONTEND_IMAGE)
+              ' kustomize/base/frontend.yaml
+            fi
           done
 
-          echo "After update:"
-          cat "${FILE}"
+          echo "After component tag update:"
+          cat "${TAG_FILE}"
 
           echo "Diff:"
-          git diff -- "${FILE}" || true
+          git diff -- "${TAG_FILE}" kustomize/base/frontend.yaml || true
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
@@ -417,17 +419,17 @@ jobs:
           kubectl kustomize kustomize > /tmp/boutique-final-rendered.yaml
           test -s /tmp/boutique-final-rendered.yaml
 
-      - name: Check whether tag file actually changed
+      - name: Check whether tag files actually changed
         id: git-check
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- "${TAG_FILE}"; then
+          if git diff --quiet -- "${TAG_FILE}" kustomize/base/frontend.yaml; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "No tag changes detected."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Tag file changed."
+            echo "Tag files changed."
           fi
 
       - name: Create pull request for updated image tags
@@ -444,8 +446,12 @@ jobs:
 
             Updated image tags only for selected services to `${{ github.sha }}`.
 
+            Frontend Rollout image is also updated in `kustomize/base/frontend.yaml`
+            when frontend changes are detected.
+
             Source workflow: `${{ github.workflow }}`
             Source commit: `${{ github.sha }}`
           base: ${{ github.ref_name }}
           add-paths: |
             kustomize/components/container-images-tag/kustomization.yaml
+            kustomize/base/frontend.yaml
