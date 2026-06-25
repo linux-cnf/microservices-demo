@@ -56,6 +56,10 @@ on:
           - "true"
           - "false"
 
+concurrency:
+  group: update-tags-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
