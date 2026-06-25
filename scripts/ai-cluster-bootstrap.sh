@@ -1,46 +1,76 @@
 #!/usr/bin/env bash
 
-# =========================================================
-# AI Cluster Bootstrap Script
-# =========================================================
-#
-# PURPOSE:
-# Manage optional AI platform and frontend AI Assistant toggle.
-#
-# USAGE:
-# ./scripts/ai-cluster-bootstrap.sh platform
-# ./scripts/ai-cluster-bootstrap.sh enable-assistant
-# ./scripts/ai-cluster-bootstrap.sh disable-assistant
-# ./scripts/ai-cluster-bootstrap.sh all
-# ./scripts/ai-cluster-bootstrap.sh help
-#
-# NOTE:
-# enable-assistant/disable-assistant use live kubectl patching.
-# For permanent production enablement, use GitOps/PR.
-# =========================================================
-
 set -euo pipefail
 
 AI_APP_MANIFEST="argocd/optional-apps/ai-platform/ai-platform-app.yaml"
 LLM_GATEWAY_ADDR="http://ai-llm-gateway.ai.svc.cluster.local:8080"
+AI_AGENT_ADDR="http://ai-agent-orchestrator.ai.svc.cluster.local:8080/agent"
 
 usage() {
-  cat <<EOF
+  cat <<USAGE
 Usage:
-  $0 platform            Deploy AI infra/workloads only
-  $0 enable-assistant    Enable frontend AI chat temporarily
-  $0 disable-assistant   Disable frontend AI chat temporarily
-  $0 all                 Deploy AI platform and enable frontend AI chat
-  $0 help                Show this help
-
-Examples:
   $0 platform
-  $0 all
   $0 enable-assistant
-EOF
+  $0 disable-assistant
+  $0 all
+  $0 help
+USAGE
 }
 
 COMMAND="${1:-help}"
+
+check_dependencies() {
+  kubectl get crd rollouts.argoproj.io >/dev/null 2>&1 || {
+    echo "ERROR: Argo Rollouts CRD is missing."
+    exit 1
+  }
+
+  command -v jq >/dev/null 2>&1 || {
+    echo "ERROR: jq is required."
+    exit 1
+  }
+}
+
+check_ai_gateway() {
+  kubectl rollout status deploy/ai-llm-gateway -n ai --timeout=300s
+
+  kubectl run ai-gateway-check -n ai --rm -i --restart=Never \
+    --image=curlimages/curl -- \
+    curl -fsS "${LLM_GATEWAY_ADDR}/readyz"
+}
+
+patch_frontend_env() {
+  local enable_value="$1"
+
+  kubectl get rollout frontend -n boutique -o json | jq \
+    --arg enable_value "${enable_value}" \
+    --arg agent_addr "${AI_AGENT_ADDR}" '
+    .spec.template.spec.containers |=
+    map(
+      if .name == "frontend" then
+        .env = (
+          (.env // [])
+          | map(select(.name != "ENABLE_ASSISTANT" and .name != "LLM_GATEWAY_ADDR"))
+          + (
+              if $enable_value == "true" then
+                [
+                  {"name":"ENABLE_ASSISTANT","value":"true"},
+		  {"name":"LLM_GATEWAY_ADDR","value":$agent_addr}
+                ]
+              else
+                [
+                  {"name":"ENABLE_ASSISTANT","value":"false"}
+                ]
+              end
+            )
+        )
+      else
+        .
+      end
+    )
+    | {spec:{template:{spec:{containers:.spec.template.spec.containers}}}}
+  ' | kubectl patch rollout frontend -n boutique --type=merge -p "$(cat)"
+}
 
 deploy_platform() {
   echo "Deploying optional AI Platform through Argo CD..."
@@ -68,13 +98,8 @@ deploy_platform() {
     --for=jsonpath='{.status.health.status}'=Healthy \
     --timeout=600s
 
-  echo "Waiting for AI LLM Gateway rollout..."
-  kubectl rollout status deploy/ai-llm-gateway -n ai --timeout=300s
-
   echo "Checking LLM Gateway readiness..."
-  kubectl run ai-gateway-check -n ai --rm -i --restart=Never \
-    --image=curlimages/curl -- \
-    curl -fsS "${LLM_GATEWAY_ADDR}/readyz"
+  check_ai_gateway
 
   echo "AI namespace workloads:"
   kubectl get pods -n ai
@@ -85,15 +110,9 @@ deploy_platform() {
 enable_assistant() {
   echo "Enabling frontend AI Assistant temporarily..."
 
-  kubectl rollout status deploy/ai-llm-gateway -n ai --timeout=300s
-
-  kubectl run ai-gateway-check -n ai --rm -i --restart=Never \
-    --image=curlimages/curl -- \
-    curl -fsS "${LLM_GATEWAY_ADDR}/readyz"
-
-  kubectl -n boutique set env rollout/frontend \
-    ENABLE_ASSISTANT=true \
-    LLM_GATEWAY_ADDR="${LLM_GATEWAY_ADDR}"
+  check_dependencies
+  check_ai_gateway
+  patch_frontend_env "true"
 
   kubectl argo rollouts get rollout frontend -n boutique
   echo "✅ Frontend AI Assistant enabled temporarily."
@@ -102,9 +121,8 @@ enable_assistant() {
 disable_assistant() {
   echo "Disabling frontend AI Assistant temporarily..."
 
-  kubectl -n boutique set env rollout/frontend \
-    ENABLE_ASSISTANT=false \
-    LLM_GATEWAY_ADDR-
+  check_dependencies
+  patch_frontend_env "false"
 
   kubectl argo rollouts get rollout frontend -n boutique
   echo "✅ Frontend AI Assistant disabled temporarily."
