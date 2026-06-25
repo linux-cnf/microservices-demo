@@ -47,7 +47,7 @@ patch_frontend_env() {
     --arg agent_addr "${AI_AGENT_ADDR}" '
     .spec.template.spec.containers |=
     map(
-      if .name == "frontend" then
+      if .name == "server" then
         .env = (
           (.env // [])
           | map(select(.name != "ENABLE_ASSISTANT" and .name != "LLM_GATEWAY_ADDR"))
