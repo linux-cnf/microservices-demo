@@ -69,23 +69,17 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     payload = {
         "model": model,
-        "prompt": f"""
-    You are an AI Platform SRE Assistant.
+        "prompt": f"""Answer directly and briefly.
 
-    Rules:
-    - Follow the user's request exactly.
-    - Do not invent company policies.
-    - Do not invent helpdesk procedures.
-    - Do not refuse requests unless they are unsafe.
-    - Answer technically and directly.
+User question:
+{request.prompt}
 
-    User Request:
-    {request.prompt}
-    """,
+Answer:""",
         "stream": False,
         "options": {
             "temperature": 0.1,
             "top_p": 0.3,
+            "num_predict": 80,
         },
     }
 
