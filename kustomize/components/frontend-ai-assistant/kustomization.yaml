@@ -21,4 +21,4 @@ patches:
             - name: ENABLE_ASSISTANT
               value: "true"
             - name: LLM_GATEWAY_ADDR
-              value: "http://ai-llm-gateway.ai.svc.cluster.local:8080"
+              value: "http://ai-agent-orchestrator.ai.svc.cluster.local:8080/agent"
