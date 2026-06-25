@@ -48,7 +48,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: ai-agent-orchestrator
-          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/ai-microservices/ai-agent-orchestrator:25e5dde5fc7a7121f4dfd82286a3e3aaa8842bd1
+          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/ai-microservices/ai-agent-orchestrator:ee1cb5816c8517faa41ff9c82752890f1b7d77c4
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
