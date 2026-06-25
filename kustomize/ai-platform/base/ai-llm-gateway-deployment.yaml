@@ -57,6 +57,8 @@ spec:
               value: "http://ai-ollama.ai.svc.cluster.local:11434"
             - name: DEFAULT_MODEL
               value: "tinyllama"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://tracing-opentelemetry-collector.tracing.svc.cluster.local:4318"
           readinessProbe:
             httpGet:
               path: /readyz

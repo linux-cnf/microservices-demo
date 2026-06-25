@@ -18,6 +18,13 @@ from typing import Optional
 import httpx
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from prometheus_client import (
     Counter,
     Histogram,
@@ -40,6 +47,33 @@ app = FastAPI(
     description="Gateway service for routing AI requests to LLM runtimes.",
     version="0.1.0",
 )
+OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv(
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "http://tracing-opentelemetry-collector.tracing.svc.cluster.local:4318",
+)
+
+trace.set_tracer_provider(
+    TracerProvider(
+        resource=Resource.create(
+            {
+                "service.name": "ai-llm-gateway",
+                "deployment.environment": "dev",
+                "k8s.namespace.name": "ai",
+            }
+        )
+    )
+)
+
+trace.get_tracer_provider().add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(
+            endpoint=f"{OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces"
+        )
+    )
+)
+
+HTTPXClientInstrumentor().instrument()
+FastAPIInstrumentor.instrument_app(app)
 
 # ==========================================================
 # Prometheus Metrics
