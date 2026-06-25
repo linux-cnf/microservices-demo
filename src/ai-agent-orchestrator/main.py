@@ -615,10 +615,17 @@ Final answer:
         llm_response = None
         llm_error = str(exc)
 
+    if llm_error:
+        return {
+            "model": "ai-agent-orchestrator",
+            "response": f"AI Agent could not reach LLM Gateway: {llm_error}", 
+            "tool_used": tool_used,
+            "tool_result": tool_result,
+        }
+
     return {
-        "agent": "ai-platform-agent",
+        "model": "ai-agent-orchestrator",
+        "response": (llm_response or {}).get("response", ""),
         "tool_used": tool_used,
         "tool_result": tool_result,
-        "response": llm_response,
-        "llm_error": llm_error,
     }
