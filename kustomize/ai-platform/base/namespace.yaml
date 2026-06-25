@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------
 # PURPOSE:
-# Dedicated namespace for AI platform workloads.
-#
+# Dedicated namespace for AI platform workloads and enables Istio sidecar injection.
+# Any new AI workload in this namespace automatically gets istio-proxy.
 # WORKLOADS:
 # - Ollama
 # - vLLM
@@ -27,3 +27,4 @@ metadata:
     workload: ai
     tier: platform
     purpose: llm
+    istio-injection: enabled

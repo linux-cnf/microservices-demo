@@ -1,0 +1,7 @@
+# ---------------------------------------------------------
+# PURPOSE:
+# Aggregates all AI security resources managed by Kustomize.
+# ---------------------------------------------------------
+
+resources:
+  - peerauthentication.yaml

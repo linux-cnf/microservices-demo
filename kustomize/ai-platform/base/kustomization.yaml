@@ -36,3 +36,4 @@ resources:
   - ai-agent-productcatalog-rbac.yaml
   - servicemonitor-ai.yaml
   - prometheusrule-ai.yaml
+  - ../security
