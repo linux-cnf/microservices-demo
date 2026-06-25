@@ -35,6 +35,13 @@ from fastapi import FastAPI
 from kubernetes import client, config
 from pydantic import BaseModel
 from fastapi import Response
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from prometheus_client import (
     Counter,
     Histogram,
@@ -46,9 +53,39 @@ import time
 
 app = FastAPI(title="ai-agent-orchestrator")
 # ==========================================================
+# OpenTelemetry Tracing
+# ==========================================================
+OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv(
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "http://tracing-opentelemetry-collector.tracing.svc.cluster.local:4318",
+)
+
+trace.set_tracer_provider(
+    TracerProvider(
+        resource=Resource.create(
+            {
+                "service.name": "ai-agent-orchestrator",
+                "deployment.environment": "dev",
+                "k8s.namespace.name": "ai",
+            }
+        )
+    )
+)
+
+trace.get_tracer_provider().add_span_processor(
+    BatchSpanProcessor(
+        OTLPSpanExporter(
+            endpoint=f"{OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces"
+        )
+    )
+)
+
+RequestsInstrumentor().instrument()
+FastAPIInstrumentor.instrument_app(app)
+
+# ==========================================================
 # Prometheus Metrics
 # ==========================================================
-
 AI_AGENT_REQUESTS_TOTAL = Counter(
     "ai_agent_requests_total",
     "Total AI Agent Orchestrator requests",

@@ -74,6 +74,8 @@ spec:
               value: "ca.crt"
             - name: TEMPO_URL
               value: "http://tracing-tempo.tracing.svc.cluster.local:3200"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://tracing-opentelemetry-collector.tracing.svc.cluster.local:4318"
             - name: PRODUCT_CATALOG_NAMESPACE
               value: "boutique"
             - name: PRODUCT_CATALOG_APP_LABEL
