@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-platform-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  ai-platform-dashboard.json: |
+    {
+      "uid": "ai-platform-overview",
+      "title": "AI Platform Overview",
+      "tags": ["ai", "platform", "observability"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "10s",
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "AI Requests",
+          "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+          "targets": [{"expr": "sum(ai_agent_requests_total)", "refId": "A"}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "AI Tool Calls",
+          "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+          "targets": [{"expr": "sum(ai_tool_calls_total)", "refId": "A"}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "AI Errors",
+          "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+          "targets": [{"expr": "sum(ai_agent_errors_total)", "refId": "A"}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "AI Running Pods",
+          "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+          "targets": [{"expr": "count(kube_pod_status_phase{namespace=\"ai\",phase=\"Running\"})", "refId": "A"}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "AI Request Rate",
+          "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+          "targets": [{"expr": "rate(ai_agent_requests_total[5m])", "refId": "A"}]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "AI Latency Avg",
+          "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+          "targets": [{"expr": "rate(ai_agent_request_latency_seconds_sum[5m]) / rate(ai_agent_request_latency_seconds_count[5m])", "refId": "A"}]
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "LLM Gateway Requests",
+          "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+          "targets": [{"expr": "sum(ai_llm_gateway_requests_total)", "refId": "A"}]
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "AI Pod Restarts",
+          "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+          "targets": [{"expr": "sum(kube_pod_container_status_restarts_total{namespace=\"ai\"})", "refId": "A"}]
+        },
+        {
+          "id": 9,
+          "type": "stat",
+          "title": "AI Pods Ready",
+          "gridPos": {"x": 0, "y": 20, "w": 12, "h": 4},
+          "targets": [{"expr": "sum(kube_pod_status_ready{namespace=\"ai\",condition=\"true\"})", "refId": "A"}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+        },
+        {
+          "id": 10,
+          "type": "stat",
+          "title": "LLM Gateway Errors",
+          "gridPos": {"x": 12, "y": 20, "w": 12, "h": 4},
+          "targets": [{"expr": "sum(ai_llm_gateway_errors_total)", "refId": "A"}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}
+        }
+      ]
+    }
