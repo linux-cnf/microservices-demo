@@ -19,3 +19,15 @@ variable "format" {
   description = "Artifact Registry repository format"
   default     = "DOCKER"
 }
+
+variable "cleanup_policy_dry_run" {
+  type        = bool
+  description = "If true, cleanup policies only run in dry-run mode"
+  default     = true
+}
+
+variable "cleanup_policies" {
+  type = any
+  description = "Artifact Registry cleanup policies"
+  default = []
+}
