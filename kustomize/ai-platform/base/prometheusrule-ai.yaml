@@ -1,0 +1,55 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Defines Prometheus alert rules for AI platform health and reliability.
+# Alerts on service outages, high latency, elevated error rates, and pod restarts.
+# -------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ai-platform-alerts
+  namespace: ai
+  labels:
+    release: observability
+spec:
+  groups:
+    - name: ai-platform.rules
+      rules:
+        - alert: AILLMGatewayDown
+          expr: up{namespace="ai", service="ai-llm-gateway"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "AI LLM Gateway is down"
+
+        - alert: AIAgentOrchestratorDown
+          expr: up{namespace="ai", service="ai-agent-orchestrator"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "AI Agent Orchestrator is down"
+
+        - alert: AIHighErrorRate
+          expr: rate(ai_agent_errors_total[5m]) > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "AI Agent high error rate"
+
+        - alert: AIHighLatency
+          expr: histogram_quantile(0.95, rate(ai_agent_request_latency_seconds_bucket[5m])) > 5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "AI Agent p95 latency is high"
+
+        - alert: AITooManyRestarts
+          expr: increase(kube_pod_container_status_restarts_total{namespace="ai"}[10m]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "AI pods restarting frequently"

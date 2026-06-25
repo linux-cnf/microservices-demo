@@ -34,9 +34,44 @@ import requests
 from fastapi import FastAPI
 from kubernetes import client, config
 from pydantic import BaseModel
+from fastapi import Response
+from prometheus_client import (
+    Counter,
+    Histogram,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+)
+import time
 
 
 app = FastAPI(title="ai-agent-orchestrator")
+# ==========================================================
+# Prometheus Metrics
+# ==========================================================
+
+AI_AGENT_REQUESTS_TOTAL = Counter(
+    "ai_agent_requests_total",
+    "Total AI Agent Orchestrator requests",
+    ["endpoint", "method"],
+)
+
+AI_AGENT_ERRORS_TOTAL = Counter(
+    "ai_agent_errors_total",
+    "Total AI Agent Orchestrator errors",
+    ["endpoint"],
+)
+
+AI_AGENT_REQUEST_LATENCY_SECONDS = Histogram(
+    "ai_agent_request_latency_seconds",
+    "AI Agent request latency",
+    ["endpoint"],
+)
+
+AI_TOOL_CALLS_TOTAL = Counter(
+    "ai_tool_calls_total",
+    "Total AI tool invocations",
+    ["tool"],
+)
 
 LLM_GATEWAY_URL = os.getenv(
     "LLM_GATEWAY_URL",
@@ -565,31 +600,50 @@ def readyz():
         "product_catalog_app_label": PRODUCT_CATALOG_APP_LABEL,
     }
 
+@app.get("/metrics")
+def metrics():
+    return Response(
+        generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 @app.post("/agent/chat")
 def agent_chat(req: ChatRequest):
-    tool_used = "none"
-    tool_result: dict[str, Any] = {}
+    start_time = time.time()
 
-    if should_use_tempo(req.prompt):
-        tool_used = "tempo"
-        tool_result = build_tempo_tool_result()
-    elif should_use_product_catalog(req.prompt):
-        tool_used = "product_catalog"
-        tool_result = build_product_catalog_tool_result()
-    elif should_use_elasticsearch(req.prompt):
-        tool_used = "elasticsearch_logs"
-        tool_result = build_elasticsearch_logs_tool_result()
-    elif should_use_kubernetes(req.prompt):
-        tool_used = "kubernetes"
-        tool_result = build_kubernetes_tool_result()
-    elif should_use_prometheus(req.prompt):
-        tool_used = "prometheus"
-        tool_result = build_prometheus_tool_result()
+    AI_AGENT_REQUESTS_TOTAL.labels(
+        endpoint="/agent/chat",
+        method="POST",
+    ).inc()
 
-    tool_context = build_tool_context(tool_used, tool_result)
+    try:
+        tool_used = "none"
+        tool_result: dict[str, Any] = {}
 
-    final_prompt = f"""
+        if should_use_tempo(req.prompt):
+            tool_used = "tempo"
+            AI_TOOL_CALLS_TOTAL.labels(tool="tempo").inc()
+            tool_result = build_tempo_tool_result()
+        elif should_use_product_catalog(req.prompt):
+            tool_used = "product_catalog"
+            AI_TOOL_CALLS_TOTAL.labels(tool="product_catalog").inc()
+            tool_result = build_product_catalog_tool_result()
+        elif should_use_elasticsearch(req.prompt):
+            tool_used = "elasticsearch_logs"
+            AI_TOOL_CALLS_TOTAL.labels(tool="elasticsearch_logs").inc()
+            tool_result = build_elasticsearch_logs_tool_result()
+        elif should_use_kubernetes(req.prompt):
+            tool_used = "kubernetes"
+            AI_TOOL_CALLS_TOTAL.labels(tool="kubernetes").inc()
+            tool_result = build_kubernetes_tool_result()
+        elif should_use_prometheus(req.prompt):
+            tool_used = "prometheus"
+            AI_TOOL_CALLS_TOTAL.labels(tool="prometheus").inc()
+            tool_result = build_prometheus_tool_result()
+
+        tool_context = build_tool_context(tool_used, tool_result)
+
+        final_prompt = f"""
 {SYSTEM_PROMPT}
 
 Live context:
@@ -601,31 +655,42 @@ User question:
 Final answer:
 """
 
-    try:
-        response = requests.post(
-            f"{LLM_GATEWAY_URL}/chat",
-            json={"prompt": final_prompt},
-            timeout=120,
-        )
-        response.raise_for_status()
-        llm_response = response.json()
-        llm_error = None
+        try:
+            response = requests.post(
+                f"{LLM_GATEWAY_URL}/chat",
+                json={"prompt": final_prompt},
+                timeout=120,
+            )
+            response.raise_for_status()
+            llm_response = response.json()
+            llm_error = None
 
-    except Exception as exc:
-        llm_response = None
-        llm_error = str(exc)
+        except Exception as exc:
+            AI_AGENT_ERRORS_TOTAL.labels(
+                endpoint="/agent/chat",
+            ).inc()
 
-    if llm_error:
+            llm_response = None
+            llm_error = str(exc)
+
+        if llm_error:
+            return {
+                "model": "ai-agent-orchestrator",
+                "response": f"AI Agent could not reach LLM Gateway: {llm_error}",
+                "tool_used": tool_used,
+                "tool_result": tool_result,
+            }
+
         return {
             "model": "ai-agent-orchestrator",
-            "response": f"AI Agent could not reach LLM Gateway: {llm_error}", 
+            "response": (llm_response or {}).get("response", ""),
             "tool_used": tool_used,
             "tool_result": tool_result,
         }
 
-    return {
-        "model": "ai-agent-orchestrator",
-        "response": (llm_response or {}).get("response", ""),
-        "tool_used": tool_used,
-        "tool_result": tool_result,
-    }
+    finally:
+        AI_AGENT_REQUEST_LATENCY_SECONDS.labels(
+            endpoint="/agent/chat",
+        ).observe(
+            time.time() - start_time
+        )

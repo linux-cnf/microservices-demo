@@ -1,0 +1,27 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Enables Prometheus Operator to scrape AI service metrics automatically.
+# Collects /metrics from AI workloads for monitoring, dashboards, and alerts.
+# -------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ai-platform-servicemonitor
+  namespace: ai
+  labels:
+    release: observability
+spec:
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - ai-llm-gateway
+          - ai-agent-orchestrator
+  namespaceSelector:
+    matchNames:
+      - ai
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
