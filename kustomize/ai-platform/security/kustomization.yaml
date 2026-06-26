@@ -1,7 +1,11 @@
 # ---------------------------------------------------------
 # PURPOSE:
 # Aggregates all AI security resources managed by Kustomize.
+# Includes mTLS, authorization, routing, and traffic policies.
 # ---------------------------------------------------------
 
 resources:
   - peerauthentication.yaml
+  - authorizationpolicy.yaml
+  - destinationrule.yaml
+  - virtualservice.yaml
