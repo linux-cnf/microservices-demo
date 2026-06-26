@@ -1,0 +1,38 @@
+# ---------------------------------------------------------
+# PURPOSE:
+# Enables Istio mutual TLS traffic policy for AI services.
+# Keeps AI service-to-service communication encrypted in mesh.
+# ---------------------------------------------------------
+
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: ai-llm-gateway-mtls
+  namespace: ai
+spec:
+  host: ai-llm-gateway.ai.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: ai-ollama-mtls
+  namespace: ai
+spec:
+  host: ai-ollama.ai.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: ai-agent-orchestrator-mtls
+  namespace: ai
+spec:
+  host: ai-agent-orchestrator.ai.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL

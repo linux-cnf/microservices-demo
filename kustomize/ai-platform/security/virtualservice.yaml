@@ -1,0 +1,35 @@
+# ---------------------------------------------------------
+# PURPOSE:
+# Defines internal Istio routing for AI platform services.
+# Keeps AI traffic routing explicit and GitOps managed.
+# ---------------------------------------------------------
+
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: ai-llm-gateway
+  namespace: ai
+spec:
+  hosts:
+    - ai-llm-gateway.ai.svc.cluster.local
+  http:
+    - route:
+        - destination:
+            host: ai-llm-gateway.ai.svc.cluster.local
+            port:
+              number: 8080
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: ai-agent-orchestrator
+  namespace: ai
+spec:
+  hosts:
+    - ai-agent-orchestrator.ai.svc.cluster.local
+  http:
+    - route:
+        - destination:
+            host: ai-agent-orchestrator.ai.svc.cluster.local
+            port:
+              number: 8080

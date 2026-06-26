@@ -1,0 +1,63 @@
+# ---------------------------------------------------------
+# PURPOSE:
+# Restricts inbound access to AI services inside the mesh.
+# Allows only trusted AI namespace and frontend callers.
+# ---------------------------------------------------------
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ai-llm-gateway-allow-trusted-callers
+  namespace: ai
+spec:
+  selector:
+    matchLabels:
+      app: ai-llm-gateway
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["ai"]
+        - source:
+            namespaces: ["boutique"]
+      to:
+        - operation:
+            ports: ["8080"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ai-ollama-allow-llm-gateway
+  namespace: ai
+spec:
+  selector:
+    matchLabels:
+      app: ai-ollama
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["ai"]
+      to:
+        - operation:
+            ports: ["11434"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ai-agent-orchestrator-allow-trusted-callers
+  namespace: ai
+spec:
+  selector:
+    matchLabels:
+      app: ai-agent-orchestrator
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces: ["ai"]
+        - source:
+            namespaces: ["boutique"]
+      to:
+        - operation:
+            ports: ["8080"]
