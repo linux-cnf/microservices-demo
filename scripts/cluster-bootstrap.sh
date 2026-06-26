@@ -18,10 +18,43 @@
 #   ./scripts/cluster-bootstrap.sh
 #
 # =========================================================
+# Cluster Bootstrap Script (GKE + Argo CD)
+# =========================================================
 
 set -euo pipefail
 
-trap 'echo "Bootstrap failed at line $LINENO"; echo; kubectl get pods -n argocd || true; echo; kubectl get application -n argocd || true' ERR
+########################################
+# Helpers
+########################################
+retry() {
+  local attempts=5
+  local delay=20
+
+  for i in $(seq 1 "$attempts"); do
+    "$@" && return 0
+    echo "Attempt $i/$attempts failed. Retrying in ${delay}s..."
+    sleep "$delay"
+  done
+
+  echo "Command failed after ${attempts} attempts: $*"
+  return 1
+}
+
+on_error() {
+  echo "Bootstrap failed at line $1"
+  echo
+
+  kubectl get pods -n argocd || true
+  echo
+
+  if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
+    kubectl get application -n argocd || true
+  else
+    echo "Argo CD Application CRD not installed yet."
+  fi
+}
+
+trap 'on_error $LINENO' ERR
 
 ########################################
 # Config
@@ -35,12 +68,13 @@ REGION="us-central1"
 ########################################
 command -v gcloud >/dev/null || { echo "gcloud not installed"; exit 1; }
 command -v kubectl >/dev/null || { echo "kubectl not installed"; exit 1; }
+command -v helm >/dev/null || { echo "helm not installed"; exit 1; }
 
 for file in \
-  argocd/install.yaml \
   argocd/argocd-cm-health-patch.yaml \
   argocd/argocd-notifications-cm.yaml \
   argocd/platform-root-app.yaml
+  argocd/bootstrap/values.yaml
 do
   [[ -f "$file" ]] || { echo "Missing file: $file"; exit 1; }
 done
@@ -52,7 +86,7 @@ gcloud config set project "$PROJECT_ID" >/dev/null
 # Get GKE credentials
 ########################################
 echo "Fetching GKE credentials..."
-gcloud container clusters get-credentials "$CLUSTER_NAME" \
+retry gcloud container clusters get-credentials "$CLUSTER_NAME" \
   --region "$REGION" \
   --project "$PROJECT_ID"
 
@@ -60,28 +94,35 @@ gcloud container clusters get-credentials "$CLUSTER_NAME" \
 # Verify access
 ########################################
 echo "Verifying cluster access..."
-kubectl cluster-info
-kubectl get nodes -o wide
+retry kubectl cluster-info
+retry kubectl get nodes -o wide
 
 ########################################
 # Install Argo CD
 ########################################
 echo "Installing Argo CD..."
 
-kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+retry bash -c 'kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply --validate=false -f -'
 
-kubectl apply --server-side --force-conflicts -n argocd \
-  -f argocd/install.yaml
+helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
+helm repo update argo
+
+retry helm upgrade --install argocd argo/argo-cd \
+  --namespace argocd \
+  --create-namespace \
+  --values argocd/bootstrap/values.yaml \
+  --wait \
+  --timeout 10m
 
 ########################################
 # Wait for Argo CD core components
 ########################################
 echo "Waiting for Argo CD core components..."
 
-kubectl wait --for=condition=Available deployment/argocd-server \
+retry kubectl wait --for=condition=Available deployment/argocd-server \
   -n argocd --timeout=600s
 
-kubectl wait --for=condition=Available deployment/argocd-repo-server \
+retry kubectl wait --for=condition=Available deployment/argocd-repo-server \
   -n argocd --timeout=600s
 
 kubectl wait --for=condition=Available deployment/argocd-applicationset-controller \
@@ -90,7 +131,7 @@ kubectl wait --for=condition=Available deployment/argocd-applicationset-controll
 kubectl wait --for=condition=Available deployment/argocd-dex-server \
   -n argocd --timeout=600s || true
 
-kubectl rollout status statefulset/argocd-application-controller \
+retry kubectl rollout status statefulset/argocd-application-controller \
   -n argocd --timeout=600s
 
 echo "Argo CD core components are ready."
@@ -99,10 +140,10 @@ echo "Argo CD core components are ready."
 # Apply Argo CD configuration
 ########################################
 echo "Applying Argo CD custom health checks..."
-kubectl apply -f argocd/argocd-cm-health-patch.yaml -n argocd
+retry kubectl apply --validate=false -f argocd/argocd-cm-health-patch.yaml -n argocd
 
 echo "Applying Argo CD notifications config..."
-kubectl apply -f argocd/argocd-notifications-cm.yaml -n argocd
+retry kubectl apply --validate=false -f argocd/argocd-notifications-cm.yaml -n argocd
 
 ########################################
 # Restart Argo CD components
@@ -119,16 +160,16 @@ kubectl rollout restart statefulset/argocd-application-controller -n argocd
 ########################################
 echo "Waiting for restarted Argo CD components..."
 
-kubectl rollout status deployment/argocd-server \
+retry kubectl rollout status deployment/argocd-server \
   -n argocd --timeout=300s
 
-kubectl rollout status deployment/argocd-repo-server \
+retry kubectl rollout status deployment/argocd-repo-server \
   -n argocd --timeout=300s
 
 kubectl rollout status deployment/argocd-notifications-controller \
   -n argocd --timeout=300s || true
 
-kubectl rollout status statefulset/argocd-application-controller \
+retry kubectl rollout status statefulset/argocd-application-controller \
   -n argocd --timeout=300s
 
 ########################################
@@ -136,7 +177,7 @@ kubectl rollout status statefulset/argocd-application-controller \
 ########################################
 echo "Applying Argo CD root application..."
 
-kubectl apply -f argocd/platform-root-app.yaml -n argocd
+retry kubectl apply --validate=false -f argocd/platform-root-app.yaml -n argocd
 
 echo "Waiting for platform-root application to be registered..."
 
