@@ -172,6 +172,26 @@ jobs:
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
         run: terraform apply -input=false -auto-approve tfplan
 
+      - name: Ensure default GKE node pool is removed
+        if: inputs.run_apply == 'true'
+        run: |
+          set -euo pipefail
+
+          if gcloud container node-pools describe default-pool \
+            --cluster kfounding \
+            --region us-central1 \
+            --project "${{ secrets.GCP_PROJECT_ID }}" >/dev/null 2>&1; then
+
+            echo "default-pool still exists. Deleting it..."
+            gcloud container node-pools delete default-pool \
+              --cluster kfounding \
+              --region us-central1 \
+              --project "${{ secrets.GCP_PROJECT_ID }}" \
+              --quiet
+          else
+            echo "default-pool not found. Nothing to delete."
+          fi
+
       - name: Get GKE credentials
         if: inputs.run_apply == 'true'
         uses: google-github-actions/get-gke-credentials@v2
