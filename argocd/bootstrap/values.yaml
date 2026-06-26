@@ -1,0 +1,39 @@
+# =========================================================
+# Argo CD Bootstrap Helm Values
+# =========================================================
+#
+# Purpose:
+# - Defines Helm values for bootstrapping Argo CD.
+# - Keeps the installation reproducible and version-controlled.
+# - Used only during initial cluster bootstrap before GitOps takes over.
+#
+# =========================================================
+global:
+  image:
+    repository: quay.io/argoproj/argocd
+
+configs:
+  params:
+    server.insecure: true
+
+server:
+  service:
+    type: ClusterIP
+
+controller:
+  replicas: 1
+
+repoServer:
+  replicas: 1
+
+applicationSet:
+  replicas: 1
+
+dex:
+  enabled: true
+
+notifications:
+  enabled: true
+
+redis:
+  enabled: true
