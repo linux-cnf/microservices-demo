@@ -12,3 +12,4 @@ resources:
   - secret-store.yaml
   - ai-platform-secret-store.yaml
   - argocd-slack-token.yaml
+  - ai-external-secrets-sa.yaml
