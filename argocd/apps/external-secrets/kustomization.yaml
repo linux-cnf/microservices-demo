@@ -1,7 +1,14 @@
+# ---------------------------------------------------------
+# PURPOSE:
+# Registers all External Secrets resources managed through GitOps.
+# Includes shared and AI SecretStores plus ExternalSecret definitions.
+# ---------------------------------------------------------
+
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
   - argocd-external-secrets-sa.yaml
   - secret-store.yaml
+  - ai-platform-secret-store.yaml
   - argocd-slack-token.yaml
