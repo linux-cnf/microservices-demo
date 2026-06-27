@@ -1,0 +1,67 @@
+# ---------------------------------------------------------
+# PURPOSE:
+# Adds Kubernetes-level isolation for AI workloads.
+# Allows required mesh, DNS, observability, logging, and tracing traffic.
+# ---------------------------------------------------------
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-default-deny
+  namespace: ai
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-allow-required-ingress
+  namespace: ai
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-bootstrap
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: boutique
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-allow-required-egress
+  namespace: ai
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: logging
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tracing
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
