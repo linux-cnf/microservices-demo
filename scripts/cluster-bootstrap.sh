@@ -73,7 +73,7 @@ command -v helm >/dev/null || { echo "helm not installed"; exit 1; }
 for file in \
   argocd/argocd-cm-health-patch.yaml \
   argocd/argocd-notifications-cm.yaml \
-  argocd/platform-root-app.yaml
+  argocd/platform-root-app.yaml \
   argocd/bootstrap/values.yaml
 do
   [[ -f "$file" ]] || { echo "Missing file: $file"; exit 1; }

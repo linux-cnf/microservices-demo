@@ -33,10 +33,13 @@ check_dependencies() {
 
 check_ai_gateway() {
   kubectl rollout status deploy/ai-llm-gateway -n ai --timeout=300s
-
-  kubectl run ai-gateway-check -n ai --rm -i --restart=Never \
-    --image=curlimages/curl -- \
-    curl -fsS "${LLM_GATEWAY_ADDR}/readyz"
+  
+  kubectl exec -n ai deploy/ai-llm-gateway -- \
+    python -c '
+import urllib.request
+response = urllib.request.urlopen("http://localhost:8080/readyz")
+print(response.read().decode())
+'
 }
 
 patch_frontend_env() {
