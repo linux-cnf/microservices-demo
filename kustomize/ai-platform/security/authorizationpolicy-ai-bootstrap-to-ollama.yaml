@@ -1,0 +1,19 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: ai-ollama-allow-model-bootstrap
+  namespace: ai
+spec:
+  selector:
+    matchLabels:
+      app: ai-ollama
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            namespaces:
+              - ai-bootstrap
+      to:
+        - operation:
+            ports:
+              - "11434"

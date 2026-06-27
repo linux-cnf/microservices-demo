@@ -18,7 +18,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: ai-ollama-model-pull
-  namespace: ai
+  namespace: ai-bootstrap
   annotations:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
@@ -29,7 +29,6 @@ spec:
   template:
     metadata:
       annotations:
-        sidecar.istio.io/inject: "false"
       labels:
         app: ai-ollama-model-pull
         workload: ai
@@ -82,3 +81,5 @@ spec:
                 -d "{\"name\":\"${AI_MODEL_NAME}\"}"
 
               echo "Model pull completed: ${AI_MODEL_NAME}"
+              echo "Stopping Istio sidecar..."
+              curl -sf -XPOST http://127.0.0.1:15020/quitquitquit || true
