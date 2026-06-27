@@ -31,6 +31,8 @@ spec:
       namespace: kube-system
     - server: https://kubernetes.default.svc
       namespace: istio-system
+    - server: https://kubernetes.default.svc
+      namespace: ai
   
   clusterResourceWhitelist:
     - group: "*"
