@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-bootstrap
+  labels:
+    istio-injection: enabled
+    purpose: model-bootstrap
+    tier: platform

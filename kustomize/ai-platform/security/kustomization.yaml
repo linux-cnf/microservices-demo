@@ -9,3 +9,4 @@ resources:
   - authorizationpolicy.yaml
   - destinationrule.yaml
   - virtualservice.yaml
+  - authorizationpolicy-ai-bootstrap-to-ollama.yaml

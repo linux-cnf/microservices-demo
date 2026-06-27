@@ -37,3 +37,4 @@ resources:
   - servicemonitor-ai.yaml
   - prometheusrule-ai.yaml
   - ../security
+  - ai-bootstrap-namespace.yaml
