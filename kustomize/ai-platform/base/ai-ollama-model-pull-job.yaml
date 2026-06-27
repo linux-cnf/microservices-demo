@@ -28,6 +28,8 @@ spec:
 
   template:
     metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
       labels:
         app: ai-ollama-model-pull
         workload: ai
