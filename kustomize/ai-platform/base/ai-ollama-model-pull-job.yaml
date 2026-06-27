@@ -13,7 +13,6 @@
 # In short:
 # Ensures AI runtime has the required model after bootstrap/recreate.
 # -------------------------------------------------------------------
-
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -21,14 +20,15 @@ metadata:
   namespace: ai-bootstrap
   annotations:
     argocd.argoproj.io/hook: PostSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded,HookFailed
+
 spec:
-  backoffLimit: 3
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
   ttlSecondsAfterFinished: 300
 
   template:
     metadata:
-      annotations:
       labels:
         app: ai-ollama-model-pull
         workload: ai
@@ -36,7 +36,8 @@ spec:
         purpose: model-bootstrap
 
     spec:
-      restartPolicy: OnFailure
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 30
 
       nodeSelector:
         workload: ai
@@ -62,9 +63,10 @@ spec:
             - /bin/sh
             - -c
             - |
-              set -e
+              set -euo pipefail
 
               echo "Waiting for ai-ollama..."
+
               for i in $(seq 1 30); do
                 if curl -sf "${AI_OLLAMA_URL}/api/tags" >/dev/null; then
                   echo "ai-ollama is reachable."
@@ -74,12 +76,20 @@ spec:
                 echo "Attempt ${i}: ai-ollama not ready yet..."
                 sleep 10
               done
+              
+              if curl -sf "${AI_OLLAMA_URL}/api/tags" | grep -q "\"${AI_MODEL_NAME}\""; then
+                echo "Model already present. Skipping pull."
+                curl -sf -X POST http://127.0.0.1:15020/quitquitquit || true
+                exit 0
+              fi
 
               echo "Pulling model: ${AI_MODEL_NAME}"
+
               curl -sf "${AI_OLLAMA_URL}/api/pull" \
                 -H "Content-Type: application/json" \
                 -d "{\"name\":\"${AI_MODEL_NAME}\"}"
 
-              echo "Model pull completed: ${AI_MODEL_NAME}"
+              echo "Model pull completed."
+
               echo "Stopping Istio sidecar..."
-              curl -sf -XPOST http://127.0.0.1:15020/quitquitquit || true
+              curl -sf -X POST http://127.0.0.1:15020/quitquitquit || true
