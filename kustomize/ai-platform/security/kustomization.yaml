@@ -10,3 +10,4 @@ resources:
   - destinationrule.yaml
   - virtualservice.yaml
   - authorizationpolicy-ai-bootstrap-to-ollama.yaml
+  - networkpolicy.yaml
