@@ -13,3 +13,13 @@ resource "google_project_iam_member" "external_secrets_secret_accessor" {
 
   depends_on = [module.external_secrets_gsm_sa]
 }
+
+# Allow Kubernetes service account ai/argocd-external-secrets
+# to impersonate the GCP service account using Workload Identity.
+resource "google_service_account_iam_member" "external_secrets_ai_workload_identity" {
+  service_account_id = module.external_secrets_gsm_sa.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.gcp_project_id}.svc.id.goog[ai/argocd-external-secrets]"
+
+  depends_on = [module.external_secrets_gsm_sa]
+}
