@@ -298,7 +298,7 @@ jobs:
           grep "path:" "${AI_ARGO_APP}"
 
           if [ "${{ needs.detect-changes.outputs.llm_gateway_changed }}" = "true" ]; then
-            LLM_GATEWAY_IMAGE="${IMAGE_REGISTRY}/ai-llm-gateway:${GITHUB_SHA}"
+            export LLM_GATEWAY_IMAGE="${IMAGE_REGISTRY}/ai-llm-gateway:${GITHUB_SHA}"
 
             if [ "${DEPLOYMENT_MODE}" = "canary" ]; then
               yq -i '
@@ -317,7 +317,7 @@ jobs:
           fi
 
           if [ "${{ needs.detect-changes.outputs.ai_agent_orchestrator_changed }}" = "true" ]; then
-            AI_AGENT_IMAGE="${IMAGE_REGISTRY}/ai-agent-orchestrator:${GITHUB_SHA}"
+            export AI_AGENT_IMAGE="${IMAGE_REGISTRY}/ai-agent-orchestrator:${GITHUB_SHA}"
 
             yq -i '
               (select(.kind == "Deployment" and .metadata.name == "ai-agent-orchestrator")
