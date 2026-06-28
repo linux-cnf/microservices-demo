@@ -63,6 +63,8 @@ spec:
               value: "30"
             - name: RATE_LIMIT_WINDOW_SECONDS
               value: "60"
+            - name: REDIS_URL
+              value: "redis://ai-rate-limit-redis.ai.svc.cluster.local:6379/0"
           readinessProbe:
             httpGet:
               path: /readyz
