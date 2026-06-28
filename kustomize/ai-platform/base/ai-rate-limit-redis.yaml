@@ -1,0 +1,62 @@
+# ---------------------------------------------------------
+# PURPOSE:
+# Deploys a dedicated Redis instance for AI rate-limit counters.
+# Keeps AI traffic-control data separate from cart and Argo CD Redis.
+# ---------------------------------------------------------
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-rate-limit-redis
+  namespace: ai
+  labels:
+    app: ai-rate-limit-redis
+    workload: ai
+    tier: platform
+    purpose: rate-limit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-rate-limit-redis
+  template:
+    metadata:
+      labels:
+        app: ai-rate-limit-redis
+        workload: ai
+        tier: platform
+        purpose: rate-limit
+    spec:
+      nodeSelector:
+        workload: ai
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: ai
+          effect: NoSchedule
+      containers:
+        - name: redis
+          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/redis:7.2-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6379
+              name: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-rate-limit-redis
+  namespace: ai
+  labels:
+    app: ai-rate-limit-redis
+    workload: ai
+    tier: platform
+    purpose: rate-limit
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-rate-limit-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis

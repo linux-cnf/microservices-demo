@@ -34,6 +34,7 @@ resources:
   - ai-agent-orchestrator-rbac.yaml
   - ai-agent-elasticsearch-rbac.yaml
   - ai-agent-productcatalog-rbac.yaml
+  - ai-rate-limit-redis.yaml
   - servicemonitor-ai.yaml
   - prometheusrule-ai.yaml
   - ../security
