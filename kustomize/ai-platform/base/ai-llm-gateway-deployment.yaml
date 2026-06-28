@@ -38,6 +38,7 @@ spec:
         tier: platform
         purpose: gateway
     spec:
+      serviceAccountName: ai-llm-gateway
       nodeSelector:
         workload: ai
       tolerations:
