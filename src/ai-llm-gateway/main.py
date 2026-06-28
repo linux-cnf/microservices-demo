@@ -10,13 +10,13 @@ Responsibilities:
 - Keep frontend independent from Ollama/vLLM implementation details
 - Prepare future support for auth, rate limiting, routing, and audit logging
 """
-
 import os
 import time
+from collections import defaultdict, deque
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -41,6 +41,21 @@ DEFAULT_MODEL = os.getenv(
     "DEFAULT_MODEL",
     "tinyllama",
 )
+
+# ==========================================================
+# Rate Limiting
+# ==========================================================
+
+RATE_LIMIT_REQUESTS = int(
+    os.getenv("RATE_LIMIT_REQUESTS", "30")
+)
+
+RATE_LIMIT_WINDOW_SECONDS = int(
+    os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60")
+)
+
+request_timestamps = defaultdict(deque)
+
 
 app = FastAPI(
     title="LLM Gateway",
@@ -107,6 +122,22 @@ class ChatResponse(BaseModel):
     model: str
     response: str
 
+def enforce_rate_limit(client_ip: str):
+
+    timestamps = request_timestamps[client_ip]
+
+    now = time.time()
+
+    while timestamps and timestamps[0] <= now - RATE_LIMIT_WINDOW_SECONDS:
+        timestamps.popleft()
+
+    if len(timestamps) >= RATE_LIMIT_REQUESTS:
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded. Please retry later.",
+        )
+
+    timestamps.append(now)
 
 @app.get("/healthz")
 def healthz():
@@ -147,7 +178,9 @@ def metrics():
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: Request, body: ChatRequest):
+
+    enforce_rate_limit(request.client.host)
 
     start_time = time.time()
 
@@ -156,14 +189,14 @@ async def chat(request: ChatRequest):
         method="POST",
     ).inc()
 
-    model = request.model or DEFAULT_MODEL
+    model = body.model or DEFAULT_MODEL
 
     payload = {
         "model": model,
         "prompt": f"""Answer directly and briefly.
 
 User question:
-{request.prompt}
+{body.prompt}
 
 Answer:""",
         "stream": False,

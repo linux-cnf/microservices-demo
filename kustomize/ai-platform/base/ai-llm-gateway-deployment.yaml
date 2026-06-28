@@ -59,6 +59,10 @@ spec:
               value: "tinyllama"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://tracing-opentelemetry-collector.tracing.svc.cluster.local:4318"
+            - name: RATE_LIMIT_REQUESTS
+              value: "30"
+            - name: RATE_LIMIT_WINDOW_SECONDS
+              value: "60"
           readinessProbe:
             httpGet:
               path: /readyz
