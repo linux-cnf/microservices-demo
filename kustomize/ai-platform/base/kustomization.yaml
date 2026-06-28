@@ -22,6 +22,7 @@ kind: Kustomization
 resources:
   - grafana-dashboard-ai-configmap.yaml
   - namespace.yaml
+  - ai-bootstrap-namespace.yaml
   - ai-ollama-pvc.yaml
   - ai-ollama-deployment.yaml
   - ai-ollama-service.yaml
@@ -37,4 +38,3 @@ resources:
   - servicemonitor-ai.yaml
   - prometheusrule-ai.yaml
   - ../security
-  - ai-bootstrap-namespace.yaml
