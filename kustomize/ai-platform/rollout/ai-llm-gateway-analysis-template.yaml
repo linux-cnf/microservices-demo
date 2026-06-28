@@ -1,0 +1,46 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Prometheus safety checks for AI LLM Gateway canary rollout.
+#
+# SHORT NOTES:
+# - Runs automatically during Argo Rollouts promotion.
+# - Verifies gateway readiness before shifting more traffic.
+# - Prevents promotion when unhealthy pods or restart spikes occur.
+# -------------------------------------------------------------------
+
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: ai-llm-gateway-health-check
+  namespace: ai
+spec:
+  metrics:
+
+    - name: ai-llm-gateway-ready
+      interval: 30s
+      count: 2
+      failureLimit: 1
+      successCondition: result[0] >= 1
+      provider:
+        prometheus:
+          address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            sum(kube_pod_status_ready{
+              namespace="ai",
+              pod=~"ai-llm-gateway-.*",
+              condition="true"
+            })
+
+    - name: ai-llm-gateway-restarts
+      interval: 30s
+      count: 2
+      failureLimit: 1
+      successCondition: result[0] == 0
+      provider:
+        prometheus:
+          address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            sum(increase(kube_pod_container_status_restarts_total{
+              namespace="ai",
+              pod=~"ai-llm-gateway-.*"
+            }[2m]))

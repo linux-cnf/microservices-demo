@@ -5,24 +5,18 @@
 # RESPONSIBILITIES:
 # - Detect changed AI microservices from src/<service>/ changes
 # - Run Python syntax checks for changed AI services
-# - Validate rendered AI Kustomize manifests
-# - Build and push required AI service images to Artifact Registry
-# - Open an automated GitOps PR updating image tags in:
-#   kustomize/ai-platform/base/*-deployment.yaml
+# - Validate AI Kustomize manifests
+# - Build and push AI service images to Artifact Registry
+# - Update normal Deployment or canary Rollout image based on toggle
+# - Update Argo CD app path based on deployment mode
+# - Open automated GitOps PR
 #
-# AI SERVICES:
-# - ai-llm-gateway
-# - ai-agent-orchestrator
-#
-# ARTIFACT REGISTRY:
-# Images are pushed to dedicated AI repository:
-# ai-microservices
-#
-# GITOPS FLOW:
-# Code change -> Build image -> Push image -> Update manifest PR -> Merge -> Argo CD deploys
+# DEPLOYMENT MODES:
+# - normal: updates base Deployment and Argo CD path to base
+# - canary: updates rollout Rollout and Argo CD path to rollout
 #
 # In short:
-# One production-style CI workflow for all AI platform microservices.
+# Pipeline-controlled AI deployment strategy toggle.
 # -------------------------------------------------------------------
 
 name: ai-platform-ci
@@ -56,6 +50,15 @@ on:
           - "true"
           - "false"
 
+      deployment_mode:
+        description: "AI deployment mode"
+        required: true
+        default: "normal"
+        type: choice
+        options:
+          - normal
+          - canary
+
 concurrency:
   group: update-tags-${{ github.ref }}
   cancel-in-progress: false
@@ -68,6 +71,7 @@ permissions:
 env:
   REGION: us-central1
   REPOSITORY: ai-microservices
+  AI_ARGO_APP: argocd/optional-apps/ai-platform/ai-platform-app.yaml
 
 jobs:
   detect-changes:
@@ -126,10 +130,60 @@ jobs:
           echo "ai-agent-orchestrator changed: ${AI_AGENT_ORCHESTRATOR_CHANGED}"
           echo "any AI service changed: ${ANY_AI_SERVICE_CHANGED}"
 
+  resolve-deployment-strategy:
+    name: Resolve deployment strategy
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any_ai_service_changed == 'true'
+
+    outputs:
+      deployment_mode: ${{ steps.resolve.outputs.deployment_mode }}
+      kustomize_path: ${{ steps.resolve.outputs.kustomize_path }}
+      llm_gateway_manifest: ${{ steps.resolve.outputs.llm_gateway_manifest }}
+
+    steps:
+      - name: Resolve AI deployment strategy
+        id: resolve
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            DEPLOYMENT_MODE="${{ inputs.deployment_mode }}"
+          else
+            DEPLOYMENT_MODE="normal"
+          fi
+
+          case "${DEPLOYMENT_MODE}" in
+            normal)
+              KUSTOMIZE_PATH="kustomize/ai-platform/base"
+              LLM_GATEWAY_MANIFEST="kustomize/ai-platform/base/ai-llm-gateway-deployment.yaml"
+              ;;
+            canary)
+              KUSTOMIZE_PATH="kustomize/ai-platform/rollout"
+              LLM_GATEWAY_MANIFEST="kustomize/ai-platform/rollout/ai-llm-gateway-rollout.yaml"
+              ;;
+            *)
+              echo "Unsupported deployment mode: ${DEPLOYMENT_MODE}"
+              exit 1
+              ;;
+          esac
+
+          {
+            echo "deployment_mode=${DEPLOYMENT_MODE}"
+            echo "kustomize_path=${KUSTOMIZE_PATH}"
+            echo "llm_gateway_manifest=${LLM_GATEWAY_MANIFEST}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Deployment mode: ${DEPLOYMENT_MODE}"
+          echo "Kustomize path: ${KUSTOMIZE_PATH}"
+          echo "LLM Gateway manifest: ${LLM_GATEWAY_MANIFEST}"
+
   validate:
     name: Validate AI services and manifests
     runs-on: ubuntu-latest
-    needs: detect-changes
+    needs:
+      - detect-changes
+      - resolve-deployment-strategy
     if: needs.detect-changes.outputs.any_ai_service_changed == 'true'
 
     steps:
@@ -153,9 +207,12 @@ jobs:
 
       - name: Validate AI Kustomize manifests
         run: |
-          kubectl kustomize kustomize/ai-platform/base >/tmp/ai-platform-rendered.yaml
+          set -euo pipefail
 
-          echo "Rendered AI platform manifests:"
+          kubectl kustomize "${{ needs.resolve-deployment-strategy.outputs.kustomize_path }}" >/tmp/ai-platform-rendered.yaml
+
+          echo "Deployment mode: ${{ needs.resolve-deployment-strategy.outputs.deployment_mode }}"
+          echo "Rendered AI manifests:"
           grep -E "kind:|name:" /tmp/ai-platform-rendered.yaml | head -80
 
   build-and-push:
@@ -163,6 +220,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - detect-changes
+      - resolve-deployment-strategy
       - validate
     if: needs.detect-changes.outputs.any_ai_service_changed == 'true'
 
@@ -210,6 +268,13 @@ jobs:
 
           docker push "${IMAGE_URI}"
 
+      - name: Install yq
+        run: |
+          sudo wget -O /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
       - name: Update GitOps image tags
         run: |
           set -euo pipefail
@@ -217,27 +282,58 @@ jobs:
           PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
           IMAGE_REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
 
-          if [ "${{ needs.detect-changes.outputs.llm_gateway_changed }}" = "true" ]; then
-            LLM_GATEWAY_IMAGE="${IMAGE_REGISTRY}/ai-llm-gateway:${GITHUB_SHA}"
+          DEPLOYMENT_MODE="${{ needs.resolve-deployment-strategy.outputs.deployment_mode }}"
+          KUSTOMIZE_PATH="${{ needs.resolve-deployment-strategy.outputs.kustomize_path }}"
+          LLM_GATEWAY_MANIFEST="${{ needs.resolve-deployment-strategy.outputs.llm_gateway_manifest }}"
 
-            sed -i \
-              "s|image: .*ai-llm-gateway:.*|image: ${LLM_GATEWAY_IMAGE}|g" \
-              kustomize/ai-platform/base/ai-llm-gateway-deployment.yaml
+          echo "Deployment mode: ${DEPLOYMENT_MODE}"
+          echo "Kustomize path: ${KUSTOMIZE_PATH}"
+          echo "LLM Gateway manifest: ${LLM_GATEWAY_MANIFEST}"
+
+          yq -i '
+            .spec.source.path = strenv(KUSTOMIZE_PATH)
+          ' "${AI_ARGO_APP}"
+
+          echo "Updated Argo CD AI application path:"
+          grep "path:" "${AI_ARGO_APP}"
+
+          if [ "${{ needs.detect-changes.outputs.llm_gateway_changed }}" = "true" ]; then
+            export LLM_GATEWAY_IMAGE="${IMAGE_REGISTRY}/ai-llm-gateway:${GITHUB_SHA}"
+
+            if [ "${DEPLOYMENT_MODE}" = "canary" ]; then
+              yq -i '
+                (select(.kind == "Rollout" and .metadata.name == "ai-llm-gateway")
+                  .spec.template.spec.containers[] | select(.name == "ai-llm-gateway").image) = strenv(LLM_GATEWAY_IMAGE)
+              ' "${LLM_GATEWAY_MANIFEST}"
+            else
+              yq -i '
+                (select(.kind == "Deployment" and .metadata.name == "ai-llm-gateway")
+                  .spec.template.spec.containers[] | select(.name == "ai-llm-gateway").image) = strenv(LLM_GATEWAY_IMAGE)
+              ' "${LLM_GATEWAY_MANIFEST}"
+            fi
 
             echo "Updated ai-llm-gateway image:"
-            grep "image:" kustomize/ai-platform/base/ai-llm-gateway-deployment.yaml
+            grep "image:" "${LLM_GATEWAY_MANIFEST}"
           fi
 
           if [ "${{ needs.detect-changes.outputs.ai_agent_orchestrator_changed }}" = "true" ]; then
-            AI_AGENT_IMAGE="${IMAGE_REGISTRY}/ai-agent-orchestrator:${GITHUB_SHA}"
+            export AI_AGENT_IMAGE="${IMAGE_REGISTRY}/ai-agent-orchestrator:${GITHUB_SHA}"
 
-            sed -i \
-              "s|image: .*ai-agent-orchestrator:.*|image: ${AI_AGENT_IMAGE}|g" \
-              kustomize/ai-platform/base/ai-agent-orchestrator-deployment.yaml
+            yq -i '
+              (select(.kind == "Deployment" and .metadata.name == "ai-agent-orchestrator")
+                .spec.template.spec.containers[] | select(.name == "ai-agent-orchestrator").image) = strenv(AI_AGENT_IMAGE)
+            ' kustomize/ai-platform/base/ai-agent-orchestrator-deployment.yaml
 
             echo "Updated ai-agent-orchestrator image:"
             grep "image:" kustomize/ai-platform/base/ai-agent-orchestrator-deployment.yaml
           fi
+
+      - name: Validate final AI Kustomize render
+        run: |
+          set -euo pipefail
+
+          kubectl kustomize "${{ needs.resolve-deployment-strategy.outputs.kustomize_path }}" >/tmp/ai-platform-final.yaml
+          test -s /tmp/ai-platform-final.yaml
 
       - name: Create GitOps image update pull request
         uses: peter-evans/create-pull-request@v7
@@ -256,21 +352,35 @@ jobs:
             Image tag:
             `${{ github.sha }}`
 
+            Deployment mode:
+            ${{ needs.resolve-deployment-strategy.outputs.deployment_mode }}
+
+            Argo CD path:
+            `${{ needs.resolve-deployment-strategy.outputs.kustomize_path }}`
+
             Updated services:
             - ai-llm-gateway: `${{ needs.detect-changes.outputs.llm_gateway_changed }}`
             - ai-agent-orchestrator: `${{ needs.detect-changes.outputs.ai_agent_orchestrator_changed }}`
 
             Workflow:
-            Detect → Validate → Build → Push → Git Update → Argo CD Deploy
+            Detect → Resolve Strategy → Validate → Build → Push → Git Update → Argo CD Deploy
 
             Generated automatically by ai-platform-ci.
           add-paths: |
+            argocd/optional-apps/ai-platform/ai-platform-app.yaml
             kustomize/ai-platform/base/ai-llm-gateway-deployment.yaml
             kustomize/ai-platform/base/ai-agent-orchestrator-deployment.yaml
+            kustomize/ai-platform/rollout/ai-llm-gateway-rollout.yaml
 
       - name: Print deployment summary
         run: |
           echo "✅ AI microservices CI completed."
+          echo ""
+          echo "Deployment mode:"
+          echo "${{ needs.resolve-deployment-strategy.outputs.deployment_mode }}"
+          echo ""
+          echo "Argo CD path:"
+          echo "${{ needs.resolve-deployment-strategy.outputs.kustomize_path }}"
           echo ""
           echo "Artifact Registry repository:"
           echo "${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPOSITORY}"
