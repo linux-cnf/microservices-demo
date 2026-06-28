@@ -11,8 +11,7 @@ Responsibilities:
 - Prepare future support for auth, rate limiting, routing, and audit logging
 """
 import os
-import time
-from collections import defaultdict, deque
+import redis
 from typing import Optional
 
 import httpx
@@ -42,6 +41,16 @@ DEFAULT_MODEL = os.getenv(
     "tinyllama",
 )
 
+REDIS_URL = os.getenv(
+    "REDIS_URL",
+    "redis://ai-rate-limit-redis.ai.svc.cluster.local:6379/0",
+)
+
+redis_client = redis.Redis.from_url(
+    REDIS_URL,
+    decode_responses=True,
+)
+
 # ==========================================================
 # Rate Limiting
 # ==========================================================
@@ -53,9 +62,6 @@ RATE_LIMIT_REQUESTS = int(
 RATE_LIMIT_WINDOW_SECONDS = int(
     os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60")
 )
-
-request_timestamps = defaultdict(deque)
-
 
 app = FastAPI(
     title="LLM Gateway",
@@ -123,21 +129,18 @@ class ChatResponse(BaseModel):
     response: str
 
 def enforce_rate_limit(client_ip: str):
+    key = f"rate-limit:ai-llm-gateway:{client_ip}"
 
-    timestamps = request_timestamps[client_ip]
+    request_count = redis_client.incr(key)
 
-    now = time.time()
+    if request_count == 1:
+        redis_client.expire(key, RATE_LIMIT_WINDOW_SECONDS)
 
-    while timestamps and timestamps[0] <= now - RATE_LIMIT_WINDOW_SECONDS:
-        timestamps.popleft()
-
-    if len(timestamps) >= RATE_LIMIT_REQUESTS:
+    if request_count > RATE_LIMIT_REQUESTS:
         raise HTTPException(
             status_code=429,
             detail="Rate limit exceeded. Please retry later.",
         )
-
-    timestamps.append(now)
 
 @app.get("/healthz")
 def healthz():
