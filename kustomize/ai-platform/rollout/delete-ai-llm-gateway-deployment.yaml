@@ -1,0 +1,16 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Remove normal Deployment when canary mode is enabled.
+#
+# SHORT NOTES:
+# - Prevents Deployment and Rollout from owning same pods.
+# - Used only by rollout overlay.
+# - Keeps base mode untouched.
+# -------------------------------------------------------------------
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-llm-gateway
+  namespace: ai
+$patch: delete

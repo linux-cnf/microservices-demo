@@ -1,0 +1,96 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Canary Rollout for AI LLM Gateway.
+#
+# SHORT NOTES:
+# - Used only when AI deployment_mode=canary is selected.
+# - Keeps normal Deployment separate from progressive delivery.
+# - Uses same Service selector: app=ai-llm-gateway.
+# -------------------------------------------------------------------
+
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: ai-llm-gateway
+  namespace: ai
+  labels:
+    app: ai-llm-gateway
+    workload: ai
+    tier: platform
+    purpose: gateway
+spec:
+  replicas: 1
+  strategy:
+    canary:
+      maxSurge: 1
+      maxUnavailable: 0
+      steps:
+        - setWeight: 10
+        - pause:
+            duration: 60s
+        - analysis:
+            templates:
+              - templateName: ai-llm-gateway-health-check
+        - setWeight: 50
+        - pause:
+            duration: 60s
+        - setWeight: 100
+  selector:
+    matchLabels:
+      app: ai-llm-gateway
+  template:
+    metadata:
+      labels:
+        app: ai-llm-gateway
+        workload: ai
+        tier: platform
+        purpose: gateway
+    spec:
+      serviceAccountName: ai-llm-gateway
+      nodeSelector:
+        workload: ai
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: ai
+          effect: NoSchedule
+      containers:
+        - name: ai-llm-gateway
+          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/ai-microservices/ai-llm-gateway:e0821be9a501d16313e7df41682f415d9f4b950e
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: OLLAMA_URL
+              value: "http://ai-ollama.ai.svc.cluster.local:11434"
+            - name: DEFAULT_MODEL
+              value: "tinyllama"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://tracing-opentelemetry-collector.tracing.svc.cluster.local:4318"
+            - name: RATE_LIMIT_REQUESTS
+              value: "30"
+            - name: RATE_LIMIT_WINDOW_SECONDS
+              value: "60"
+            - name: REDIS_URL
+              value: "redis://ai-rate-limit-redis.ai.svc.cluster.local:6379/0"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
