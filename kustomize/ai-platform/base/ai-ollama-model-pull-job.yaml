@@ -29,6 +29,8 @@ spec:
 
   template:
     metadata:
+      annotations:
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
       labels:
         app: ai-ollama-model-pull
         workload: ai
@@ -67,16 +69,25 @@ spec:
 
               echo "Waiting for ai-ollama..."
 
+              OLLAMA_READY=false
+
               for i in $(seq 1 30); do
                 if curl -sf "${AI_OLLAMA_URL}/api/tags" >/dev/null; then
                   echo "ai-ollama is reachable."
+                  OLLAMA_READY=true
                   break
                 fi
 
                 echo "Attempt ${i}: ai-ollama not ready yet..."
                 sleep 10
               done
-              
+
+              if [ "${OLLAMA_READY}" != "true" ]; then
+                echo "ERROR: ai-ollama did not become reachable."
+                curl -sf -X POST http://127.0.0.1:15020/quitquitquit || true
+                exit 1
+              fi
+
               if curl -sf "${AI_OLLAMA_URL}/api/tags" | grep -q "\"${AI_MODEL_NAME}\""; then
                 echo "Model already present. Skipping pull."
                 curl -sf -X POST http://127.0.0.1:15020/quitquitquit || true
@@ -85,7 +96,7 @@ spec:
 
               echo "Pulling model: ${AI_MODEL_NAME}"
 
-              curl -sf "${AI_OLLAMA_URL}/api/pull" \
+              curl -fL --connect-timeout 30 --max-time 900 "${AI_OLLAMA_URL}/api/pull" \
                 -H "Content-Type: application/json" \
                 -d "{\"name\":\"${AI_MODEL_NAME}\"}"
 
