@@ -8,8 +8,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  - ai-namespace.yaml
   - argocd-external-secrets-sa.yaml
   - secret-store.yaml
-  - ai-platform-secret-store.yaml
   - argocd-slack-token.yaml
   - ai-external-secrets-sa.yaml
+  - ai-platform-secret-store.yaml
