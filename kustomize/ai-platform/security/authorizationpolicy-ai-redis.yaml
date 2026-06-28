@@ -1,0 +1,25 @@
+# ---------------------------------------------------------
+# PURPOSE:
+# Allows only AI LLM Gateway to access Redis rate-limit service.
+# Enforces identity-based access using dedicated ServiceAccounts.
+# ---------------------------------------------------------
+
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ai-rate-limit-redis-allow-llm-gateway
+  namespace: ai
+spec:
+  selector:
+    matchLabels:
+      app: ai-rate-limit-redis
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/ai/sa/ai-llm-gateway
+      to:
+        - operation:
+            ports:
+              - "6379"

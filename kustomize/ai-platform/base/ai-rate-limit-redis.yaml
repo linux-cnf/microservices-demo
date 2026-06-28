@@ -27,6 +27,7 @@ spec:
         tier: platform
         purpose: rate-limit
     spec:
+      serviceAccountName: ai-rate-limit-redis
       nodeSelector:
         workload: ai
       tolerations:

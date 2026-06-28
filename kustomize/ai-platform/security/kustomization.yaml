@@ -11,3 +11,4 @@ resources:
   - virtualservice.yaml
   - authorizationpolicy-ai-bootstrap-to-ollama.yaml
   - networkpolicy.yaml
+  - authorizationpolicy-ai-redis.yaml
