@@ -26,21 +26,17 @@ metadata:
     argocd.argoproj.io/sync-wave: "6"
 spec:
   project: default
-
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
     targetRevision: main
-    path: kustomize/ai-platform/base
-
+    path: ""
   destination:
     server: https://kubernetes.default.svc
     namespace: ai
-
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-
     syncOptions:
       - CreateNamespace=true
       - ApplyOutOfSyncOnly=true
