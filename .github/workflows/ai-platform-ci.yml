@@ -283,7 +283,7 @@ jobs:
           IMAGE_REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
 
           DEPLOYMENT_MODE="${{ needs.resolve-deployment-strategy.outputs.deployment_mode }}"
-          KUSTOMIZE_PATH="${{ needs.resolve-deployment-strategy.outputs.kustomize_path }}"
+          export KUSTOMIZE_PATH="${{ needs.resolve-deployment-strategy.outputs.kustomize_path }}"
           LLM_GATEWAY_MANIFEST="${{ needs.resolve-deployment-strategy.outputs.llm_gateway_manifest }}"
 
           echo "Deployment mode: ${DEPLOYMENT_MODE}"
