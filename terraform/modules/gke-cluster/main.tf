@@ -44,9 +44,9 @@ resource "google_container_cluster" "my_cluster" {
   }
 
   timeouts {
-    create = "30m"
-    update = "40m"
-    delete = "30m"
+    create = "60m"
+    update = "60m"
+    delete = "60m"
   }
 
   ip_allocation_policy {
