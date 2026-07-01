@@ -26,8 +26,9 @@ module "gke_cluster" {
 
   node_locations = [
     "us-central1-a",
-    "us-central1-b",
-    "us-central1-c"
+    "us-central1-b"
+    # Temporarily disabled due to GCE_STOCKOUT during cluster provisioning.
+    # "us-central1-c"
   ]
 
   depends_on = [
@@ -47,8 +48,9 @@ module "gke_node_pool" {
 
   node_locations = [
     "us-central1-a",
-    "us-central1-b",
-    "us-central1-c"
+    "us-central1-b"
+    # Temporarily disabled due to GCE_STOCKOUT during cluster provisioning.
+    #"us-central1-c"
   ]
 
   initial_node_count   = 1
