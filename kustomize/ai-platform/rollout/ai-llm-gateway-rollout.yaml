@@ -56,7 +56,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: ai-llm-gateway
-          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/ai-microservices/ai-llm-gateway:02f1024a78bd797da1b1080989c0fa575ea15e6c
+          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/ai-microservices/ai-llm-gateway:d5a1c0f9f7f9a280bbf41618f8ab90bd03088bdd
           imagePullPolicy: Always
           ports:
             - name: http
