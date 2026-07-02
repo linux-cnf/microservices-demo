@@ -2,8 +2,7 @@
 
 set -euo pipefail
 
-AI_APP_MANIFEST="argocd/optional-apps/ai-platform/ai-platform-app.yaml"
-LLM_GATEWAY_ADDR="http://ai-llm-gateway.ai.svc.cluster.local:8080"
+AI_APP_MANIFEST="argocd/apps/ai-platform.yaml"
 AI_AGENT_ADDR="http://ai-agent-orchestrator.ai.svc.cluster.local:8080/agent"
 
 usage() {
@@ -29,12 +28,21 @@ check_dependencies() {
     echo "ERROR: jq is required."
     exit 1
   }
+
+  kubectl argo rollouts version >/dev/null 2>&1 || {
+    echo "ERROR: kubectl argo rollouts plugin is required."
+    exit 1
+  }
 }
 
 check_ai_gateway() {
-  kubectl rollout status deploy/ai-llm-gateway -n ai --timeout=300s
-  
-  kubectl exec -n ai deploy/ai-llm-gateway -- \
+  kubectl argo rollouts status ai-llm-gateway -n ai --timeout=300s
+
+  local gateway_pod
+  gateway_pod="$(kubectl get pod -n ai -l app=ai-llm-gateway \
+    -o jsonpath='{.items[0].metadata.name}')"
+
+  kubectl exec -n ai "${gateway_pod}" -- \
     python -c '
 import urllib.request
 response = urllib.request.urlopen("http://localhost:8080/readyz")
@@ -58,7 +66,7 @@ patch_frontend_env() {
               if $enable_value == "true" then
                 [
                   {"name":"ENABLE_ASSISTANT","value":"true"},
-		  {"name":"LLM_GATEWAY_ADDR","value":$agent_addr}
+                  {"name":"LLM_GATEWAY_ADDR","value":$agent_addr}
                 ]
               else
                 [
@@ -77,6 +85,8 @@ patch_frontend_env() {
 
 deploy_platform() {
   echo "Deploying optional AI Platform through Argo CD..."
+
+  check_dependencies
 
   if [ ! -f "${AI_APP_MANIFEST}" ]; then
     echo "ERROR: Missing ${AI_APP_MANIFEST}"
