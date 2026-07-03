@@ -29,7 +29,7 @@ spec:
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
     targetRevision: main
-    path: "kustomize/ai-platform/rollout"
+    path: "kustomize/ai-platform/base"
   destination:
     server: https://kubernetes.default.svc
     namespace: ai
