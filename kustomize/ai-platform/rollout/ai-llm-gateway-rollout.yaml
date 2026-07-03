@@ -74,6 +74,8 @@ spec:
               value: "60"
             - name: REDIS_URL
               value: "redis://ai-rate-limit-redis.ai.svc.cluster.local:6379/0"
+            - name: ANALYSIS_TEST_ID
+              value: v2
           readinessProbe:
             httpGet:
               path: /readyz
