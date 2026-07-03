@@ -11,6 +11,8 @@
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
   name: ai-llm-gateway-health-check
   namespace: ai
 spec:

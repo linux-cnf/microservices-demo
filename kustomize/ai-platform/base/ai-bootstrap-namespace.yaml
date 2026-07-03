@@ -1,8 +1,10 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: ai-bootstrap
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
   labels:
     istio-injection: enabled
     purpose: model-bootstrap
     tier: platform
+  name: ai-bootstrap

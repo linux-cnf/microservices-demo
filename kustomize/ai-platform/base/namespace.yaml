@@ -16,15 +16,14 @@
 #
 # In short:
 # Logical boundary for all AI platform resources.
-# -------------------------------------------------------------------
-
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: ai
-
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
   labels:
-    workload: ai
-    tier: platform
-    purpose: llm
     istio-injection: enabled
+    purpose: llm
+    tier: platform
+    workload: ai
+  name: ai

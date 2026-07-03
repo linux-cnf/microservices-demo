@@ -1,6 +1,8 @@
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   name: ai-ollama-allow-model-bootstrap
   namespace: ai
 spec:
