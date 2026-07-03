@@ -7,6 +7,8 @@
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   name: ai-llm-gateway-allow-trusted-callers
   namespace: ai
 spec:

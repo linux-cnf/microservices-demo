@@ -13,13 +13,15 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: ai-ollama-model-cache
-  namespace: ai
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
   labels:
     app: ai-ollama
-    workload: ai
-    tier: platform
     purpose: llm
+    tier: platform
+    workload: ai
+  name: ai-ollama-model-cache
+  namespace: ai
 spec:
   accessModes:
     - ReadWriteOnce

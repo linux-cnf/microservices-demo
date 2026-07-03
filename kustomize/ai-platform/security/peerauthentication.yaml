@@ -6,6 +6,8 @@
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   name: ai-strict-mtls
   namespace: ai
 spec:

@@ -3,17 +3,28 @@
 # Base Kustomize entrypoint for AI platform resources.
 #
 # RESPONSIBILITIES:
-# - Create namespace
-# - Aggregate AI platform manifests
+# - Create AI and AI bootstrap namespaces
+# - Deploy Ollama runtime and model cache
+# - Deploy AI LLM gateway
+# - Deploy AI agent orchestrator
+# - Deploy AI rate-limit Redis
+# - Configure RBAC
+# - Configure observability resources
+# - Include security layer
 #
-# CURRENT RESOURCES:
-# - AI namespace
-# - Ollama CPU runtime
-# - Ollama internal service
-# - Ollama model cache PVC
+# Sync wave ordering:
+# -5  Namespaces
+# -4  ServiceAccounts and RBAC
+# -3  PersistentVolumes
+# -2  Services
+# -1  Core infrastructure (Ollama, Redis)
+# 0  AI workloads (Rollouts, Deployments, AnalysisTemplates)
+# 1  Security policies
+# 2  Observability resources
+# PostSync  Model bootstrap job
 #
 # In short:
-# Root Kustomize layer for the AI platform.
+# Base declarative layer for the complete AI platform.
 # -------------------------------------------------------------------
 
 apiVersion: kustomize.config.k8s.io/v1beta1

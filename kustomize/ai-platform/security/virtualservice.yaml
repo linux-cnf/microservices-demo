@@ -7,6 +7,8 @@
 apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   name: ai-llm-gateway
   namespace: ai
 spec:
