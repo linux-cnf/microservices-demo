@@ -2,7 +2,8 @@
 
 set -euo pipefail
 
-AI_APP_MANIFEST="argocd/apps/ai-platform.yaml"
+AI_APP_NAME="ai-platform"
+AI_APP_NAMESPACE="argocd"
 AI_AGENT_ADDR="http://ai-agent-orchestrator.ai.svc.cluster.local:8080/agent"
 
 usage() {
@@ -19,6 +20,11 @@ USAGE
 COMMAND="${1:-help}"
 
 check_dependencies() {
+  kubectl get crd applications.argoproj.io >/dev/null 2>&1 || {
+    echo "ERROR: Argo CD Application CRD is missing."
+    exit 1
+  }
+
   kubectl get crd rollouts.argoproj.io >/dev/null 2>&1 || {
     echo "ERROR: Argo Rollouts CRD is missing."
     exit 1
@@ -28,21 +34,58 @@ check_dependencies() {
     echo "ERROR: jq is required."
     exit 1
   }
+}
 
+check_rollouts_plugin() {
   kubectl argo rollouts version >/dev/null 2>&1 || {
     echo "ERROR: kubectl argo rollouts plugin is required."
     exit 1
   }
 }
 
+wait_for_ai_app() {
+  echo "Waiting for ${AI_APP_NAME} Argo CD Application..."
+
+  kubectl wait \
+    --for=jsonpath='{.metadata.name}'="${AI_APP_NAME}" \
+    "application/${AI_APP_NAME}" \
+    -n "${AI_APP_NAMESPACE}" \
+    --timeout=180s
+
+  echo "Waiting for ${AI_APP_NAME} app to sync..."
+  kubectl wait "application/${AI_APP_NAME}" -n "${AI_APP_NAMESPACE}" \
+    --for=jsonpath='{.status.sync.status}'=Synced \
+    --timeout=300s
+
+  echo "Waiting for ${AI_APP_NAME} app to become healthy..."
+  kubectl wait "application/${AI_APP_NAME}" -n "${AI_APP_NAMESPACE}" \
+    --for=jsonpath='{.status.health.status}'=Healthy \
+    --timeout=600s
+}
+
 check_ai_gateway() {
-  kubectl argo rollouts status ai-llm-gateway -n ai --timeout=300s
+  echo "Checking LLM Gateway readiness..."
+
+  if kubectl get rollout ai-llm-gateway -n ai >/dev/null 2>&1; then
+    echo "Detected ai-llm-gateway as Argo Rollout."
+    check_rollouts_plugin
+    kubectl argo rollouts status ai-llm-gateway -n ai --timeout=300s
+
+  elif kubectl get deployment ai-llm-gateway -n ai >/dev/null 2>&1; then
+    echo "Detected ai-llm-gateway as Kubernetes Deployment."
+    kubectl rollout status deployment/ai-llm-gateway -n ai --timeout=300s
+
+  else
+    echo "ERROR: ai-llm-gateway not found as Deployment or Rollout."
+    kubectl get deploy,rollout,pods -n ai || true
+    exit 1
+  fi
 
   local gateway_pod
   gateway_pod="$(kubectl get pod -n ai -l app=ai-llm-gateway \
     -o jsonpath='{.items[0].metadata.name}')"
 
-  kubectl exec -n ai "${gateway_pod}" -- \
+  kubectl exec -n ai "${gateway_pod}" -c ai-llm-gateway -- \
     python -c '
 import urllib.request
 response = urllib.request.urlopen("http://localhost:8080/readyz")
@@ -52,6 +95,8 @@ print(response.read().decode())
 
 patch_frontend_env() {
   local enable_value="$1"
+
+  check_rollouts_plugin
 
   kubectl get rollout frontend -n boutique -o json | jq \
     --arg enable_value "${enable_value}" \
@@ -84,38 +129,22 @@ patch_frontend_env() {
 }
 
 deploy_platform() {
-  echo "Deploying optional AI Platform through Argo CD..."
+  echo "Deploying AI Platform through GitOps..."
 
   check_dependencies
 
-  if [ ! -f "${AI_APP_MANIFEST}" ]; then
-    echo "ERROR: Missing ${AI_APP_MANIFEST}"
+  if ! kubectl get application "${AI_APP_NAME}" -n "${AI_APP_NAMESPACE}" >/dev/null 2>&1; then
+    echo "ERROR: ${AI_APP_NAME} Application not found in Argo CD."
+    echo "Expected platform-root to create it from argocd/apps/ai-platform.yaml."
+    echo "Run: argocd app sync platform-root"
     exit 1
   fi
 
-  kubectl apply -n argocd -f "${AI_APP_MANIFEST}"
-
-  kubectl wait \
-    --for=jsonpath='{.metadata.name}'=ai-platform \
-    application/ai-platform \
-    -n argocd \
-    --timeout=120s || true
-
-  echo "Waiting for ai-platform app to sync..."
-  kubectl wait application/ai-platform -n argocd \
-    --for=jsonpath='{.status.sync.status}'=Synced \
-    --timeout=300s
-
-  echo "Waiting for ai-platform app to become healthy..."
-  kubectl wait application/ai-platform -n argocd \
-    --for=jsonpath='{.status.health.status}'=Healthy \
-    --timeout=600s
-
-  echo "Checking LLM Gateway readiness..."
+  wait_for_ai_app
   check_ai_gateway
 
   echo "AI namespace workloads:"
-  kubectl get pods -n ai
+  kubectl get deploy,rollout,pods -n ai
 
   echo "✅ AI Platform is ready."
 }
