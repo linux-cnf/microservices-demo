@@ -71,7 +71,7 @@ permissions:
 env:
   REGION: us-central1
   REPOSITORY: ai-microservices
-  AI_ARGO_APP: argocd/apps/ai-platform.yaml
+  AI_ARGO_APP: argocd/optional-apps/ai-platform/manifests/ai-platform.yaml
 
 jobs:
   detect-changes:
@@ -367,7 +367,7 @@ jobs:
 
             Generated automatically by ai-platform-ci.
           add-paths: |
-            argocd/apps/ai-platform.yaml
+            argocd/optional-apps/ai-platform/manifests/ai-platform.yaml
             kustomize/ai-platform/base/ai-llm-gateway-deployment.yaml
             kustomize/ai-platform/base/ai-agent-orchestrator-deployment.yaml
             kustomize/ai-platform/rollout/ai-llm-gateway-rollout.yaml

@@ -4,6 +4,7 @@ set -euo pipefail
 
 AI_APP_NAME="ai-platform"
 AI_APP_NAMESPACE="argocd"
+AI_APP_MANIFEST="argocd/optional-apps/ai-platform/manifests/ai-platform.yaml"
 AI_AGENT_ADDR="http://ai-agent-orchestrator.ai.svc.cluster.local:8080/agent"
 
 usage() {
@@ -41,6 +42,16 @@ check_rollouts_plugin() {
     echo "ERROR: kubectl argo rollouts plugin is required."
     exit 1
   }
+}
+
+apply_ai_application() {
+  [[ -f "${AI_APP_MANIFEST}" ]] || {
+    echo "ERROR: Missing AI app manifest: ${AI_APP_MANIFEST}"
+    exit 1
+  }
+
+  echo "Applying optional AI Platform Argo CD Application..."
+  kubectl apply --validate=false -f "${AI_APP_MANIFEST}" -n "${AI_APP_NAMESPACE}"
 }
 
 wait_for_ai_app() {
@@ -85,12 +96,19 @@ check_ai_gateway() {
   gateway_pod="$(kubectl get pod -n ai -l app=ai-llm-gateway \
     -o jsonpath='{.items[0].metadata.name}')"
 
-  kubectl exec -n ai "${gateway_pod}" -c ai-llm-gateway -- \
-    python -c '
+  echo "Checking ai-llm-gateway /readyz endpoint..."
+  kubectl port-forward -n ai "pod/${gateway_pod}" 8080:8080 >/tmp/ai-llm-gateway-port-forward.log 2>&1 &
+  local pf_pid=$!
+
+  sleep 5
+
+  python -c '
 import urllib.request
 response = urllib.request.urlopen("http://localhost:8080/readyz")
 print(response.read().decode())
 '
+
+  kill "${pf_pid}" >/dev/null 2>&1 || true
 }
 
 patch_frontend_env() {
@@ -129,17 +147,10 @@ patch_frontend_env() {
 }
 
 deploy_platform() {
-  echo "Deploying AI Platform through GitOps..."
+  echo "Deploying AI Platform through optional GitOps..."
 
   check_dependencies
-
-  if ! kubectl get application "${AI_APP_NAME}" -n "${AI_APP_NAMESPACE}" >/dev/null 2>&1; then
-    echo "ERROR: ${AI_APP_NAME} Application not found in Argo CD."
-    echo "Expected platform-root to create it from argocd/apps/ai-platform.yaml."
-    echo "Run: argocd app sync platform-root"
-    exit 1
-  fi
-
+  apply_ai_application
   wait_for_ai_app
   check_ai_gateway
 
