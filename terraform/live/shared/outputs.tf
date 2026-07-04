@@ -1,0 +1,41 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+output "artifact_registry_repository" {
+  description = "Artifact Registry repository name"
+  value       = module.artifact_registry.repository_id
+}
+
+output "artifact_registry_location" {
+  description = "Artifact Registry location"
+  value       = module.artifact_registry.location
+}
+
+output "artifact_registry_url" {
+  description = "Artifact Registry Docker repository URL"
+  value       = module.artifact_registry.repository_url
+}
+output "ai_artifact_registry_repository" {
+  description = "Artifact Registry repository ID for AI microservices images"
+  value       = module.artifact_registry_ai_microservices.repository_id
+}
+
+output "ai_artifact_registry_location" {
+  description = "Artifact Registry location for AI microservices images"
+  value       = module.artifact_registry_ai_microservices.location
+}
+
+output "ai_artifact_registry_url" {
+  description = "Artifact Registry URL for AI microservices images"
+  value       = module.artifact_registry_ai_microservices.repository_url
+}

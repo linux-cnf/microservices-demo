@@ -1,0 +1,2 @@
+# source_image|target_image
+redis:7.2-alpine|us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/redis:7.2-alpine

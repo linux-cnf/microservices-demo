@@ -27,7 +27,7 @@ variable "cleanup_policy_dry_run" {
 }
 
 variable "cleanup_policies" {
-  type = any
+  type        = any
   description = "Artifact Registry cleanup policies"
-  default = []
+  default     = []
 }
