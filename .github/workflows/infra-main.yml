@@ -70,6 +70,8 @@ jobs:
       TF_INPUT: "false"
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
       TERRAFORM_WORKING_DIR: terraform/live/${{ inputs.environment }}
+      SELECTED_ENVIRONMENT: ${{ inputs.environment }}
+      TERRAFORM_WORKING_DIR: terraform/live/${{ inputs.environment }}
 
     steps:
       - name: Checkout repo
@@ -79,12 +81,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          case "${{ inputs.environment }}" in
+          case "${SELECTED_ENVIRONMENT}" in
             shared|dev|prod)
-              echo "Selected environment: ${{ inputs.environment }}"
+              echo "Selected environment: ${SELECTED_ENVIRONMENT}"
               ;;
             *)
-              echo "Invalid environment: ${{ inputs.environment }}"
+              echo "Invalid environment: ${SELECTED_ENVIRONMENT}"
               exit 1
               ;;
           esac
@@ -184,7 +186,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${{ inputs.environment }}" = "dev" ]; then
+          if [ "${SELECTED_ENVIRONMENT}" = "dev" ]; then
             CLUSTER_NAME="kfounding-dev"
           else
             CLUSTER_NAME="kfounding"
