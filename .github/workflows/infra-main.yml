@@ -147,7 +147,7 @@ jobs:
           )
 
           if gcloud secrets describe argocd-slack-bot-token \
-            --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
             terraform state show "${SECRET_RESOURCE}" >/dev/null 2>&1 || \
               terraform import "${SECRET_RESOURCE}" "${SECRET_ID}"
           else
@@ -156,7 +156,7 @@ jobs:
 
           if gcloud iam service-accounts describe \
             "external-secrets-gsm@${PROJECT_ID}.iam.gserviceaccount.com" \
-            --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
             terraform state show "${EXTERNAL_SECRETS_SA_RESOURCE}" >/dev/null 2>&1 || \
               terraform import "${EXTERNAL_SECRETS_SA_RESOURCE}" "${EXTERNAL_SECRETS_SA_ID}"
           else
