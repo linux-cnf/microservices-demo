@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: boutique-dev
+  namespace: argocd-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: boutique
+  source:
+    repoURL: https://github.com/linux-cnf/microservices-demo.git
+    targetRevision: main
+    path: kustomize/environments/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: boutique
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - ApplyOutOfSyncOnly=true

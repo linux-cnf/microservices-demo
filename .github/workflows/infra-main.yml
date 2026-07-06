@@ -1,77 +1,65 @@
-# # -------------------------------------------------------------------
+# -------------------------------------------------------------------
 # PURPOSE:
-# Provision and validate core cloud infrastructure using Terraform
-# from GitHub-hosted runners.
+# Provision and validate environment-aware cloud infrastructure using Terraform.
 #
 # RESPONSIBILITIES:
-# - Enable required GCP APIs
-# - Create VPC/subnet/networking
-# - Create Artifact Registry repositories
-# - Create GKE cluster and node pools
-# - Validate Terraform configuration
-# - Export PV -> GCP disk mapping artifact
+# - Run Terraform for selected environment: shared, dev, or prod
+# - Support plan-only and apply modes
+# - Keep shared, dev, and prod Terraform state isolated
+# - Prevent accidental prod apply during Release 2
 #
-# DESIGN PRINCIPLES:
-# - Infrastructure only (no kubectl app bootstrap here)
-# - Reusable workflow via workflow_call
-# - Safe for orchestration from higher-level workflows
-# - Keeps cloud provisioning separate from cluster bootstrap
+# WHY THIS EXISTS?
+# Release 2 introduces multi-environment infrastructure.
+# This workflow allows Terraform to run against:
+# - terraform/live/shared
+# - terraform/live/dev
+# - terraform/live/prod
 #
-# WHY SEPARATED?
-# Cluster-level operations such as:
-# - Argo CD installation
-# - kubectl apply
-# - GitOps bootstrap
-# - workload deployment
-#
-# are intentionally handled separately from bastion/bootstrap
-# workflows because private GKE clusters may not be reachable from
-# GitHub-hosted runners.
-#
-# LONG-TERM PLATFORM FLOW:
-# platform-bootstrap
-#   ├── infra-main
-#   ├── mirror-platform-images
-#   ├── cluster-bootstrap
-#   ├── observability-bootstrap
-#   └── smoke-tests
-#
-# In short:
-# Terraform provisions infrastructure.
-# GitOps/bootstrap layers are handled separately afterward.
+# IMPORTANT:
+# In the current Release 2 phase, prod apply is blocked intentionally.
 # -------------------------------------------------------------------
-# This workflow is responsible only for infrastructure provisioning and
-# validation from GitHub-hosted runners using Terraform.
+
 name: infra-main
 
 on:
   workflow_call:
     inputs:
+      environment:
+        required: false
+        type: string
+        default: "dev"
       run_apply:
         required: false
         type: string
-        default: "true"
-
-  push:
-    branches: [main]
-    paths:
-      - "terraform/**"
-      - "scripts/map-pv-disks.sh"
-      - ".github/workflows/infra-main.yml"
+        default: "false"
 
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Terraform environment to run"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - shared
+          - dev
+          - prod
+
       run_apply:
         description: "Run terraform apply?"
         required: true
         default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: terraform-live-main
+  group: terraform-live-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
@@ -79,10 +67,33 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      TF_INPUT: "false"
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      SELECTED_ENVIRONMENT: ${{ inputs.environment }}
+      TERRAFORM_WORKING_DIR: terraform/live/${{ inputs.environment }}
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      - name: Validate selected environment
+        run: |
+          set -euo pipefail
+
+          case "${SELECTED_ENVIRONMENT}" in
+            shared|dev|prod)
+              echo "Selected environment: ${SELECTED_ENVIRONMENT}"
+              ;;
+            *)
+              echo "Invalid environment: ${SELECTED_ENVIRONMENT}"
+              exit 1
+              ;;
+          esac
+
+          if [ ! -d "${TERRAFORM_WORKING_DIR}" ]; then
+            echo "Terraform directory does not exist: ${TERRAFORM_WORKING_DIR}"
+            exit 1
+          fi
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -107,84 +118,185 @@ jobs:
           terraform_version: 1.14.8
 
       - name: Terraform init
-        working-directory: terraform/live/main
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform init
 
-      # Prevents Terraform failures when long-lived resources already exist
-      # outside Terraform state. Automatically imports existing resources
-      # (e.g., Secret Manager secrets and service accounts) to avoid duplicate creation errors.
       - name: Import long-lived existing Terraform resources
-        working-directory: terraform/live/main
+        if: ${{ inputs.environment == 'shared' }}
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         env:
-          TF_INPUT: "false"
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
 
           SECRET_RESOURCE="google_secret_manager_secret.argocd_slack_bot_token"
-          SECRET_ID="projects/${PROJECT_ID}/secrets/argocd-slack-bot-token"
+          SECRET_ID="projects/${GCP_PROJECT_ID}/secrets/argocd-slack-bot-token"
 
           EXTERNAL_SECRETS_SA_RESOURCE="module.external_secrets_gsm_sa.google_service_account.service_account"
-          EXTERNAL_SECRETS_SA_ID="projects/${PROJECT_ID}/serviceAccounts/external-secrets-gsm@${PROJECT_ID}.iam.gserviceaccount.com"
+          EXTERNAL_SECRETS_SA_ID=$(
+            printf "projects/%s/serviceAccounts/external-secrets-gsm@%s.iam.gserviceaccount.com" \
+              "${GCP_PROJECT_ID}" \
+              "${GCP_PROJECT_ID}"
+          )
 
-          if gcloud secrets describe argocd-slack-bot-token --project="${PROJECT_ID}" >/dev/null 2>&1; then
-            if terraform state show "${SECRET_RESOURCE}" >/dev/null 2>&1; then
-              echo "Secret Manager secret already exists in Terraform state."
-            else
-              echo "Importing existing Secret Manager secret into Terraform state..."
-              terraform import "${SECRET_RESOURCE}" "${SECRET_ID}"
-            fi
-          else
-            echo "Secret Manager secret does not exist yet. Terraform will create secret metadata."
+          AI_NODE_POOL_SA_RESOURCE="module.ai_node_pool_service_account.google_service_account.service_account"
+          AI_NODE_POOL_SA_ID=$(
+            printf "projects/%s/serviceAccounts/gke-ai-node-pool-sa@%s.iam.gserviceaccount.com" \
+              "${GCP_PROJECT_ID}" \
+              "${GCP_PROJECT_ID}"
+          )
+
+          GITHUB_ACTIONS_SA_RESOURCE="module.github_actions_deployer_sa.google_service_account.service_account"
+          GITHUB_ACTIONS_SA_ID=$(
+            printf "projects/%s/serviceAccounts/github-actions-deployer@%s.iam.gserviceaccount.com" \
+              "${GCP_PROJECT_ID}" \
+              "${GCP_PROJECT_ID}"
+          )
+
+          import_if_missing() {
+            local resource="$1"
+            local resource_id="$2"
+
+            terraform state show "${resource}" >/dev/null 2>&1 || \
+              terraform import "${resource}" "${resource_id}"
+          }
+
+          if gcloud secrets describe argocd-slack-bot-token \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing "${SECRET_RESOURCE}" "${SECRET_ID}"
           fi
 
-          if gcloud iam service-accounts describe "external-secrets-gsm@${PROJECT_ID}.iam.gserviceaccount.com" --project="${PROJECT_ID}" >/dev/null 2>&1; then
-            if terraform state show "${EXTERNAL_SECRETS_SA_RESOURCE}" >/dev/null 2>&1; then
-              echo "External Secrets service account already exists in Terraform state."
-            else
-              echo "Importing existing External Secrets service account into Terraform state..."
-              terraform import "${EXTERNAL_SECRETS_SA_RESOURCE}" "${EXTERNAL_SECRETS_SA_ID}"
-            fi
-          else
-            echo "External Secrets service account does not exist yet. Terraform will create it."
+          if gcloud iam service-accounts describe \
+            "external-secrets-gsm@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing "${EXTERNAL_SECRETS_SA_RESOURCE}" "${EXTERNAL_SECRETS_SA_ID}"
           fi
 
-      - name: Terraform fmt check
-        working-directory: terraform/live/main
-        run: terraform fmt -check -recursive
+          if gcloud iam service-accounts describe \
+            "gke-ai-node-pool-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing "${AI_NODE_POOL_SA_RESOURCE}" "${AI_NODE_POOL_SA_ID}"
+          fi
 
-      - name: Terraform validate
-        working-directory: terraform/live/main
-        run: terraform validate
+          if gcloud iam service-accounts describe \
+            "github-actions-deployer@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing "${GITHUB_ACTIONS_SA_RESOURCE}" "${GITHUB_ACTIONS_SA_ID}"
+          fi
 
-      - name: Terraform plan
-        working-directory: terraform/live/main
+          for repo in microservices-demo platform-observability ai-microservices; do
+            case "${repo}" in
+              microservices-demo)
+                resource="module.artifact_registry.google_artifact_registry_repository.docker_repo"
+                ;;
+              platform-observability)
+                resource="module.artifact_registry_platform_observability.google_artifact_registry_repository.docker_repo"
+                ;;
+              ai-microservices)
+                resource="module.artifact_registry_ai_microservices.google_artifact_registry_repository.docker_repo"
+                ;;
+            esac
+
+            repo_id="projects/${GCP_PROJECT_ID}/locations/us-central1/repositories/${repo}"
+
+            if gcloud artifacts repositories describe "${repo}" \
+              --location="us-central1" \
+              --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+              import_if_missing "${resource}" "${repo_id}"
+            fi
+          done
+
+      - name: Import existing dev infrastructure resources
+        if: ${{ inputs.environment == 'dev' }}
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         env:
-          TF_INPUT: "false"
-          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-        run: terraform plan -input=false -out=tfplan
-
-      - name: Terraform apply
-        if: inputs.run_apply == 'true'
-        working-directory: terraform/live/main
-        env:
-          TF_INPUT: "false"
-          TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-        run: terraform apply -input=false -auto-approve tfplan
-
-      - name: Ensure default GKE node pool is removed
-        if: inputs.run_apply == 'true'
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
 
+          import_if_missing() {
+            local resource="$1"
+            local resource_id="$2"
+
+            terraform state show "${resource}" >/dev/null 2>&1 || \
+              terraform import "${resource}" "${resource_id}"
+          }
+
+          if gcloud compute networks describe vpc-kfounding-dev \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing \
+              "module.vpc.google_compute_network.this" \
+              "projects/${GCP_PROJECT_ID}/global/networks/vpc-kfounding-dev"
+          fi
+
+          if gcloud compute networks subnets describe subnet-us-central1-dev \
+            --region="us-central1" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing \
+              "module.vpc.google_compute_subnetwork.this" \
+              "projects/${GCP_PROJECT_ID}/regions/us-central1/subnetworks/subnet-us-central1-dev"
+          fi
+
+          if gcloud compute routers describe router-kfounding-dev \
+            --region="us-central1" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing \
+              "module.cloud_nat.google_compute_router.this" \
+              "projects/${GCP_PROJECT_ID}/regions/us-central1/routers/router-kfounding-dev"
+          fi
+
+          if gcloud compute routers nats describe nat-kfounding-dev \
+            --router="router-kfounding-dev" \
+            --region="us-central1" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing \
+              "module.cloud_nat.google_compute_router_nat.this" \
+              "projects/${GCP_PROJECT_ID}/regions/us-central1/routers/router-kfounding-dev/nats/nat-kfounding-dev"
+          fi
+
+      - name: Terraform fmt check
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform validate
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
+        run: terraform validate
+
+      - name: Terraform plan
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Block prod apply for Release 2
+        if: ${{ inputs.run_apply == 'true' && inputs.environment == 'prod' }}
+        run: |
+          echo "Prod apply is intentionally blocked in Release 2."
+          echo "Use dev first. Prod will be enabled after validation."
+          exit 1
+
+      - name: Terraform apply
+        if: ${{ inputs.run_apply == 'true' && inputs.environment != 'prod' }}
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
+        run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Ensure default GKE node pool is removed
+        if: ${{ inputs.run_apply == 'true' && inputs.environment != 'shared' && inputs.environment != 'prod' }}
+        run: |
+          set -euo pipefail
+
+          if [ "${SELECTED_ENVIRONMENT}" = "dev" ]; then
+            CLUSTER_NAME="kfounding-dev"
+          else
+            CLUSTER_NAME="kfounding"
+          fi
+
           if gcloud container node-pools describe default-pool \
-            --cluster kfounding \
+            --cluster "${CLUSTER_NAME}" \
             --region us-central1 \
             --project "${{ secrets.GCP_PROJECT_ID }}" >/dev/null 2>&1; then
 
             echo "default-pool still exists. Deleting it..."
             gcloud container node-pools delete default-pool \
-              --cluster kfounding \
+              --cluster "${CLUSTER_NAME}" \
               --region us-central1 \
               --project "${{ secrets.GCP_PROJECT_ID }}" \
               --quiet
@@ -193,27 +305,23 @@ jobs:
           fi
 
       - name: Get GKE credentials
-        if: inputs.run_apply == 'true'
+        if: ${{ inputs.run_apply == 'true' && inputs.environment == 'dev' }}
         uses: google-github-actions/get-gke-credentials@v2
         with:
-          cluster_name: kfounding
+          cluster_name: kfounding-dev
           location: us-central1
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # Creates a Kubernetes PV → GCP Persistent Disk inventory for troubleshooting,
-      # backup, disaster recovery, and safe infrastructure cleanup by identifying
-      # which cloud disks are actively used by Stateful workloads.
-      # Generates PV-to-GCP disk mapping for stateful workload visibility,
       - name: Map Kubernetes PVs to GCP disks
-        if: inputs.run_apply == 'true'
+        if: ${{ inputs.run_apply == 'true' && inputs.environment == 'dev' }}
         continue-on-error: true
         run: |
           chmod +x scripts/map-pv-disks.sh
           ./scripts/map-pv-disks.sh | tee pv-disk-map.txt
 
       - name: Upload PV disk map artifact
-        if: inputs.run_apply == 'true'
+        if: ${{ inputs.run_apply == 'true' && inputs.environment == 'dev' }}
         uses: actions/upload-artifact@v4
         with:
-          name: pv-disk-map
+          name: pv-disk-map-${{ inputs.environment }}
           path: pv-disk-map.txt

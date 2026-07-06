@@ -1,0 +1,68 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Dev environment overlay for Online Boutique.
+#
+# RESPONSIBILITIES:
+# - Reuse base application manifests.
+# - Apply dev-only resource sizing and configuration.
+# - Pin all container images by immutable SHA digest.
+#
+# WHY THIS EXISTS?
+# Dev should stay cheaper than prod while following the same
+# GitOps deployment model as production. Using image digests
+# guarantees immutable and reproducible deployments.
+# -------------------------------------------------------------------
+
+resources:
+  - ../../base
+  - frontend-analysis-template.yaml
+
+components:
+  - ../../components/container-images-registry
+  - ../../components/service-mesh-istio
+  - ../../components/istio-sidecar-resources
+  - ../../components/dev-small-resources
+
+patches:
+  - path: resourcequota-dev.yaml
+
+images:
+  - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/adservice
+    newName: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/adservice
+    digest: sha256:c4a15e63eecae664d241ccc00a8c0f32ad69a005efdae263d091963363d02c45
+
+  - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/cartservice
+    newName: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/cartservice
+    digest: sha256:eb4a7d1753992271e6ca09a9c93a17d1af429ab07f90d6a0a1297658016115a9
+
+  - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/checkoutservice
+    newName: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/checkoutservice
+    digest: sha256:35ed9495a2a3862f1e0c50d0f4184e9e2ddbb8d21a885eb5f27809548df1ec91
+
+  - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/currencyservice
+    newName: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/currencyservice
+    digest: sha256:d0f073de0a31dc093c503f462fcfe9f1dff2f2ce088bb81448f3b8cb16d45282
+
+  - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/emailservice
+    newName: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/emailservice
+    digest: sha256:c3356740ba78ac6053ffffd66495788258ad47f831fcd8a61c04e1e023e28630
+
+  - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/loadgenerator
+    newName: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/loadgenerator
+    digest: sha256:a2a3f86daea0484677cdc6f4bd49cd71f723a2996c28e20786f4742ea6d72e36
+
+  - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/paymentservice
+    newName: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/paymentservice
+    digest: sha256:a560d137bbedf1cc80dcf3dc9aa922cc8a3d28854145d0a7811808cbd2dea54c
+
+  - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/productcatalogservice
+    newName: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/productcatalogservice
+    digest: sha256:600901d16fe0fdaf038ec41e876a6d81540d43441aea6a7212ed8c6824cb1995
+
+  - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/recommendationservice
+    newName: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/recommendationservice
+    digest: sha256:f1a966e976c994b3ba79f7a31320b8e138c7ec58a5d78a0a9d05636169faf5a2
+
+  - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/shippingservice
+    newName: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/shippingservice
+    digest: sha256:cebd3fca0143ef4cf7b1e4a5e450091f6aac144714b7abc16d14ccc94f58fb1c

@@ -1,0 +1,25 @@
+# Argo CD Application for Kiali.
+# This deploys Kiali into istio-system so we can visualize Istio traffic, mTLS, latency, and errors.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kiali-dev
+  namespace: argocd-dev
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/linux-cnf/microservices-demo.git
+    targetRevision: main
+    path: helm-chart/kiali
+    helm:
+      releaseName: kiali
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true

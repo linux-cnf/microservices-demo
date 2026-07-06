@@ -1,3 +1,15 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Creates a reusable Google Kubernetes Engine node pool.
+#
+# RESPONSIBILITIES:
+# - Provision node pools with autoscaling, labels, taints, secure node
+#   settings, service account, and lifecycle management.
+#
+# WHY THIS EXISTS?
+# All environments should create node pools in a consistent way while
+# still allowing environment-specific configuration from live folders.
+# -------------------------------------------------------------------
 resource "google_container_node_pool" "primary_nodes" {
   name           = var.node_pool_name
   cluster        = var.cluster_name
@@ -27,6 +39,7 @@ resource "google_container_node_pool" "primary_nodes" {
       managed_by = "terraform"
       cluster    = var.cluster_name
       node_pool  = var.node_pool_name
+      env        = lookup(var.node_labels, "env", "unknown")
     }
 
     service_account = var.service_account

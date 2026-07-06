@@ -1,0 +1,72 @@
+# Installs the Istio control plane.
+# Manages sidecar configuration, xDS, certificates, and service discovery.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: istiod-dev
+  namespace: argocd-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+
+spec:
+  ignoreDifferences:
+    # Istio changes this at runtime
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      name: istio-validator-istio-system
+      jqPathExpressions:
+        - '.webhooks[] | select(.name == "rev.validation.istio.io").failurePolicy'
+
+    # Kubernetes normalizes/defaults several Deployment fields
+    - group: apps
+      kind: Deployment
+      name: istiod
+      namespace: istio-system
+      jqPathExpressions:
+        - '.metadata.annotations["deployment.kubernetes.io/revision"]'
+        - '.spec.progressDeadlineSeconds'
+        - '.spec.replicas'
+        - '.spec.revisionHistoryLimit'
+        - '.spec.strategy.type'
+        - '.spec.template.spec.containers[] | select(.name=="discovery").imagePullPolicy'
+        - '.spec.template.spec.containers[] | select(.name=="discovery").env[] | select(.name=="PLATFORM").value'
+        - '.spec.template.spec.containers[] | select(.name=="discovery").resources.requests.memory'
+        - '.spec.template.spec.containers[] | select(.name=="discovery").readinessProbe.failureThreshold'
+        - '.spec.template.spec.containers[] | select(.name=="discovery").readinessProbe.successThreshold'
+        - '.spec.template.spec.containers[] | select(.name=="discovery").readinessProbe.httpGet.scheme'
+        - '.spec.template.spec.containers[] | select(.name=="discovery").terminationMessagePath'
+        - '.spec.template.spec.containers[] | select(.name=="discovery").terminationMessagePolicy'
+        - '.spec.template.spec.serviceAccount'
+        - '.spec.template.spec.dnsPolicy'
+        - '.spec.template.spec.restartPolicy'
+        - '.spec.template.spec.schedulerName'
+        - '.spec.template.spec.securityContext'
+        - '.spec.template.spec.terminationGracePeriodSeconds'
+        - '.spec.template.spec.containers[] | select(.name=="discovery").env[] | select(.name=="GOMEMLIMIT").valueFrom.resourceFieldRef.divisor'
+        - '.spec.template.spec.volumes[] | select(.name=="istio-token").projected.defaultMode'
+        - '.spec.template.spec.volumes[] | select(.name=="cacerts").secret.defaultMode'
+        - '.spec.template.spec.volumes[] | select(.name=="istio-kubeconfig").secret.defaultMode'
+        - '.spec.template.spec.volumes[] | select(.name=="istio-csr-dns-cert").secret.defaultMode'
+
+  project: platform
+
+  source:
+    repoURL: https://istio-release.storage.googleapis.com/charts
+    chart: istiod
+    targetRevision: 1.25.2
+    helm:
+      releaseName: istiod
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

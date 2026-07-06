@@ -1,3 +1,15 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Defines input variables for the reusable GKE node pool module.
+#
+# RESPONSIBILITIES:
+# - Allow each environment to configure node pool name, size, zones,
+#   labels, taints, machine type, disk, autoscaling, and service account.
+#
+# WHY THIS EXISTS?
+# Dev and prod can reuse the same node pool module while passing
+# different values from terraform/live/<env>.
+# -------------------------------------------------------------------
 variable "gcp_project_id" {
   type        = string
   description = "GCP project ID where the GKE node pool will be created"

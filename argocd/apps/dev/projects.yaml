@@ -1,0 +1,68 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  description: Platform apps like observability, logging, tracing and operators
+
+  sourceRepos:
+    - https://github.com/linux-cnf/microservices-demo.git
+    - https://helm.elastic.co
+    - https://charts.external-secrets.io
+    - https://istio-release.storage.googleapis.com/charts
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: elastic-system
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: logging
+    - server: https://kubernetes.default.svc
+      namespace: tracing
+    - server: https://kubernetes.default.svc
+      namespace: external-secrets
+    - server: https://kubernetes.default.svc
+      namespace: argocd-dev
+    - server: https://kubernetes.default.svc
+      namespace: kube-system
+    - server: https://kubernetes.default.svc
+      namespace: istio-system
+    - server: https://kubernetes.default.svc
+      namespace: ai
+  
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: boutique
+  namespace: argocd-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  description: Online Boutique application
+
+  sourceRepos:
+    - https://github.com/linux-cnf/microservices-demo.git
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: boutique
+
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
