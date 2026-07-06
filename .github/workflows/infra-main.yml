@@ -146,31 +146,65 @@ jobs:
               "${GCP_PROJECT_ID}"
           )
 
+          GITHUB_ACTIONS_SA_RESOURCE="module.github_actions_deployer_sa.google_service_account.service_account"
+          GITHUB_ACTIONS_SA_ID=$(
+            printf "projects/%s/serviceAccounts/github-actions-deployer@%s.iam.gserviceaccount.com" \
+              "${GCP_PROJECT_ID}" \
+              "${GCP_PROJECT_ID}"
+          )
+
+          import_if_missing() {
+            local resource="$1"
+            local resource_id="$2"
+
+            terraform state show "${resource}" >/dev/null 2>&1 || \
+              terraform import "${resource}" "${resource_id}"
+          }
+
           if gcloud secrets describe argocd-slack-bot-token \
             --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
-            terraform state show "${SECRET_RESOURCE}" >/dev/null 2>&1 || \
-              terraform import "${SECRET_RESOURCE}" "${SECRET_ID}"
-          else
-            echo "Secret Manager secret does not exist yet."
+            import_if_missing "${SECRET_RESOURCE}" "${SECRET_ID}"
           fi
 
           if gcloud iam service-accounts describe \
             "external-secrets-gsm@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
             --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
-            terraform state show "${EXTERNAL_SECRETS_SA_RESOURCE}" >/dev/null 2>&1 || \
-              terraform import "${EXTERNAL_SECRETS_SA_RESOURCE}" "${EXTERNAL_SECRETS_SA_ID}"
-          else
-            echo "External Secrets service account does not exist yet."
+            import_if_missing "${EXTERNAL_SECRETS_SA_RESOURCE}" "${EXTERNAL_SECRETS_SA_ID}"
           fi
 
           if gcloud iam service-accounts describe \
             "gke-ai-node-pool-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
             --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
-            terraform state show "${AI_NODE_POOL_SA_RESOURCE}" >/dev/null 2>&1 || \
-              terraform import "${AI_NODE_POOL_SA_RESOURCE}" "${AI_NODE_POOL_SA_ID}"
-          else
-            echo "AI node pool service account does not exist yet."
+            import_if_missing "${AI_NODE_POOL_SA_RESOURCE}" "${AI_NODE_POOL_SA_ID}"
           fi
+
+          if gcloud iam service-accounts describe \
+            "github-actions-deployer@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing "${GITHUB_ACTIONS_SA_RESOURCE}" "${GITHUB_ACTIONS_SA_ID}"
+          fi
+
+          for repo in microservices-demo platform-observability ai-microservices; do
+            case "${repo}" in
+              microservices-demo)
+                resource="module.artifact_registry.google_artifact_registry_repository.docker_repo"
+                ;;
+              platform-observability)
+                resource="module.artifact_registry_platform_observability.google_artifact_registry_repository.docker_repo"
+                ;;
+              ai-microservices)
+                resource="module.artifact_registry_ai_microservices.google_artifact_registry_repository.docker_repo"
+                ;;
+            esac
+
+            repo_id="projects/${GCP_PROJECT_ID}/locations/us-central1/repositories/${repo}"
+
+            if gcloud artifacts repositories describe "${repo}" \
+              --location="us-central1" \
+              --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+              import_if_missing "${resource}" "${repo_id}"
+            fi
+          done
 
       - name: Terraform fmt check
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
