@@ -153,11 +153,11 @@ spec:
         - name: server
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 150m
+              cpu: 100m
               memory: 256Mi
+            limits:
+              cpu: 300m
+              memory: 512Mi
 ---
 apiVersion: apps/v1
 kind: Deployment
