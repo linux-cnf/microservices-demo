@@ -1,0 +1,36 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Root Argo CD Application for the dev environment.
+#
+# RESPONSIBILITIES:
+# - Register all dev Argo CD child applications.
+# - Point Argo CD to the dev application directory.
+#
+# WHY THIS EXISTS?
+# Release 2 introduces environment-specific GitOps.
+# Dev must reconcile from its own app path without touching prod.
+# -------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-root-dev
+  namespace: argocd-dev
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/linux-cnf/microservices-demo.git
+    targetRevision: release/v2-multi-env-gitops
+    path: argocd/apps/dev
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - PruneLast=true

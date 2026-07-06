@@ -1,0 +1,15 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Dev environment overlay for Online Boutique.
+#
+# RESPONSIBILITIES:
+# - Reuse the existing base application manifests.
+# - Apply dev-only resource sizing and configuration later.
+#
+# WHY THIS EXISTS?
+# Dev should run the same workload shape as prod, but with smaller
+# resources and safer environment-specific overrides.
+# -------------------------------------------------------------------
+
+resources:
+  - ../../

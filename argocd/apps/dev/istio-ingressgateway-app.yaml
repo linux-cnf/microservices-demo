@@ -1,0 +1,28 @@
+# Installs the Istio ingress gateway.
+# Provides the external entry point for routing browser traffic into the mesh.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-ingressgateway-dev
+  namespace: argocd-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: platform
+  source:
+    repoURL: https://istio-release.storage.googleapis.com/charts
+    chart: gateway
+    targetRevision: 1.25.2
+    helm:
+      releaseName: istio-ingressgateway
+      skipSchemaValidation: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
