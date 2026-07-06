@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
     targetRevision: release/v2-multi-env-gitops
-    path: argocd/apps/argocd-health-report
+    path: argocd/apps/dev/argocd-health-report
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd-dev
