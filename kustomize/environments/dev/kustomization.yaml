@@ -15,6 +15,7 @@
 
 resources:
   - ../../base
+  - frontend-analysis-template.yaml
 
 components:
   - ../../components/container-images-registry
