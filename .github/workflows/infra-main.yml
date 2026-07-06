@@ -69,7 +69,6 @@ jobs:
     env:
       TF_INPUT: "false"
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-      TERRAFORM_WORKING_DIR: terraform/live/${{ inputs.environment }}
       SELECTED_ENVIRONMENT: ${{ inputs.environment }}
       TERRAFORM_WORKING_DIR: terraform/live/${{ inputs.environment }}
 
@@ -134,7 +133,8 @@ jobs:
           SECRET_ID="projects/${PROJECT_ID}/secrets/argocd-slack-bot-token"
 
           EXTERNAL_SECRETS_SA_RESOURCE="module.external_secrets_gsm_sa.google_service_account.service_account"
-          EXTERNAL_SECRETS_SA_ID="projects/${PROJECT_ID}/serviceAccounts/external-secrets-gsm@${PROJECT_ID}.iam.gserviceaccount.com"
+          EXTERNAL_SECRETS_SA_ID="projects/${PROJECT_ID}/serviceAccounts/\
+external-secrets-gsm@${PROJECT_ID}.iam.gserviceaccount.com"
 
           AI_NODE_POOL_SA_RESOURCE="module.ai_node_pool_service_account.google_service_account.service_account"
           AI_NODE_POOL_SA_ID="projects/${PROJECT_ID}/serviceAccounts/gke-ai-node-pool-sa@${PROJECT_ID}.iam.gserviceaccount.com"
