@@ -130,20 +130,20 @@ jobs:
           set -euo pipefail
 
           SECRET_RESOURCE="google_secret_manager_secret.argocd_slack_bot_token"
-          SECRET_ID="projects/${PROJECT_ID}/secrets/argocd-slack-bot-token"
+          SECRET_ID="projects/${GCP_PROJECT_ID}/secrets/argocd-slack-bot-token"
 
           EXTERNAL_SECRETS_SA_RESOURCE="module.external_secrets_gsm_sa.google_service_account.service_account"
           EXTERNAL_SECRETS_SA_ID=$(
             printf "projects/%s/serviceAccounts/external-secrets-gsm@%s.iam.gserviceaccount.com" \
-              "${PROJECT_ID}" \
-              "${PROJECT_ID}"
+              "${GCP_PROJECT_ID}" \
+              "${GCP_PROJECT_ID}"
           )
 
           AI_NODE_POOL_SA_RESOURCE="module.ai_node_pool_service_account.google_service_account.service_account"
           AI_NODE_POOL_SA_ID=$(
             printf "projects/%s/serviceAccounts/gke-ai-node-pool-sa@%s.iam.gserviceaccount.com" \
-              "${PROJECT_ID}" \
-              "${PROJECT_ID}"
+              "${GCP_PROJECT_ID}" \
+              "${GCP_PROJECT_ID}"
           )
 
           if gcloud secrets describe argocd-slack-bot-token \
@@ -155,7 +155,7 @@ jobs:
           fi
 
           if gcloud iam service-accounts describe \
-            "external-secrets-gsm@${PROJECT_ID}.iam.gserviceaccount.com" \
+            "external-secrets-gsm@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
             --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
             terraform state show "${EXTERNAL_SECRETS_SA_RESOURCE}" >/dev/null 2>&1 || \
               terraform import "${EXTERNAL_SECRETS_SA_RESOURCE}" "${EXTERNAL_SECRETS_SA_ID}"
@@ -164,8 +164,8 @@ jobs:
           fi
 
           if gcloud iam service-accounts describe \
-            "gke-ai-node-pool-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
-            --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            "gke-ai-node-pool-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
             terraform state show "${AI_NODE_POOL_SA_RESOURCE}" >/dev/null 2>&1 || \
               terraform import "${AI_NODE_POOL_SA_RESOURCE}" "${AI_NODE_POOL_SA_ID}"
           else
