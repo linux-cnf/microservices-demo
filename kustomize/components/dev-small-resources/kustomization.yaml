@@ -1,0 +1,14 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Dev-only lightweight resource profile for Online Boutique.
+#
+# WHY:
+# Dev runs on small node pools, so requests/limits must be lower
+# than production while keeping prod manifests untouched.
+# -------------------------------------------------------------------
+
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - path: dev-small-resources.yaml

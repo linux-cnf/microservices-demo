@@ -20,6 +20,7 @@ components:
   - ../../components/container-images-registry
   - ../../components/service-mesh-istio
   - ../../components/istio-sidecar-resources
+  - ../../components/dev-small-resources
 
 patches:
   - path: resourcequota-dev.yaml
