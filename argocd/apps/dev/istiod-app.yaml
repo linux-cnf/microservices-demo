@@ -22,7 +22,7 @@ spec:
     - group: apps
       kind: Deployment
       name: istiod
-      namespace: istio-system-dev
+      namespace: istio-system
       jqPathExpressions:
         - '.metadata.annotations["deployment.kubernetes.io/revision"]'
         - '.spec.progressDeadlineSeconds'
@@ -60,7 +60,7 @@ spec:
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: istio-system-dev
+    namespace: istio-system
 
   syncPolicy:
     automated:

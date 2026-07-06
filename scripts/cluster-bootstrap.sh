@@ -139,10 +139,10 @@ retry kubectl rollout status statefulset/argocd-application-controller \
   -n "$ARGOCD_NAMESPACE" --timeout=600s
 
 echo "Applying Argo CD custom health checks..."
-retry kubectl apply --validate=false -f argocd/argocd-cm-health-patch.yaml -n "$ARGOCD_NAMESPACE"
+retry bash -c "sed 's/namespace: argocd$/namespace: ${ARGOCD_NAMESPACE}/' argocd/argocd-cm-health-patch.yaml | kubectl apply --validate=false -f -"
 
 echo "Applying Argo CD notifications config..."
-retry kubectl apply --validate=false -f argocd/argocd-notifications-cm.yaml -n "$ARGOCD_NAMESPACE"
+retry bash -c "sed 's/namespace: argocd$/namespace: ${ARGOCD_NAMESPACE}/' argocd/argocd-notifications-cm.yaml | kubectl apply --validate=false -f -"
 
 echo "Restarting Argo CD components..."
 

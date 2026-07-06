@@ -16,21 +16,21 @@ spec:
 
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: elastic-system-dev
+      namespace: elastic-system
     - server: https://kubernetes.default.svc
-      namespace: monitoring-dev
+      namespace: monitoring
     - server: https://kubernetes.default.svc
-      namespace: logging-dev
+      namespace: logging
     - server: https://kubernetes.default.svc
-      namespace: tracing-dev
+      namespace: tracing
     - server: https://kubernetes.default.svc
-      namespace: external-secrets-dev
+      namespace: external-secrets
     - server: https://kubernetes.default.svc
       namespace: argocd-dev
     - server: https://kubernetes.default.svc
       namespace: kube-system
     - server: https://kubernetes.default.svc
-      namespace: istio-system-dev
+      namespace: istio-system
     - server: https://kubernetes.default.svc
       namespace: ai
   
@@ -57,7 +57,7 @@ spec:
 
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: boutique-dev
+      namespace: boutique
 
   clusterResourceWhitelist:
     - group: ""
