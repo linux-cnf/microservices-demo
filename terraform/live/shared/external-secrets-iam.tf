@@ -23,3 +23,13 @@ resource "google_service_account_iam_member" "external_secrets_ai_workload_ident
 
   depends_on = [module.external_secrets_gsm_sa]
 }
+
+# Dev Argo CD External Secrets Workload Identity binding.
+# Allows the Kubernetes service account argocd-dev/argocd-external-secrets
+# to impersonate the Google service account external-secrets-gsm.
+resource "google_service_account_iam_member" "external_secrets_argocd_dev_workload_identity" {
+  service_account_id = module.external_secrets_gsm_sa.name
+  role               = "roles/iam.workloadIdentityUser"
+
+  member = "serviceAccount:${var.gcp_project_id}.svc.id.goog[argocd-dev/argocd-external-secrets]"
+}
