@@ -206,6 +206,54 @@ jobs:
             fi
           done
 
+      - name: Import existing dev infrastructure resources
+        if: ${{ inputs.environment == 'dev' }}
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          import_if_missing() {
+            local resource="$1"
+            local resource_id="$2"
+
+            terraform state show "${resource}" >/dev/null 2>&1 || \
+              terraform import "${resource}" "${resource_id}"
+          }
+
+          if gcloud compute networks describe vpc-kfounding-dev \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing \
+              "module.vpc.google_compute_network.this" \
+              "projects/${GCP_PROJECT_ID}/global/networks/vpc-kfounding-dev"
+          fi
+
+          if gcloud compute networks subnets describe subnet-us-central1-dev \
+            --region="us-central1" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing \
+              "module.vpc.google_compute_subnetwork.this" \
+              "projects/${GCP_PROJECT_ID}/regions/us-central1/subnetworks/subnet-us-central1-dev"
+          fi
+
+          if gcloud compute routers describe router-kfounding-dev \
+            --region="us-central1" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing \
+              "module.cloud_nat.google_compute_router.this" \
+              "projects/${GCP_PROJECT_ID}/regions/us-central1/routers/router-kfounding-dev"
+          fi
+
+          if gcloud compute routers nats describe nat-kfounding-dev \
+            --router="router-kfounding-dev" \
+            --region="us-central1" \
+            --project="${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+            import_if_missing \
+              "module.cloud_nat.google_compute_router_nat.this" \
+              "projects/${GCP_PROJECT_ID}/regions/us-central1/routers/router-kfounding-dev/nats/nat-kfounding-dev"
+          fi
+
       - name: Terraform fmt check
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform fmt -check -recursive
