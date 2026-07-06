@@ -1,38 +1,38 @@
 # -------------------------------------------------------------------
+# PURPOSE:
+# Environment-aware platform destroy workflow.
+#
 # RESPONSIBILITIES:
+# - Destroy dev, prod, or both platform infrastructure layers
 # - Remove GKE cluster resources
 # - Remove managed node pools
 # - Remove Cloud NAT resources
 # - Clean up orphaned GKE/PVC disks
 # - Report leftover static IPs for manual review
 #
-# WHY THIS EXISTS?
-# Provides a controlled teardown workflow for lab,
-# testing, and cost-optimization scenarios while
-# protecting long-lived resources such as:
-# - Artifact Registry
-# - Secret Manager
-# - Service Accounts
-# - Terraform state
-#
 # SAFETY MODEL:
-# Requires explicit confirmation before execution.
-# Uses Terraform-managed destruction only for
-# approved infrastructure components.
+# - Requires explicit confirmation
+# - Prod uses production-destroy GitHub environment approval
+# - Dev and prod are destroyed through separate Terraform states
 #
-# In short:
-# Destroy Kubernetes infrastructure safely without
-# impacting shared platform resources.
+# NOTES:
+# - Shared resources are intentionally protected:
+#   Artifact Registry, Secret Manager, Service Accounts, Terraform state
 # -------------------------------------------------------------------
-# -------------------------------------------------------------------
-# PURPOSE:
-# Safely decommission infrastructure created by Terraform.
-# -------------------------------------------------------------------
+
 name: platform-full-destroy
 
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Environment to destroy"
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+          - all
       confirm_destroy:
         description: "Type yes-destroy-entire-platform to confirm"
         required: true
@@ -43,73 +43,80 @@ permissions:
   id-token: write
 
 concurrency:
-  group: terraform-live-main
+  group: platform-destroy-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
-  destroy:
-    if: ${{ inputs.confirm_destroy == 'yes-destroy-entire-platform' }}
+  destroy-dev:
+    name: Destroy Dev
+    if: ${{ inputs.confirm_destroy == 'yes-destroy-entire-platform' && (inputs.environment == 'dev' || inputs.environment == 'all') }}
     runs-on: ubuntu-latest
-    environment: production-destroy
-
-    defaults:
-      run:
-        working-directory: terraform/live/main
+    permissions:
+      contents: read
+      id-token: write
+    environment: development-destroy
 
     env:
       TF_INPUT: "false"
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-      GKE_CLUSTER: kfounding
+      TF_DIR: terraform/live/dev
+      GKE_CLUSTER: kfounding-dev
       GKE_REGION: us-central1
+      NODE_POOLS: "primary-node-pool-dev platform-observability-dev ai-node-pool-dev default-pool"
+      DISK_NAME_PATTERNS: "gke-kfounding-dev-primary-node-pool gke-kfounding-dev-platform-observability gke-kfounding-dev-ai-node-pool pvc-"
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
 
       - name: Terraform Init
+        working-directory: ${{ env.TF_DIR }}
         run: terraform init -input=false
 
       - name: Pre-delete GKE node pools safely
         run: |
           set +e
+          : "${NODE_POOLS:?NODE_POOLS is required}"
+          echo "Checking if cluster exists: ${GKE_CLUSTER}"
 
-          echo "Checking if cluster exists..."
-          if ! gcloud container clusters describe "$GKE_CLUSTER" \
-            --region "$GKE_REGION" \
-            --project "$TF_VAR_gcp_project_id" >/dev/null 2>&1; then
+          if ! gcloud container clusters describe "${GKE_CLUSTER}" \
+            --region "${GKE_REGION}" \
+            --project "${TF_VAR_gcp_project_id}" >/dev/null 2>&1; then
             echo "Cluster does not exist. Skipping node pool cleanup."
             exit 0
           fi
 
-          for NODE_POOL in primary-node-pool platform-observability ai-node-pool default-pool; do
-            echo "Checking node pool: $NODE_POOL"
+          for NODE_POOL in ${NODE_POOLS}; do
+            echo "Checking node pool: ${NODE_POOL}"
 
-            if gcloud container node-pools describe "$NODE_POOL" \
-              --cluster "$GKE_CLUSTER" \
-              --region "$GKE_REGION" \
-              --project "$TF_VAR_gcp_project_id" >/dev/null 2>&1; then
+            if gcloud container node-pools describe "${NODE_POOL}" \
+              --cluster "${GKE_CLUSTER}" \
+              --region "${GKE_REGION}" \
+              --project "${TF_VAR_gcp_project_id}" >/dev/null 2>&1; then
 
-              echo "Deleting node pool through gcloud first: $NODE_POOL"
+              echo "Deleting node pool through gcloud first: ${NODE_POOL}"
 
-              gcloud container node-pools delete "$NODE_POOL" \
-                --cluster "$GKE_CLUSTER" \
-                --region "$GKE_REGION" \
-                --project "$TF_VAR_gcp_project_id" \
+              gcloud container node-pools delete "${NODE_POOL}" \
+                --cluster "${GKE_CLUSTER}" \
+                --region "${GKE_REGION}" \
+                --project "${TF_VAR_gcp_project_id}" \
                 --quiet || true
             else
-              echo "Node pool not found: $NODE_POOL"
+              echo "Node pool not found: ${NODE_POOL}"
             fi
           done
 
@@ -117,12 +124,14 @@ jobs:
           sleep 300
 
       - name: Remove pre-deleted node pools from Terraform state
+        working-directory: ${{ env.TF_DIR }}
         run: |
           terraform state rm module.gke_node_pool.google_container_node_pool.primary_nodes || true
           terraform state rm module.gke_node_pool_platform_observability.google_container_node_pool.primary_nodes || true
           terraform state rm module.ai_node_pool.google_container_node_pool.primary_nodes || true
 
-      - name: Terraform Destroy GKE and NAT only
+      - name: Terraform Destroy Dev GKE and NAT only
+        working-directory: ${{ env.TF_DIR }}
         run: |
           terraform destroy -input=false -auto-approve \
             -target=module.gke_cluster \
@@ -133,27 +142,168 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           echo "Finding unattached GKE/PVC disks..."
-
-          DISK_FILTER="(name~'^pvc-' OR name~'^gke-kfounding-default-pool-'"
-          DISK_FILTER="${DISK_FILTER} OR name~'^gke-kfounding-primary-node-pool-'"
-          DISK_FILTER="${DISK_FILTER} OR name~'^gke-kfounding-platform-observability-'"
-          DISK_FILTER="${DISK_FILTER} OR name~'^gke-kfounding-ai-node-pool-')"
-          DISK_FILTER="${DISK_FILTER} AND -users:*"
-
+          : "${DISK_NAME_PATTERNS:?DISK_NAME_PATTERNS is required}"
           gcloud compute disks list \
             --project="${TF_VAR_gcp_project_id}" \
-            --filter="${DISK_FILTER}" \
+            --filter="-users:*" \
             --format="csv[no-heading](name,zone.basename())" | while IFS=, read -r DISK ZONE; do
 
-              [ -z "$DISK" ] && continue
-              [ -z "$ZONE" ] && continue
+              [ -z "${DISK}" ] && continue
+              [ -z "${ZONE}" ] && continue
 
-              echo "Deleting orphan disk: $DISK ($ZONE)"
+              SHOULD_DELETE="false"
 
-              gcloud compute disks delete "$DISK" \
-                --project="${TF_VAR_gcp_project_id}" \
-                --zone "$ZONE" \
+              for PATTERN in ${DISK_NAME_PATTERNS}; do
+                if echo "${DISK}" | grep -q "^${PATTERN}"; then
+                  SHOULD_DELETE="true"
+                fi
+              done
+
+              if [ "${SHOULD_DELETE}" = "true" ]; then
+                echo "Deleting orphan disk: ${DISK} (${ZONE})"
+
+                gcloud compute disks delete "${DISK}" \
+                  --project="${TF_VAR_gcp_project_id}" \
+                  --zone "${ZONE}" \
+                  --quiet || true
+              fi
+            done
+
+      - name: Check leftover static IPs
+        if: ${{ !cancelled() }}
+        run: |
+          echo "=== Regional Static IPs ==="
+          gcloud compute addresses list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --format="table(name,address,status,region,purpose)"
+
+          echo "=== Global Static IPs ==="
+          gcloud compute addresses list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --global \
+            --format="table(name,address,status,purpose)"
+
+  destroy-prod:
+    name: Destroy Prod
+    needs: [destroy-dev]
+    if: ${{ always() && inputs.confirm_destroy == 'yes-destroy-entire-platform' && (inputs.environment == 'prod' || inputs.environment == 'all') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: production-destroy
+
+    env:
+      TF_INPUT: "false"
+      TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      TF_DIR: terraform/live/main
+      GKE_CLUSTER: kfounding
+      GKE_REGION: us-central1
+      NODE_POOLS: "primary-node-pool platform-observability ai-node-pool default-pool"
+      DISK_NAME_PATTERNS: "gke-kfounding-primary-node-pool gke-kfounding-platform-observability gke-kfounding-ai-node-pool gke-kfounding-default-pool pvc-"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -input=false
+
+      - name: Pre-delete GKE node pools safely
+        run: |
+          set +e
+          : "${NODE_POOLS:?NODE_POOLS is required}"
+          echo "Checking if cluster exists: ${GKE_CLUSTER}"
+
+          if ! gcloud container clusters describe "${GKE_CLUSTER}" \
+            --region "${GKE_REGION}" \
+            --project "${TF_VAR_gcp_project_id}" >/dev/null 2>&1; then
+            echo "Cluster does not exist. Skipping node pool cleanup."
+            exit 0
+          fi
+
+          for NODE_POOL in ${NODE_POOLS}; do
+            echo "Checking node pool: ${NODE_POOL}"
+
+            if gcloud container node-pools describe "${NODE_POOL}" \
+              --cluster "${GKE_CLUSTER}" \
+              --region "${GKE_REGION}" \
+              --project "${TF_VAR_gcp_project_id}" >/dev/null 2>&1; then
+
+              echo "Deleting node pool through gcloud first: ${NODE_POOL}"
+
+              gcloud container node-pools delete "${NODE_POOL}" \
+                --cluster "${GKE_CLUSTER}" \
+                --region "${GKE_REGION}" \
+                --project "${TF_VAR_gcp_project_id}" \
                 --quiet || true
+            else
+              echo "Node pool not found: ${NODE_POOL}"
+            fi
+          done
+
+          echo "Waiting for GKE/MIG reconciliation..."
+          sleep 300
+
+      - name: Remove pre-deleted node pools from Terraform state
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform state rm module.gke_node_pool.google_container_node_pool.primary_nodes || true
+          terraform state rm module.gke_node_pool_platform_observability.google_container_node_pool.primary_nodes || true
+          terraform state rm module.ai_node_pool.google_container_node_pool.primary_nodes || true
+
+      - name: Terraform Destroy Prod GKE and NAT only
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform destroy -input=false -auto-approve \
+            -target=module.gke_cluster \
+            -target=module.cloud_nat.google_compute_router_nat.this \
+            -target=module.cloud_nat.google_compute_router.this
+
+      - name: Delete orphan GKE disks
+        if: ${{ !cancelled() }}
+        run: |
+          echo "Finding unattached GKE/PVC disks..."
+          : "${DISK_NAME_PATTERNS:?DISK_NAME_PATTERNS is required}"
+          gcloud compute disks list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --filter="-users:*" \
+            --format="csv[no-heading](name,zone.basename())" | while IFS=, read -r DISK ZONE; do
+
+              [ -z "${DISK}" ] && continue
+              [ -z "${ZONE}" ] && continue
+
+              SHOULD_DELETE="false"
+
+              for PATTERN in ${DISK_NAME_PATTERNS}; do
+                if echo "${DISK}" | grep -q "^${PATTERN}"; then
+                  SHOULD_DELETE="true"
+                fi
+              done
+
+              if [ "${SHOULD_DELETE}" = "true" ]; then
+                echo "Deleting orphan disk: ${DISK} (${ZONE})"
+
+                gcloud compute disks delete "${DISK}" \
+                  --project="${TF_VAR_gcp_project_id}" \
+                  --zone "${ZONE}" \
+                  --quiet || true
+              fi
             done
 
       - name: Check leftover static IPs
