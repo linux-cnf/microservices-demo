@@ -1,0 +1,20 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: argocd-notifications-secret
+  namespace: argocd-dev
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: gcp-secret-manager
+    kind: SecretStore
+  target:
+    name: argocd-notifications-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: slack-token
+      remoteRef:
+        key: argocd-slack-bot-token
+        version: latest
