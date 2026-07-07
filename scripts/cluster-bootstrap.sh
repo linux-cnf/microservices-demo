@@ -206,6 +206,7 @@ kubectl get pods -A || true
 
 echo
 echo "Recommended validation:"
+echo "  ./scripts/cluster-bootstrap.sh -n ${ENVIRONMENT}"
 echo "  kubectl get application -n ${ARGOCD_NAMESPACE}"
 echo "  kubectl get pods -A"
 echo "  kubectl get events -A --sort-by=.lastTimestamp | tail -30"

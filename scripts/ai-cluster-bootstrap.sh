@@ -13,6 +13,7 @@ Usage:
   $0 -n prod disable-assistant
   $0 -n prod all
   $0 -n prod help
+  $0 -n dev platform   # intentionally blocked for now 
 
 Notes:
   - AI platform is currently supported only in prod.
