@@ -266,15 +266,8 @@ jobs:
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform plan -input=false -out=tfplan
 
-      - name: Block prod apply for Release 2
-        if: ${{ inputs.run_apply == 'true' && inputs.environment == 'prod' }}
-        run: |
-          echo "Prod apply is intentionally blocked in Release 2."
-          echo "Use dev first. Prod will be enabled after validation."
-          exit 1
-
       - name: Terraform apply
-        if: ${{ inputs.run_apply == 'true' && inputs.environment != 'prod' }}
+        if: ${{ inputs.run_apply == 'true' }}
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform apply -input=false -auto-approve tfplan
 
