@@ -60,6 +60,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -73,6 +75,8 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Mirror required images
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
         run: |
           chmod +x scripts/mirror-platform-images.sh
-          ./scripts/mirror-platform-images.sh -n "${{ inputs.environment }}"
+          ./scripts/mirror-platform-images.sh -n "$TARGET_ENVIRONMENT"

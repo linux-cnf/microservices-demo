@@ -130,9 +130,9 @@ kubectl top pods -A || true
 
 echo "Checking PV to GCP disk map..."
 if [[ -x "./scripts/map-pv-disks.sh" ]]; then
-  ./scripts/map-pv-disks.sh || true
+  ./scripts/map-pv-disks.sh -n "${ENVIRONMENT}" || true
 elif [[ -x "./map-pv-disks.sh" ]]; then
-  ./map-pv-disks.sh || true
+  ./map-pv-disks.sh -n "${ENVIRONMENT}" || true
 else
   echo "map-pv-disks.sh not found or not executable. Skipping PV map."
 fi
