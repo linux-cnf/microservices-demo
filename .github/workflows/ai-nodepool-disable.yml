@@ -1,18 +1,6 @@
 # -------------------------------------------------------------------
-# WARNING
-# This workflow assumes:
-# - GKE cluster exists
-# - Core platform is running
-#
-# DO NOT run after:
-# platform-full-destroy.yml
-#
-# Purpose:
-# Cost optimization only.
-# Disables AI node pool.
-# --------------------------------------
 # PURPOSE:
-# On-demand cleanup workflow for AI platform infrastructure.
+# Cost optimization workflow for AI platform infrastructure.
 #
 # RESPONSIBILITIES:
 # - Disable the dedicated AI node pool using Terraform
@@ -23,16 +11,24 @@
 # This workflow does not destroy the full platform.
 # It only applies Terraform with enable_ai_node_pool=false.
 #
-# WHY SEPARATE FROM BOOTSTRAP?
-# Destroy actions should be explicit, isolated, and protected by
-# confirmation input to avoid accidental infrastructure removal.
+# CURRENT SCOPE:
+# AI node pool is enabled only for prod.
+# Future dev AI infra can be added by extending the environment options.
 # -------------------------------------------------------------------
 
-name: ai-platform-destroy
+name: ai-nodepool-disable
 
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Environment for AI node pool cleanup"
+        required: true
+        default: "prod"
+        type: choice
+        options:
+          - prod
+
       confirm_destroy:
         description: "Type yes-disable-ai-node-pool-only to confirm"
         required: true
@@ -43,7 +39,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: terraform-live-prod
+  group: terraform-live-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
@@ -54,6 +50,9 @@ jobs:
     env:
       TF_INPUT: "false"
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      SELECTED_ENVIRONMENT: ${{ inputs.environment }}
+      TERRAFORM_WORKING_DIR: terraform/live/${{ inputs.environment }}
+      CLUSTER_NAME: kfounding-prod
 
     steps:
       - name: Checkout repo
@@ -85,19 +84,18 @@ jobs:
         with:
           terraform_version: 1.14.8
 
-      - name: Guard - block AI destroy after full platform destroy
+      - name: Guard - block AI cleanup after full platform destroy
         run: |
-          if ! gcloud container clusters describe kfounding \
+          set -euo pipefail
+
+          if ! gcloud container clusters describe "${CLUSTER_NAME}" \
             --region us-central1 \
             --project "${TF_VAR_gcp_project_id}" >/dev/null 2>&1; then
 
             echo ""
-            echo "❌ Cluster not found."
+            echo "❌ Cluster not found: ${CLUSTER_NAME}"
             echo "Full platform appears to have been destroyed."
             echo "AI node pool cleanup workflow cannot run."
-            echo ""
-            echo "Blocked order:"
-            echo "  platform-full-destroy.yml -> ai-platform-destroy.yml"
             echo ""
             exit 1
           fi
@@ -105,23 +103,26 @@ jobs:
           echo "✅ Cluster exists. Safe to continue with AI node pool cleanup."
 
       - name: Terraform init
-        working-directory: terraform/live/prod
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform init -input=false
 
       - name: Terraform plan disable AI node pool
-        working-directory: terraform/live/prod
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform plan -input=false -var="enable_ai_node_pool=false" -out=tfplan-ai-destroy
 
       - name: Terraform apply disable AI node pool
-        working-directory: terraform/live/prod
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform apply -input=false -auto-approve tfplan-ai-destroy
 
       - name: Verify AI node pool removed
         run: |
+          set -euo pipefail
+
           echo "Checking node pools after AI cleanup..."
           gcloud container node-pools list \
-            --cluster kfounding \
-            --region us-central1
+            --cluster "${CLUSTER_NAME}" \
+            --region us-central1 \
+            --project "${TF_VAR_gcp_project_id}"
 
           echo ""
           echo "✅ Terraform cleanup completed."
@@ -131,9 +132,12 @@ jobs:
           echo "Kubernetes node verification is skipped in GitHub Actions because"
           echo "the GKE control plane is accessible only from whitelisted networks/bastion."
 
-      - name: AI platform destroy completion message
+      - name: AI node pool cleanup completion message
         run: |
           echo "✅ AI platform infrastructure cleanup completed."
+          echo ""
+          echo "Environment: ${SELECTED_ENVIRONMENT}"
+          echo "Cluster: ${CLUSTER_NAME}"
           echo ""
           echo "Dedicated AI node pool has been disabled."
           echo "Core GKE platform, application node pools, observability, and networking remain untouched."

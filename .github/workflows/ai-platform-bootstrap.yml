@@ -31,6 +31,13 @@ name: ai-platform-bootstrap
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Environment for AI node pool"
+        required: true
+        default: "prod"
+        type: choice
+        options:
+          - prod
       run_apply:
         description: "Run terraform apply to enable AI node pool?"
         required: true
@@ -42,6 +49,10 @@ on:
 
   workflow_call:
     inputs:
+      environment:
+        required: false
+        type: string
+        default: "prod"
       run_apply:
         description: "Run terraform apply to enable AI node pool?"
         required: false
@@ -53,7 +64,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: terraform-live-prod
+  group: terraform-live-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
@@ -63,6 +74,9 @@ jobs:
     env:
       TF_INPUT: "false"
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      SELECTED_ENVIRONMENT: ${{ inputs.environment }}
+      TERRAFORM_WORKING_DIR: terraform/live/${{ inputs.environment }}
+      CLUSTER_NAME: kfounding-prod
 
     steps:
       - name: Checkout repo
@@ -91,11 +105,11 @@ jobs:
           terraform_version: 1.14.8
 
       - name: Terraform init
-        working-directory: terraform/live/prod
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform init
 
       - name: Import existing AI node pool service account if present
-        working-directory: terraform/live/prod
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
@@ -116,27 +130,27 @@ jobs:
           fi
 
       - name: Terraform fmt check
-        working-directory: terraform/live/prod
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform fmt -check -recursive
 
       - name: Terraform validate
-        working-directory: terraform/live/prod
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform validate
 
       - name: Terraform plan AI platform
-        working-directory: terraform/live/prod
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform plan -input=false -var="enable_ai_node_pool=true" -out=tfplan-ai
 
       - name: Terraform apply AI platform
         if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}
-        working-directory: terraform/live/prod
+        working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform apply -input=false -auto-approve tfplan-ai
 
       - name: Get GKE credentials
         if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}
         uses: google-github-actions/get-gke-credentials@v2
         with:
-          cluster_name: kfounding
+          cluster_name: kfounding-prod
           location: us-central1
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
@@ -147,13 +161,13 @@ jobs:
 
           echo "Checking AI node pool from GCP API..."
           gcloud container node-pools list \
-            --cluster kfounding \
+            --cluster "${CLUSTER_NAME}" \
             --region us-central1
 
           echo ""
           echo "Verifying ai-node-pool exists..."
           gcloud container node-pools describe ai-node-pool \
-            --cluster kfounding \
+            --cluster "${CLUSTER_NAME}" \
             --region us-central1 \
             --format="table(name,config.machineType,config.diskSizeGb,status)"
 
