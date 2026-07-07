@@ -16,9 +16,9 @@
 # - Root app: platform-root-dev
 #
 # PROD:
-# - Cluster: kfounding
+# - Cluster: kfounding-prod
 # - Argo CD namespace: argocd
-# - Root app: platform-root
+# - Root app: platform-root-prod 
 # =========================================================
 
 set -euo pipefail
@@ -42,10 +42,10 @@ case "$ENVIRONMENT" in
     ROOT_APP_NAME="platform-root-dev"
     ;;
   prod)
-    CLUSTER_NAME="kfounding"
+    CLUSTER_NAME="kfounding-prod"
     ARGOCD_NAMESPACE="argocd"
-    ROOT_APP_FILE="argocd/platform-root-app.yaml"
-    ROOT_APP_NAME="platform-root"
+    ROOT_APP_FILE="argocd/platform-root-app-prod.yaml"
+    ROOT_APP_NAME="platform-root-prod"	  
     ;;
   *)
     echo "Usage: $0 -n dev|prod"
