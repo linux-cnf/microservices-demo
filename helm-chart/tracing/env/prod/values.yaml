@@ -1,11 +1,11 @@
 tempo:
   nodeSelector:
-    cloud.google.com/gke-nodepool: platform-observability-dev
+    cloud.google.com/gke-nodepool: platform-observability
 
   tempo:
     nodeSelector:
-      cloud.google.com/gke-nodepool: platform-observability-dev
+      cloud.google.com/gke-nodepool: platform-observability
 
 opentelemetry-collector:
   nodeSelector:
-    cloud.google.com/gke-nodepool: platform-observability-dev
+    cloud.google.com/gke-nodepool: platform-observability
