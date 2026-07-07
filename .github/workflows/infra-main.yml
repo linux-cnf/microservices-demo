@@ -122,7 +122,7 @@ jobs:
         run: terraform init
 
       - name: Import long-lived existing Terraform resources
-        if: ${{ inputs.environment == 'shared' }}
+        if: ${{ inputs.environment == 'shared' || inputs.environment == 'prod' }}
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
