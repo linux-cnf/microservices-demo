@@ -2,23 +2,64 @@
 
 set -euo pipefail
 
-AI_APP_NAME="ai-platform"
-AI_APP_NAMESPACE="argocd"
-AI_APP_MANIFEST="argocd/optional-apps/ai-platform/manifests/ai-platform.yaml"
-AI_AGENT_ADDR="http://ai-agent-orchestrator.ai.svc.cluster.local:8080/agent"
+ENVIRONMENT=""
+COMMAND="help"
 
 usage() {
   cat <<USAGE
 Usage:
-  $0 platform
-  $0 enable-assistant
-  $0 disable-assistant
-  $0 all
-  $0 help
+  $0 -n prod platform
+  $0 -n prod enable-assistant
+  $0 -n prod disable-assistant
+  $0 -n prod all
+  $0 -n prod help
+  $0 -n dev platform   # intentionally blocked for now 
+
+Notes:
+  - AI platform is currently supported only in prod.
+  - Dev AI support can be added later when dev AI infrastructure exists.
 USAGE
 }
 
+while getopts "n:h" opt; do
+  case "$opt" in
+    n) ENVIRONMENT="$OPTARG" ;;
+    h) usage; exit 0 ;;
+    *) usage; exit 1 ;;
+  esac
+done
+
+shift $((OPTIND - 1))
 COMMAND="${1:-help}"
+
+case "${ENVIRONMENT}" in
+  prod)
+    AI_APP_NAMESPACE="argocd"
+    ;;
+  dev)
+    echo "ERROR: AI platform is currently enabled only in prod."
+    echo "Dev AI infrastructure is not available yet."
+    echo ""
+    echo "Use:"
+    echo "  $0 -n prod platform"
+    exit 1
+    ;;
+  "")
+    echo "ERROR: Environment is required."
+    echo ""
+    usage
+    exit 1
+    ;;
+  *)
+    echo "ERROR: Invalid environment: ${ENVIRONMENT}"
+    echo "Use: dev or prod"
+    exit 1
+    ;;
+esac
+
+AI_APP_NAME="ai-platform"
+AI_APP_MANIFEST="argocd/optional-apps/ai-platform/manifests/ai-platform.yaml"
+AI_AGENT_ADDR="http://ai-agent-orchestrator.ai.svc.cluster.local:8080/agent"
 
 check_dependencies() {
   kubectl get crd applications.argoproj.io >/dev/null 2>&1 || {
@@ -51,6 +92,9 @@ apply_ai_application() {
   }
 
   echo "Applying optional AI Platform Argo CD Application..."
+  echo "Environment: ${ENVIRONMENT}"
+  echo "Argo CD namespace: ${AI_APP_NAMESPACE}"
+
   kubectl apply --validate=false -f "${AI_APP_MANIFEST}" -n "${AI_APP_NAMESPACE}"
 }
 

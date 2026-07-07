@@ -1,30 +1,49 @@
 #!/usr/bin/env bash
+# Mirrors approved third-party images into private Artifact Registry.
+#
+# Usage:
+#   ./scripts/mirror-platform-images.sh -n dev
+#   ./scripts/mirror-platform-images.sh -n prod
+#   ./scripts/mirror-platform-images.sh -n shared
+#
 # NOTE:
-# This script mirrors approved third-party container images into private
-# Google Artifact Registry repositories used by the GKE cluster.
-#
-# Purpose:
-# - Mirror platform/observability images.
-# - Mirror required third-party application images such as Redis.
-# - Avoid direct public image pulls from private GKE nodes.
-# - Skip images that already exist in Artifact Registry.
-#
-# Image inventory files:
-# - terraform/live/main/artifact_registry_seed_platform_images.txt
-# - terraform/live/main/artifact_registry_seed_images.txt
-#
-# Format:
-# source_image|target_image
-#
-# Flow:
-# external approved image -> private Artifact Registry mirror
-# -> GKE pulls trusted private image only.
+# shared has no seed files today, so it exits cleanly.
+# -------------------------------------------------------------------
 
 set -euo pipefail
 
+ENVIRONMENT=""
+
+usage() {
+  echo "Usage: $0 -n dev|prod|shared"
+}
+
+while getopts "n:h" opt; do
+  case "$opt" in
+    n) ENVIRONMENT="$OPTARG" ;;
+    h) usage; exit 0 ;;
+    *) usage; exit 1 ;;
+  esac
+done
+
+case "${ENVIRONMENT}" in
+  dev|prod)
+    SEED_DIR="terraform/live/${ENVIRONMENT}"
+    ;;
+  shared)
+    echo "Shared environment has no platform image seed files."
+    echo "Nothing to mirror."
+    exit 0
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
+
 SEED_FILES=(
-  "terraform/live/main/artifact_registry_seed_platform_images.txt"
-  "terraform/live/main/artifact_registry_seed_images.txt"
+  "${SEED_DIR}/artifact_registry_seed_platform_images.txt"
+  "${SEED_DIR}/artifact_registry_seed_images.txt"
 )
 
 gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
@@ -36,6 +55,7 @@ for IMAGE_FILE in "${SEED_FILES[@]}"; do
   fi
 
   echo "========================================================="
+  echo "Environment: ${ENVIRONMENT}"
   echo "Processing image seed file: ${IMAGE_FILE}"
   echo "========================================================="
 
@@ -67,4 +87,4 @@ for IMAGE_FILE in "${SEED_FILES[@]}"; do
   done < "${IMAGE_FILE}"
 done
 
-echo "Image mirroring completed successfully."
+echo "Image mirroring completed successfully for environment: ${ENVIRONMENT}"

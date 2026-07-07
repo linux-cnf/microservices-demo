@@ -52,6 +52,9 @@ module "gke_node_pool" {
     # Temporarily disabled due to GCE_STOCKOUT during cluster provisioning.
     #"us-central1-c"
   ]
+  node_labels = {
+    env = "prod"
+  }
 
   initial_node_count   = 1
   total_min_node_count = 1
@@ -94,7 +97,9 @@ module "gke_node_pool_platform_observability" {
   node_labels = {
     workload = "observability"
     tier     = "platform"
+    env      = "prod"
   }
+
 
   node_taints = [
     {

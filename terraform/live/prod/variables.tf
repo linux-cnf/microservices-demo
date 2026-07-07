@@ -21,7 +21,7 @@ variable "name" {
   type        = string
   description = "Name given to the new GKE cluster"
   #default     = "online-boutique"
-  default = "kfounding"
+  default = "kfounding-prod"
 }
 
 variable "region" {

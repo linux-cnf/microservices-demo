@@ -27,12 +27,13 @@
 # mirror-platform-images
 #
 # FUTURE PLATFORM FLOW:
-# platform-bootstrap
-#   ├── infra-main
-#   ├── mirror-platform-images
-#   ├── cluster-bootstrap
-#   ├── observability-bootstrap
-#   └── smoke-tests
+#   platform-bootstrap
+# ├── infra-main
+# ├── mirror-platform-images
+# ├── cluster-bootstrap (bastion/self-hosted runner)
+# ├── AI platform bootstrap
+# ├── smoke-tests
+# └── future production validation
 #
 # BENEFITS:
 # - deterministic platform bootstrap
@@ -50,6 +51,14 @@ name: platform-bootstrap
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Environment to bootstrap"
+        required: true
+        default: "prod"
+        type: choice
+        options:
+          - dev
+          - prod
       run_terraform_validate:
         description: "Run terraform validation?"
         required: true
@@ -150,6 +159,7 @@ jobs:
     needs: terraform-validate
     uses: ./.github/workflows/infra-main.yml
     with:
+      environment: ${{ inputs.environment }}
       run_apply: ${{ inputs.run_apply }}
     secrets: inherit
 
@@ -157,6 +167,8 @@ jobs:
     if: ${{ !cancelled() && inputs.run_mirror_platform_images == 'true' }}
     needs: infra
     uses: ./.github/workflows/mirror-platform-images.yml
+    with:
+      environment: ${{ inputs.environment }}
     secrets: inherit
 
   ai-platform-bootstrap:
@@ -165,6 +177,7 @@ jobs:
       - infra
     uses: ./.github/workflows/ai-platform-bootstrap.yml
     with:
+      environment: ${{ inputs.environment }}
       run_apply: true
     secrets: inherit
 
@@ -188,7 +201,7 @@ jobs:
           echo ""
           echo "Now deploy the serving/application layer from this microservices repo:"
           echo ""
-          echo "  ./scripts/cluster-bootstrap.sh"
+          echo "  ./scripts/cluster-bootstrap.sh -n ${{ inputs.environment }}"
           echo ""
           echo "NOTE:"
           echo "Run this script from the bastion node or from the machine/IP range whitelisted in GKE master authorized networks."

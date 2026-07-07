@@ -46,15 +46,15 @@ jobs:
           terraform_version: 1.14.8
 
       - name: Terraform fmt check
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform fmt -check -recursive
 
       - name: Terraform init
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform init -backend=false
 
       - name: Terraform validate
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform validate
 
       - name: Block committed Terraform generated files

@@ -2,7 +2,7 @@
 
 This Terraform live environment manages GitHub repository guardrails for the `microservices-demo` repository.
 
-It is intentionally separated from `terraform/live/main` because this stack manages GitHub governance, not GCP infrastructure.
+It is intentionally separated from `terraform/live/prod` because this stack manages GitHub governance, not GCP infrastructure.
 
 Managed resources:
 

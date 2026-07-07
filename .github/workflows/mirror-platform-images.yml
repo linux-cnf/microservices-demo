@@ -10,11 +10,11 @@
 # - Support environments running without Cloud NAT/public internet access.
 #
 # Image inventories:
-# - terraform/live/main/artifact_registry_seed_platform_images.txt
-# - terraform/live/main/artifact_registry_seed_images.txt
+# - terraform/live/prod/artifact_registry_seed_platform_images.txt
+# - terraform/live/prod/artifact_registry_seed_images.txt
 #
 # Mirroring logic:
-# - scripts/mirror-platform-images.sh
+# ./scripts/mirror-platform-images.sh -n "${{ inputs.environment }}"
 #
 # Flow:
 # approved external images -> internal Artifact Registry mirror
@@ -23,14 +23,29 @@ name: mirror-platform-images
 
 on:
   workflow_call:
+    inputs:
+      environment:
+        required: false
+        type: string
+        default: "prod"
 
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to mirror images for"
+        required: true
+        default: "prod"
+        type: choice
+        options:
+          - dev
+          - prod
+          - shared
 
   push:
     branches: [main]
     paths:
-      - "terraform/live/main/artifact_registry_seed_platform_images.txt"
-      - "terraform/live/main/artifact_registry_seed_images.txt"
+      - "terraform/live/prod/artifact_registry_seed_platform_images.txt"
+      - "terraform/live/prod/artifact_registry_seed_images.txt"
       - "scripts/mirror-platform-images.sh"
       - ".github/workflows/mirror-platform-images.yml"
 
@@ -45,6 +60,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -58,6 +75,8 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Mirror required images
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
         run: |
           chmod +x scripts/mirror-platform-images.sh
-          ./scripts/mirror-platform-images.sh
+          ./scripts/mirror-platform-images.sh -n "$TARGET_ENVIRONMENT"

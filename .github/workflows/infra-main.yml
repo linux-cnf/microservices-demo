@@ -75,6 +75,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Validate selected environment
         run: |
@@ -122,7 +124,7 @@ jobs:
         run: terraform init
 
       - name: Import long-lived existing Terraform resources
-        if: ${{ inputs.environment == 'shared' }}
+        if: ${{ inputs.environment == 'shared' || inputs.environment == 'prod' }}
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -266,15 +268,8 @@ jobs:
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform plan -input=false -out=tfplan
 
-      - name: Block prod apply for Release 2
-        if: ${{ inputs.run_apply == 'true' && inputs.environment == 'prod' }}
-        run: |
-          echo "Prod apply is intentionally blocked in Release 2."
-          echo "Use dev first. Prod will be enabled after validation."
-          exit 1
-
       - name: Terraform apply
-        if: ${{ inputs.run_apply == 'true' && inputs.environment != 'prod' }}
+        if: ${{ inputs.run_apply == 'true' }}
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform apply -input=false -auto-approve tfplan
 
@@ -313,14 +308,14 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Map Kubernetes PVs to GCP disks
-        if: ${{ inputs.run_apply == 'true' && inputs.environment == 'dev' }}
+        if: ${{ inputs.run_apply == 'true' && inputs.environment != 'shared' }}
         continue-on-error: true
         run: |
           chmod +x scripts/map-pv-disks.sh
-          ./scripts/map-pv-disks.sh | tee pv-disk-map.txt
+          ./scripts/map-pv-disks.sh -n "${SELECTED_ENVIRONMENT}" | tee pv-disk-map.txt
 
       - name: Upload PV disk map artifact
-        if: ${{ inputs.run_apply == 'true' && inputs.environment == 'dev' }}
+        if: ${{ inputs.run_apply == 'true' && inputs.environment != 'shared' }}
         uses: actions/upload-artifact@v4
         with:
           name: pv-disk-map-${{ inputs.environment }}
