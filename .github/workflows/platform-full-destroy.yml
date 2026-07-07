@@ -196,7 +196,7 @@ jobs:
     env:
       TF_INPUT: "false"
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
-      TF_DIR: terraform/live/main
+      TF_DIR: terraform/live/prod
       GKE_CLUSTER: kfounding
       GKE_REGION: us-central1
       NODE_POOLS: "primary-node-pool platform-observability ai-node-pool default-pool"

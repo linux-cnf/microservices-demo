@@ -43,7 +43,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: terraform-live-main
+  group: terraform-live-prod
   cancel-in-progress: false
 
 jobs:
@@ -105,15 +105,15 @@ jobs:
           echo "✅ Cluster exists. Safe to continue with AI node pool cleanup."
 
       - name: Terraform init
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform init -input=false
 
       - name: Terraform plan disable AI node pool
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform plan -input=false -var="enable_ai_node_pool=false" -out=tfplan-ai-destroy
 
       - name: Terraform apply disable AI node pool
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform apply -input=false -auto-approve tfplan-ai-destroy
 
       - name: Verify AI node pool removed

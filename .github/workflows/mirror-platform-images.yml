@@ -10,8 +10,8 @@
 # - Support environments running without Cloud NAT/public internet access.
 #
 # Image inventories:
-# - terraform/live/main/artifact_registry_seed_platform_images.txt
-# - terraform/live/main/artifact_registry_seed_images.txt
+# - terraform/live/prod/artifact_registry_seed_platform_images.txt
+# - terraform/live/prod/artifact_registry_seed_images.txt
 #
 # Mirroring logic:
 # - scripts/mirror-platform-images.sh
@@ -29,8 +29,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "terraform/live/main/artifact_registry_seed_platform_images.txt"
-      - "terraform/live/main/artifact_registry_seed_images.txt"
+      - "terraform/live/prod/artifact_registry_seed_platform_images.txt"
+      - "terraform/live/prod/artifact_registry_seed_images.txt"
       - "scripts/mirror-platform-images.sh"
       - ".github/workflows/mirror-platform-images.yml"
 

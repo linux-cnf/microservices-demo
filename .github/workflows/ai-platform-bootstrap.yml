@@ -53,7 +53,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: terraform-live-main
+  group: terraform-live-prod
   cancel-in-progress: false
 
 jobs:
@@ -91,11 +91,11 @@ jobs:
           terraform_version: 1.14.8
 
       - name: Terraform init
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform init
 
       - name: Import existing AI node pool service account if present
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
@@ -116,20 +116,20 @@ jobs:
           fi
 
       - name: Terraform fmt check
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform fmt -check -recursive
 
       - name: Terraform validate
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform validate
 
       - name: Terraform plan AI platform
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform plan -input=false -var="enable_ai_node_pool=true" -out=tfplan-ai
 
       - name: Terraform apply AI platform
         if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform apply -input=false -auto-approve tfplan-ai
 
       - name: Get GKE credentials

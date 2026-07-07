@@ -10,8 +10,8 @@
 # - Skip images that already exist in Artifact Registry.
 #
 # Image inventory files:
-# - terraform/live/main/artifact_registry_seed_platform_images.txt
-# - terraform/live/main/artifact_registry_seed_images.txt
+# - terraform/live/prod/artifact_registry_seed_platform_images.txt
+# - terraform/live/prod/artifact_registry_seed_images.txt
 #
 # Format:
 # source_image|target_image
@@ -23,8 +23,8 @@
 set -euo pipefail
 
 SEED_FILES=(
-  "terraform/live/main/artifact_registry_seed_platform_images.txt"
-  "terraform/live/main/artifact_registry_seed_images.txt"
+  "terraform/live/prod/artifact_registry_seed_platform_images.txt"
+  "terraform/live/prod/artifact_registry_seed_images.txt"
 )
 
 gcloud auth configure-docker us-central1-docker.pkg.dev --quiet

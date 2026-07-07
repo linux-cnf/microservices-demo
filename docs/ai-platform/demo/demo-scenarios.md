@@ -43,7 +43,7 @@ Demonstrate Infrastructure as Code.
 Show:
 
 ```bash
-terraform/live/main
+terraform/live/prod
 ```
 
 Explain:

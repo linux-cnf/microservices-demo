@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SEED_FILE="${1:-../../terraform/live/main/artifact_registry_seed_platform_images.txt}"
+SEED_FILE="${1:-../../terraform/live/prod/artifact_registry_seed_platform_images.txt}"
 SKIPPED=0
 PUSHED=0
 

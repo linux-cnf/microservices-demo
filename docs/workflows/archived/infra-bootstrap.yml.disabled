@@ -53,19 +53,19 @@ jobs:
           terraform_version: 1.14.8
 
       - name: Terraform init
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform init
 
       - name: Terraform fmt check
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform fmt -check -recursive
 
       - name: Terraform validate
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         run: terraform validate
 
       - name: Terraform plan
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         env:
           TF_INPUT: "false"
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -73,7 +73,7 @@ jobs:
 
       - name: Terraform apply
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_apply == 'true'
-        working-directory: terraform/live/main
+        working-directory: terraform/live/prod
         env:
           TF_INPUT: "false"
           TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
@@ -86,7 +86,7 @@ jobs:
       - name: Mirror approved third-party images to Artifact Registry
         run: |
           set -euo pipefail
-          IMAGE_FILE="terraform/live/main/artifact_registry_seed_images.txt"
+          IMAGE_FILE="terraform/live/prod/artifact_registry_seed_images.txt"
           if [ ! -f "${IMAGE_FILE}" ]; then
             echo "No third-party image inventory file found. Skipping."
             exit 0
