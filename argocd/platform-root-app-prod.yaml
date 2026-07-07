@@ -1,0 +1,36 @@
+# -------------------------------------------------------------------
+# PURPOSE:
+# Root Argo CD Application for the prod environment.
+#
+# RESPONSIBILITIES:
+# - Register all prod Argo CD child applications.
+# - Point Argo CD to the prod application directory.
+#
+# WHY THIS EXISTS?
+# Release 3 introduces production GitOps readiness.
+# Prod must reconcile from its own app path without touching dev.
+# -------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-root-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/linux-cnf/microservices-demo.git
+    targetRevision: main
+    path: argocd/apps/prod
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - PruneLast=true
