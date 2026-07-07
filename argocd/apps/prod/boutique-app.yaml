@@ -9,7 +9,7 @@ spec:
   project: boutique
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
-    targetRevision: main
+    targetRevision: release/v3-prod-infra
     path: kustomize/environments/prod
   destination:
     server: https://kubernetes.default.svc

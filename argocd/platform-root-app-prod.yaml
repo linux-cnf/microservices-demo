@@ -19,7 +19,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
-    targetRevision: main
+    targetRevision: release/v3-prod-infra
     path: argocd/apps/prod
     directory:
       recurse: false
