@@ -167,6 +167,8 @@ jobs:
     if: ${{ !cancelled() && inputs.run_mirror_platform_images == 'true' }}
     needs: infra
     uses: ./.github/workflows/mirror-platform-images.yml
+    with:
+      environment: ${{ inputs.environment }}
     secrets: inherit
 
   ai-platform-bootstrap:

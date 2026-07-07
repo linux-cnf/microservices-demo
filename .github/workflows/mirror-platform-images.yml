@@ -14,7 +14,7 @@
 # - terraform/live/prod/artifact_registry_seed_images.txt
 #
 # Mirroring logic:
-# - scripts/mirror-platform-images.sh
+# ./scripts/mirror-platform-images.sh -n "${{ inputs.environment }}"
 #
 # Flow:
 # approved external images -> internal Artifact Registry mirror
@@ -23,8 +23,23 @@ name: mirror-platform-images
 
 on:
   workflow_call:
+    inputs:
+      environment:
+        required: false
+        type: string
+        default: "prod"
 
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to mirror images for"
+        required: true
+        default: "prod"
+        type: choice
+        options:
+          - dev
+          - prod
+          - shared
 
   push:
     branches: [main]
@@ -60,4 +75,4 @@ jobs:
       - name: Mirror required images
         run: |
           chmod +x scripts/mirror-platform-images.sh
-          ./scripts/mirror-platform-images.sh
+          ./scripts/mirror-platform-images.sh -n "${{ inputs.environment }}"
