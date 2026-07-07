@@ -206,4 +206,3 @@ jobs:
           echo ""
           echo "Current whitelisted CIDR:"
           echo "  163.227.186.128/30"
-
