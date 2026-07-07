@@ -76,7 +76,7 @@ jobs:
 
       - name: Mirror required images
         env:
-          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          TARGET_ENVIRONMENT: ${{ inputs.environment || 'prod' }}
         run: |
           chmod +x scripts/mirror-platform-images.sh
           ./scripts/mirror-platform-images.sh -n "$TARGET_ENVIRONMENT"
