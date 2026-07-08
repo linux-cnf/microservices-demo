@@ -1,29 +1,39 @@
 #!/usr/bin/env bash
-
+# ---------------------------------------------------------
+# PURPOSE:
+# Bootstraps the AI Platform through Argo CD.
+# Supports branch-aware GitOps deployments for feature, develop,
+# and main branches without modifying repository manifests.
+# ---------------------------------------------------------
 set -euo pipefail
 
 ENVIRONMENT=""
 COMMAND="help"
+BRANCH="main"
 
 usage() {
   cat <<USAGE
 Usage:
-  $0 -n prod platform
-  $0 -n prod enable-assistant
-  $0 -n prod disable-assistant
-  $0 -n prod all
-  $0 -n prod help
+  $0 -n prod -b main platform
+  $0 -n prod -b develop platform
+  $0 -n prod -b feature/ai-infra-release-4 platform
+
+  $0 -n prod -b develop enable-assistant
+  $0 -n prod -b develop disable-assistant
+  $0 -n prod -b develop all
   $0 -n dev platform   # intentionally blocked for now 
 
 Notes:
-  - AI platform is currently supported only in prod.
-  - Dev AI support can be added later when dev AI infrastructure exists.
+  - The AI Application temporarily follows the selected Git branch.
+  - No repository manifest changes are required for branch testing.
+  - Production releases should use the main branch.
 USAGE
 }
 
-while getopts "n:h" opt; do
+while getopts "n:b:h" opt; do
   case "$opt" in
     n) ENVIRONMENT="$OPTARG" ;;
+    b) BRANCH="$OPTARG" ;;
     h) usage; exit 0 ;;
     *) usage; exit 1 ;;
   esac
@@ -41,7 +51,7 @@ case "${ENVIRONMENT}" in
     echo "Dev AI infrastructure is not available yet."
     echo ""
     echo "Use:"
-    echo "  $0 -n prod platform"
+    echo "  $0 -n prod -b develop platform"
     exit 1
     ;;
   "")
@@ -93,9 +103,14 @@ apply_ai_application() {
 
   echo "Applying optional AI Platform Argo CD Application..."
   echo "Environment: ${ENVIRONMENT}"
+  echo "Git Branch  : ${BRANCH}"
   echo "Argo CD namespace: ${AI_APP_NAMESPACE}"
+  echo
+  
+  sed "s|targetRevision: .*|targetRevision: ${BRANCH}|g" \
+      "${AI_APP_MANIFEST}" \
+      | kubectl apply --validate=false -f -
 
-  kubectl apply --validate=false -f "${AI_APP_MANIFEST}" -n "${AI_APP_NAMESPACE}"
 }
 
 wait_for_ai_app() {
