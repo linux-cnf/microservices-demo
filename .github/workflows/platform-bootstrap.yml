@@ -57,6 +57,7 @@ on:
         default: "prod"
         type: choice
         options:
+          - shared
           - dev
           - prod
       run_terraform_validate:
@@ -78,7 +79,7 @@ on:
           - "false"
 
       run_infra:
-        description: "Run infra-main workflow?"
+        description: "Provision Terraform infrastructure?"
         required: true
         default: "false"
         type: choice
