@@ -19,7 +19,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
-    targetRevision: main
+    targetRevision: release/v3.0.1-multi-env-validation
     path: argocd/apps/dev
     directory:
       recurse: false
