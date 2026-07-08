@@ -52,6 +52,8 @@ spec:
                 secretKeyRef:
                   name: argocd-notifications-secret
                   key: slack-token
+            - name: ENVIRONMENT
+              value: dev
             command:
             - /bin/sh
             - -c
@@ -61,4 +63,4 @@ spec:
               curl -sS -X POST https://slack.com/api/chat.postMessage \
                 -H "Authorization: Bearer ${SLACK_TOKEN}" \
                 -H "Content-type: application/json" \
-                --data "$(printf '{"channel":"argocd-alerts","text":"*ArgoCD Application Report - Every 2 Hours*\n```%s```"}' "$REPORT")"
+                --data "$(printf '{"channel":"argocd-alerts","text":"*ArgoCD Application Report - ${ENVIRONMENT} - Every 2 Hours*\n```%s```"}' "$REPORT")"

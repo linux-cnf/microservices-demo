@@ -52,6 +52,8 @@ spec:
                 secretKeyRef:
                   name: argocd-notifications-secret
                   key: slack-token
+            - name: ENVIRONMENT
+              value: prod
             command:
             - /bin/sh
             - -c
