@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
-    targetRevision: release/v3.0.1-multi-env-validation
+    targetRevision: main
     path: argocd/apps/argo-rollouts
   destination:
     server: https://kubernetes.default.svc
