@@ -10,4 +10,4 @@ kiali-server:
 
   external_services:
     prometheus:
-      url: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+      url: http://observability-prod-kube-pr-prometheus.monitoring.svc.cluster.local:9090

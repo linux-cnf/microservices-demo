@@ -13,7 +13,7 @@ spec:
     failureLimit: 1
     provider:
       prometheus:
-        address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+        address: http://observability-prod-kube-pr-prometheus.monitoring.svc.cluster.local:9090
         query: |
           sum(kube_pod_status_ready{namespace="boutique",condition="true",pod=~"frontend-.*"})
 
@@ -24,7 +24,7 @@ spec:
     failureLimit: 1
     provider:
       prometheus:
-        address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+        address: http://observability-prod-kube-pr-prometheus.monitoring.svc.cluster.local:9090
         query: |
           sum(rate(prober_probe_total{namespace="boutique",pod=~"frontend-.*",result="failed"}[5m])) or vector(0)
 
@@ -35,7 +35,7 @@ spec:
     failureLimit: 1
     provider:
       prometheus:
-        address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+        address: http://observability-prod-kube-pr-prometheus.monitoring.svc.cluster.local:9090
         query: |
           sum(increase(kube_pod_container_status_restarts_total{namespace="boutique",pod=~"frontend-.*"}[5m])) or vector(0)
 
@@ -46,6 +46,6 @@ spec:
     failureLimit: 1
     provider:
       prometheus:
-        address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+        address: http://observability-prod-kube-pr-prometheus.monitoring.svc.cluster.local:9090
         query: |
           histogram_quantile(0.95, sum(rate(prober_probe_duration_seconds_bucket{namespace="boutique",pod=~"frontend-.*",probe_type="Readiness"}[5m])) by (le))
