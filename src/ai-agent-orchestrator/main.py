@@ -170,10 +170,11 @@ try:
     config.load_incluster_config()
     K8S_CORE = client.CoreV1Api()
     K8S_APPS = client.AppsV1Api()
+    K8S_CUSTOM = client.CustomObjectsApi()
 except Exception:
     K8S_CORE = None
     K8S_APPS = None
-
+    K8S_CUSTOM = None
 
 class ChatRequest(BaseModel):
     prompt: str
@@ -604,6 +605,34 @@ def build_product_catalog_tool_result() -> dict[str, Any]:
     except Exception as exc:
         return {"error": str(exc)}
 
+def build_argocd_tool_result() -> dict[str, Any]:
+    if not K8S_CUSTOM:
+        return {"error": "Kubernetes custom objects client is not initialized"}
+
+    try:
+        apps = K8S_CUSTOM.list_cluster_custom_object(
+            group="argoproj.io",
+            version="v1alpha1",
+            plural="applications",
+        )
+
+        return {
+            "applications": [
+                {
+                    "name": app.get("metadata", {}).get("name"),
+                    "namespace": app.get("metadata", {}).get("namespace"),
+                    "sync_status": app.get("status", {}).get("sync", {}).get("status"),
+                    "health_status": app.get("status", {}).get("health", {}).get("status"),
+                    "repo_url": app.get("spec", {}).get("source", {}).get("repoURL"),
+                    "target_revision": app.get("spec", {}).get("source", {}).get("targetRevision"),
+                    "path": app.get("spec", {}).get("source", {}).get("path"),
+                }
+                for app in apps.get("items", [])
+            ]
+        }
+
+    except Exception as exc:
+        return {"error": str(exc)}
 
 def build_tool_context(tool_used: str, tool_result: dict[str, Any]) -> str:
     if tool_used == "none":
