@@ -55,7 +55,7 @@ on:
         type: choice
         options:
           - cpu-small
-          - cpu-better            
+          - cpu-better
 
   workflow_call:
     inputs:
@@ -97,6 +97,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -154,21 +156,32 @@ jobs:
         run: terraform validate
 
       - name: Select AI profile
+        env:
+          AI_PROFILE: ${{ inputs.ai_profile }}
         run: |
-          if [ "${{ inputs.ai_profile }}" = "cpu-better" ]; then
-            echo "AI_MACHINE_TYPE=e2-highmem-4" >> "$GITHUB_ENV"
-            echo "AI_MODEL=llama3.2:3b" >> "$GITHUB_ENV"
-          else
-            echo "AI_MACHINE_TYPE=e2-standard-2" >> "$GITHUB_ENV"
-            echo "AI_MODEL=tinyllama" >> "$GITHUB_ENV"
-          fi
+          set -euo pipefail
+
+          case "${AI_PROFILE}" in
+            cpu-better)
+              echo "AI_MACHINE_TYPE=e2-highmem-4" >> "$GITHUB_ENV"
+              echo "AI_MODEL=llama3.2:3b" >> "$GITHUB_ENV"
+              ;;
+            cpu-small)
+              echo "AI_MACHINE_TYPE=e2-standard-2" >> "$GITHUB_ENV"
+              echo "AI_MODEL=tinyllama" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "Invalid AI profile: ${AI_PROFILE}"
+              exit 1
+              ;;
+          esac
 
       - name: Terraform plan AI platform
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform plan -input=false \
-               -var="enable_ai_node_pool=true" \
-               -var="ai_node_pool_machine_type=${AI_MACHINE_TYPE}" \
-               -out=tfplan-ai
+          -var="enable_ai_node_pool=true" \
+          -var="ai_node_pool_machine_type=${AI_MACHINE_TYPE}" \
+          -out=tfplan-ai
 
       - name: Terraform apply AI platform
         if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}
