@@ -58,7 +58,7 @@ module "gke_node_pool" {
 
   initial_node_count   = 1
   total_min_node_count = 1
-  total_max_node_count = 3
+  total_max_node_count = 2
   location_policy      = "BALANCED"
   node_pool_name       = "primary-node-pool"
   machine_type         = "e2-standard-2"
