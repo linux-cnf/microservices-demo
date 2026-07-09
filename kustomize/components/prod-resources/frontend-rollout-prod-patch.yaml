@@ -1,6 +1,6 @@
 - op: replace
   path: /spec/replicas
-  value: 3
+  value: 2
 
 - op: add
   path: /spec/template/metadata/annotations/sidecar.istio.io~1proxyCPU
