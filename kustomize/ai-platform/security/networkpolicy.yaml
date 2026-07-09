@@ -104,6 +104,15 @@ spec:
         - protocol: TCP
           port: 443
 
+    # Required because kubernetes.default.svc forwards to the GKE control-plane endpoint.
+    # This CIDR comes from Terraform master_ipv4_cidr_block.
+    - to:
+        - ipBlock:
+            cidr: 172.16.0.0/28
+      ports:
+        - protocol: TCP
+          port: 443            
+
     # Allow HTTPS egress to public endpoints only.
     # Private RFC1918 ranges are excluded to avoid broad internal access.
     - to:
