@@ -9,7 +9,7 @@ spec:
   project: platform
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
-    targetRevision: main
+    targetRevision: develop
     path: helm-chart/tracing
     helm:
       valueFiles:
