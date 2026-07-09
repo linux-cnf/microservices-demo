@@ -644,15 +644,16 @@ def build_incident_context(namespace: str) -> dict[str, Any]:
         "argocd": build_argocd_tool_result(),
     }
 
-def build_incident_prompt(req: IncidentInvestigationRequest, context: dict[str, Any]) -> str:
-    return f"""
+def build_incident_prompt(
+    req: IncidentInvestigationRequest,
+    context: dict[str, Any],
+) -> str:
+    prompt = f"""
 {SYSTEM_PROMPT}
 
 You are performing an SRE incident investigation.
 
-Analyze the live incident context below and return only this structure:
-
-Return ONLY the following JSON:
+Analyze the live incident context below and return ONLY the following JSON:
 
 {{
   "root_cause": "...",
@@ -669,8 +670,8 @@ Return ONLY the following JSON:
 
 Rules:
 - Use only the provided live context.
-- Do not invent pod names, errors, metrics, logs, or Argo CD status.
-- If evidence is insufficient, say exactly what is missing.
+- Do not invent pod names, metrics, logs, traces, or Argo CD status.
+- If evidence is insufficient, explicitly state what information is missing.
 - Keep the response concise and production-focused.
 
 User incident question:
@@ -679,6 +680,15 @@ User incident question:
 Live incident context:
 {context}
 """.strip()
+
+    # LLM Gateway currently validates prompts with a maximum length of 4000
+    # characters. Keep the prompt safely below that limit.
+    max_prompt_chars = 3900
+
+    if len(prompt) > max_prompt_chars:
+        prompt = prompt[:max_prompt_chars]
+
+    return prompt
 
 def build_tool_context(tool_used: str, tool_result: dict[str, Any]) -> str:
     if tool_used == "none":

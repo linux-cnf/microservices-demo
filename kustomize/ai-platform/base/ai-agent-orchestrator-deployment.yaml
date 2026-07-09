@@ -59,7 +59,7 @@ spec:
             - name: LLM_GATEWAY_URL
               value: "http://ai-llm-gateway.ai.svc.cluster.local:8080"
             - name: PROMETHEUS_URL
-              value: "http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090"
+              value: "http://observability-prod-kube-pr-prometheus.monitoring.svc.cluster.local:9090"
             - name: ELASTICSEARCH_URL
               value: "https://elasticsearch-es-http.logging.svc.cluster.local:9200"
             - name: ELASTICSEARCH_USERNAME
@@ -75,7 +75,7 @@ spec:
             - name: ELASTICSEARCH_CA_SECRET_KEY
               value: "ca.crt"
             - name: TEMPO_URL
-              value: "http://tracing-tempo.tracing.svc.cluster.local:3200"
+              value: "http://tracing-prod-tempo.tracing.svc.cluster.local:3200"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://tracing-opentelemetry-collector.tracing.svc.cluster.local:4318"
             - name: PRODUCT_CATALOG_NAMESPACE
