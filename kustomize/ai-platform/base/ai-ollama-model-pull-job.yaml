@@ -4,7 +4,7 @@
 #
 # RESPONSIBILITIES:
 # - Wait for ai-ollama service to become reachable
-# - Pull the tinyllama model through Ollama API
+# - Pull the llama3.2:3b model through Ollama API
 # - Make model bootstrap GitOps-managed
 #
 # ARGO CD:
@@ -59,7 +59,7 @@ spec:
             - name: AI_OLLAMA_URL
               value: "http://ai-ollama.ai.svc.cluster.local:11434"
             - name: AI_MODEL_NAME
-              value: "tinyllama"
+              value: "llama3.2:3b"
 
           command:
             - /bin/sh

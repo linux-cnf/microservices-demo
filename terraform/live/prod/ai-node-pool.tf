@@ -28,9 +28,10 @@ module "gke_node_pool_ai" {
 
   # Regional autoscaling
   initial_node_count   = 1
-  total_min_node_count = 1
-  total_max_node_count = 2
-  location_policy      = "BALANCED"
+  total_min_node_count = var.ai_node_pool_min_count
+  total_max_node_count = var.ai_node_pool_max_count
+
+  location_policy = "BALANCED"
 
   # Node pool configuration
   node_pool_name    = "ai-node-pool"
