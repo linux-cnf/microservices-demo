@@ -179,6 +179,9 @@ except Exception:
 class ChatRequest(BaseModel):
     prompt: str
 
+class IncidentInvestigationRequest(BaseModel):
+    prompt: str
+    namespace: str = "boutique"
 
 def query_prometheus(query: str) -> dict[str, Any]:
     response = requests.get(
@@ -297,26 +300,24 @@ def should_use_product_catalog(prompt: str) -> bool:
     prompt_lower = prompt.lower()
     return any(keyword in prompt_lower for keyword in keywords)
 
-
-def build_prometheus_tool_result() -> dict[str, Any]:
+def build_prometheus_tool_result(
+    namespace: str = DEFAULT_K8S_NAMESPACE,
+) -> dict[str, Any]:
     queries = {
-        "ai_pods_ready": (
-            'sum(kube_pod_status_ready{namespace="ai",condition="true"})'
+        "pods_ready": (
+            f'sum(kube_pod_status_ready{{namespace="{namespace}",condition="true"}})'
         ),
-        "ai_pods_running": (
-            'sum(kube_pod_status_phase{namespace="ai",phase="Running"})'
+        "pods_running": (
+            f'sum(kube_pod_status_phase{{namespace="{namespace}",phase="Running"}})'
         ),
-        "ai_container_restarts": (
-            'sum(kube_pod_container_status_restarts_total{namespace="ai"})'
+        "container_restarts": (
+            f'sum(kube_pod_container_status_restarts_total{{namespace="{namespace}"}})'
         ),
-        "ai_llm_gateway_ready": (
-            'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ai-llm-gateway-.*"})'
+        "deployments_available": (
+            f'sum(kube_deployment_status_replicas_available{{namespace="{namespace}"}})'
         ),
-        "ai_ollama_ready": (
-            'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ai-ollama-.*"})'
-        ),
-        "ai_agent_ready": (
-            'sum(kube_pod_status_ready{namespace="ai",condition="true",pod=~"ai-agent-orchestrator-.*"})'
+        "deployments_unavailable": (
+            f'sum(kube_deployment_status_replicas_unavailable{{namespace="{namespace}"}})'
         ),
     }
 
@@ -336,7 +337,6 @@ def build_prometheus_tool_result() -> dict[str, Any]:
             }
 
     return results
-
 
 def build_kubernetes_tool_result(namespace: str = DEFAULT_K8S_NAMESPACE) -> dict[str, Any]:
     if not K8S_CORE or not K8S_APPS:
@@ -634,6 +634,52 @@ def build_argocd_tool_result() -> dict[str, Any]:
     except Exception as exc:
         return {"error": str(exc)}
 
+def build_incident_context(namespace: str) -> dict[str, Any]:
+    return {
+        "namespace": namespace,
+        "kubernetes": build_kubernetes_tool_result(namespace),
+        "prometheus": build_prometheus_tool_result(namespace),
+        "elasticsearch_logs": build_elasticsearch_logs_tool_result(),
+        "tempo": build_tempo_tool_result(),
+        "argocd": build_argocd_tool_result(),
+    }
+
+def build_incident_prompt(req: IncidentInvestigationRequest, context: dict[str, Any]) -> str:
+    return f"""
+{SYSTEM_PROMPT}
+
+You are performing an SRE incident investigation.
+
+Analyze the live incident context below and return only this structure:
+
+Return ONLY the following JSON:
+
+{
+  "root_cause": "...",
+  "evidence": [
+    "...",
+    "..."
+  ],
+  "recommendation": [
+    "...",
+    "..."
+  ],
+  "severity": "Low|Medium|High|Critical"
+}
+
+Rules:
+- Use only the provided live context.
+- Do not invent pod names, errors, metrics, logs, or Argo CD status.
+- If evidence is insufficient, say exactly what is missing.
+- Keep the response concise and production-focused.
+
+User incident question:
+{req.prompt}
+
+Live incident context:
+{context}
+""".strip()
+
 def build_tool_context(tool_used: str, tool_result: dict[str, Any]) -> str:
     if tool_used == "none":
         return "No live tool context used."
@@ -672,6 +718,60 @@ def metrics():
         generate_latest(),
         media_type=CONTENT_TYPE_LATEST,
     )
+
+
+@app.post("/incident/investigate")
+def investigate_incident(req: IncidentInvestigationRequest):
+    start_time = time.time()
+
+    AI_AGENT_REQUESTS_TOTAL.labels(
+        endpoint="/incident/investigate",
+        method="POST",
+    ).inc()
+
+    try:
+        AI_TOOL_CALLS_TOTAL.labels(tool="incident_context").inc()
+
+        context = build_incident_context(req.namespace)
+        final_prompt = build_incident_prompt(req, context)
+
+        try:
+            response = requests.post(
+                f"{LLM_GATEWAY_URL}/chat",
+                json={"prompt": final_prompt},
+                timeout=180,
+            )
+            response.raise_for_status()
+            llm_response = response.json()
+            llm_error = None
+
+        except Exception as exc:
+            AI_AGENT_ERRORS_TOTAL.labels(
+                endpoint="/incident/investigate",
+            ).inc()
+
+            llm_response = None
+            llm_error = str(exc)
+
+        if llm_error:
+            return {
+                "model": "ai-agent-orchestrator",
+                "response": f"AI Incident Investigator could not reach LLM Gateway: {llm_error}",
+                "namespace": req.namespace,
+                "incident_context": context,
+            }
+
+        return {
+            "model": "ai-agent-orchestrator",
+            "response": (llm_response or {}).get("response", ""),
+            "namespace": req.namespace,
+            "incident_context": context,
+        }
+
+    finally:
+        AI_AGENT_REQUEST_LATENCY_SECONDS.labels(
+            endpoint="/incident/investigate",
+        ).observe(time.time() - start_time)
 
 @app.post("/agent/chat")
 def agent_chat(req: ChatRequest):

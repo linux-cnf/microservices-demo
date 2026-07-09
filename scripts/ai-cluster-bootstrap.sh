@@ -113,24 +113,46 @@ apply_ai_application() {
 
 }
 
+
 wait_for_ai_app() {
-  echo "Waiting for ${AI_APP_NAME} Argo CD Application..."
+  echo "Waiting for ai-platform Argo CD Application..."
 
-  kubectl wait \
-    --for=jsonpath='{.metadata.name}'="${AI_APP_NAME}" \
-    "application/${AI_APP_NAME}" \
+  kubectl wait application ai-platform \
     -n "${AI_APP_NAMESPACE}" \
-    --timeout=180s
+    --for=jsonpath='{.metadata.name}'=ai-platform \
+    --timeout=120s
 
-  echo "Waiting for ${AI_APP_NAME} app to sync..."
-  kubectl wait "application/${AI_APP_NAME}" -n "${AI_APP_NAMESPACE}" \
-    --for=jsonpath='{.status.sync.status}'=Synced \
-    --timeout=300s
+  echo "Waiting for ai-platform to become Synced and Healthy..."
+  echo "Note: ai-ollama can take 10-20 minutes during first startup/model preparation."
 
-  echo "Waiting for ${AI_APP_NAME} app to become healthy..."
-  kubectl wait "application/${AI_APP_NAME}" -n "${AI_APP_NAMESPACE}" \
-    --for=jsonpath='{.status.health.status}'=Healthy \
-    --timeout=600s
+  for i in {1..40}; do
+    sync_status="$(kubectl get application ai-platform -n "${AI_APP_NAMESPACE}" -o jsonpath='{.status.sync.status}' 2>/dev/null || true)"
+    health_status="$(kubectl get application ai-platform -n "${AI_APP_NAMESPACE}" -o jsonpath='{.status.health.status}' 2>/dev/null || true)"
+
+    echo "Attempt ${i}/40: sync=${sync_status:-unknown}, health=${health_status:-unknown}"
+
+    if [ "${sync_status}" = "Synced" ] && [ "${health_status}" = "Healthy" ]; then
+      echo "✅ ai-platform is Synced and Healthy."
+      return 0
+    fi
+
+    echo "Current AI pods:"
+    kubectl get pods -n ai || true
+
+    sleep 30
+  done
+
+  echo "❌ Timeout waiting for ai-platform."
+  echo "Final Argo CD status:"
+  kubectl get application ai-platform -n "${AI_APP_NAMESPACE}" -o wide || true
+
+  echo "Final AI pod status:"
+  kubectl get pods -n ai -o wide || true
+
+  echo "Recent AI events:"
+  kubectl get events -n ai --sort-by=.lastTimestamp | tail -40 || true
+
+  exit 1
 }
 
 check_ai_gateway() {
