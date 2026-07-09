@@ -654,7 +654,7 @@ Analyze the live incident context below and return only this structure:
 
 Return ONLY the following JSON:
 
-{
+{{
   "root_cause": "...",
   "evidence": [
     "...",
@@ -665,7 +665,7 @@ Return ONLY the following JSON:
     "..."
   ],
   "severity": "Low|Medium|High|Critical"
-}
+}}
 
 Rules:
 - Use only the provided live context.
