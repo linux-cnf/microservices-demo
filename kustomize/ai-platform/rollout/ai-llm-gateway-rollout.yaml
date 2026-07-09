@@ -69,7 +69,7 @@ spec:
             - name: DEFAULT_MODEL
               value: "tinyllama"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://tracing-opentelemetry-collector.tracing.svc.cluster.local:4318"
+              value: "http://tracing-prod-opentelemetry-collector.tracing.svc.cluster.local:4318"
             - name: RATE_LIMIT_REQUESTS
               value: "30"
             - name: RATE_LIMIT_WINDOW_SECONDS

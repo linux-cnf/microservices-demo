@@ -25,7 +25,7 @@ spec:
       successCondition: result[0] >= 1
       provider:
         prometheus:
-          address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+          address: http://observability-prod-kube-pr-prometheus.monitoring.svc.cluster.local:9090
           query: |
             sum(kube_pod_status_ready{
               namespace="ai",
@@ -40,7 +40,7 @@ spec:
       successCondition: result[0] == 0
       provider:
         prometheus:
-          address: http://observability-kube-prometh-prometheus.monitoring.svc.cluster.local:9090
+          address: http://observability-prod-kube-pr-prometheus.monitoring.svc.cluster.local:9090
           query: |
             sum(increase(kube_pod_container_status_restarts_total{
               namespace="ai",
