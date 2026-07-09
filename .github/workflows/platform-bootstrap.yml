@@ -114,6 +114,15 @@ on:
           - "true"
           - "false"
 
+      ai_profile:
+        description: "AI hardware/model profile"
+        required: true
+        default: "cpu-small"
+        type: choice
+        options:
+          - cpu-small
+          - cpu-better
+
 permissions:
   contents: read
   id-token: write
@@ -180,6 +189,7 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
       run_apply: true
+      ai_profile: ${{ inputs.ai_profile }}
     secrets: inherit
 
   bootstrap-complete-message:

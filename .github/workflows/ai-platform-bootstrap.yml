@@ -38,6 +38,7 @@ on:
         type: choice
         options:
           - prod
+
       run_apply:
         description: "Run terraform apply to enable AI node pool?"
         required: true
@@ -47,17 +48,32 @@ on:
           - "true"
           - "false"
 
+      ai_profile:
+        description: "AI hardware/model profile"
+        required: true
+        default: "cpu-small"
+        type: choice
+        options:
+          - cpu-small
+          - cpu-better            
+
   workflow_call:
     inputs:
       environment:
         required: false
         type: string
         default: "prod"
+
       run_apply:
         description: "Run terraform apply to enable AI node pool?"
         required: false
         default: true
         type: boolean
+
+      ai_profile:
+        required: false
+        type: string
+        default: "cpu-small"
 
 permissions:
   contents: read
@@ -137,9 +153,22 @@ jobs:
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform validate
 
+      - name: Select AI profile
+        run: |
+          if [ "${{ inputs.ai_profile }}" = "cpu-better" ]; then
+            echo "AI_MACHINE_TYPE=e2-highmem-4" >> "$GITHUB_ENV"
+            echo "AI_MODEL=llama3.2:3b" >> "$GITHUB_ENV"
+          else
+            echo "AI_MACHINE_TYPE=e2-standard-2" >> "$GITHUB_ENV"
+            echo "AI_MODEL=tinyllama" >> "$GITHUB_ENV"
+          fi
+
       - name: Terraform plan AI platform
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
-        run: terraform plan -input=false -var="enable_ai_node_pool=true" -out=tfplan-ai
+        run: terraform plan -input=false \
+               -var="enable_ai_node_pool=true" \
+               -var="ai_node_pool_machine_type=${AI_MACHINE_TYPE}" \
+               -out=tfplan-ai
 
       - name: Terraform apply AI platform
         if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}
