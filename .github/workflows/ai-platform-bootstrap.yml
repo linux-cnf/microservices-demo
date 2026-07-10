@@ -178,10 +178,14 @@ jobs:
 
       - name: Terraform plan AI platform
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
-        run: terraform plan -input=false \
-          -var="enable_ai_node_pool=true" \
-          -var="ai_node_pool_machine_type=${AI_MACHINE_TYPE}" \
-          -out=tfplan-ai
+        run: |
+          set -euo pipefail
+
+          terraform plan \
+            -input=false \
+            -var="enable_ai_node_pool=true" \
+            -var="ai_node_pool_machine_type=${AI_MACHINE_TYPE}" \
+            -out=tfplan-ai
 
       - name: Terraform apply AI platform
         if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}
