@@ -162,29 +162,86 @@ jobs:
           set -euo pipefail
 
           case "${AI_PROFILE}" in
-            cpu-better)
-              echo "AI_MACHINE_TYPE=e2-highmem-4" >> "$GITHUB_ENV"
-              echo "AI_MODEL=llama3.2:3b" >> "$GITHUB_ENV"
-              ;;
             cpu-small)
               echo "AI_MACHINE_TYPE=e2-standard-2" >> "$GITHUB_ENV"
               echo "AI_MODEL=tinyllama" >> "$GITHUB_ENV"
+              echo "AI_MIN_NODES=1" >> "$GITHUB_ENV"
+              echo "AI_MAX_NODES=1" >> "$GITHUB_ENV"
+              echo "TARGET_CLUSTER_CPUS=10" >> "$GITHUB_ENV"
               ;;
+
+            cpu-better)
+              echo "AI_MACHINE_TYPE=e2-highmem-4" >> "$GITHUB_ENV"
+              echo "AI_MODEL=llama3.2:3b" >> "$GITHUB_ENV"
+              echo "AI_MIN_NODES=1" >> "$GITHUB_ENV"
+              echo "AI_MAX_NODES=1" >> "$GITHUB_ENV"
+              echo "TARGET_CLUSTER_CPUS=12" >> "$GITHUB_ENV"
+              ;;
+
             *)
-              echo "Invalid AI profile: ${AI_PROFILE}"
+              echo "::error::Invalid AI profile: ${AI_PROFILE}"
               exit 1
               ;;
           esac
+
+      - name: Validate CPU quota
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          QUOTA_ROW="$(
+            gcloud compute project-info describe \
+              --project="${PROJECT_ID}" \
+              --format='csv[no-heading](quotas.metric,quotas.limit,quotas.usage)' |
+            awk -F, '$1 == "CPUS_ALL_REGIONS" {print $2 "," $3; exit}'
+          )"
+
+          if [[ -z "${QUOTA_ROW}" ]]; then
+            echo "::error::Could not read CPUS_ALL_REGIONS quota."
+            exit 1
+          fi
+
+          IFS=',' read -r CPU_LIMIT CPU_USAGE <<< "${QUOTA_ROW}"
+
+          CPU_LIMIT_INT="${CPU_LIMIT%.*}"
+          CPU_USAGE_INT="${CPU_USAGE%.*}"
+
+          echo "CPU quota limit:       ${CPU_LIMIT_INT}"
+          echo "Current CPU usage:     ${CPU_USAGE_INT}"
+          echo "Selected target total: ${TARGET_CLUSTER_CPUS}"
+
+          if (( CPU_LIMIT_INT < TARGET_CLUSTER_CPUS )); then
+            echo "::error::Selected profile requires a ${TARGET_CLUSTER_CPUS}-vCPU quota, but the project limit is ${CPU_LIMIT_INT}."
+            exit 1
+          fi
+
+          if (( CPU_USAGE_INT > TARGET_CLUSTER_CPUS )); then
+            echo "::error::Current project CPU usage is already above the selected profile target."
+            echo "::error::Stop unrelated Compute Engine VMs before continuing."
+            exit 1
+          fi
+
+          echo "CPU quota validation passed."
 
       - name: Terraform plan AI platform
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: |
           set -euo pipefail
 
+          echo "Selected AI profile:"
+          echo "  Machine type: ${AI_MACHINE_TYPE}"
+          echo "  Model:        ${AI_MODEL}"
+          echo "  Min nodes:    ${AI_MIN_NODES}"
+          echo "  Max nodes:    ${AI_MAX_NODES}"
+          echo "  Target CPU:   ${TARGET_CLUSTER_CPUS}"
+
           terraform plan \
             -input=false \
             -var="enable_ai_node_pool=true" \
             -var="ai_node_pool_machine_type=${AI_MACHINE_TYPE}" \
+            -var="ai_node_pool_min_count=${AI_MIN_NODES}" \
+            -var="ai_node_pool_max_count=${AI_MAX_NODES}" \
             -out=tfplan-ai
 
       - name: Terraform apply AI platform

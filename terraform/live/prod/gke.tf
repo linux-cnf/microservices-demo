@@ -38,8 +38,8 @@ module "gke_cluster" {
 }
 
 # Regional primary node pool.
-# Uses total autoscaling across zones:
-# min 1 node total, max 3 nodes total across us-central1-a/b/c.
+# Two fixed nodes across us-central1-a and us-central1-b.
+# Total capacity: 4 vCPU and approximately 32 GB memory.
 module "gke_node_pool" {
   source         = "../../modules/gke-node-pool"
   gcp_project_id = var.gcp_project_id
@@ -56,12 +56,14 @@ module "gke_node_pool" {
     env = "prod"
   }
 
+  # One initial node per configured zone.
+  # With zones a and b, the pool starts with two total nodes.
   initial_node_count   = 1
-  total_min_node_count = 1
+  total_min_node_count = 2
   total_max_node_count = 2
   location_policy      = "BALANCED"
   node_pool_name       = "primary-node-pool"
-  machine_type         = "e2-standard-2"
+  machine_type         = "e2-highmem-2"
   disk_size_gb         = 30
   disk_type            = "pd-standard"
   image_type           = "COS_CONTAINERD"
@@ -82,14 +84,16 @@ module "gke_node_pool_platform_observability" {
     "us-central1-a"
   ]
 
-  initial_node_count   = 1
+  initial_node_count = 1
+  # Two fixed observability nodes in us-central1-a.
+  # Total capacity: 4 vCPU and approximately 32 GB memory.
+  total_min_node_count = 2
+  total_max_node_count = 2
   node_pool_name       = "platform-observability"
   machine_type         = "e2-highmem-2"
   disk_size_gb         = 30
   disk_type            = "pd-standard"
   image_type           = "COS_CONTAINERD"
-  total_min_node_count = 1
-  total_max_node_count = 2
   location_policy      = "BALANCED"
 
   max_pods_per_node = 64

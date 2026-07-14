@@ -184,13 +184,20 @@ jobs:
     secrets: inherit
 
   ai-platform-bootstrap:
-    if: ${{ !cancelled() && inputs.run_ai_platform == 'true' }}
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        inputs.run_ai_platform == 'true' &&
+        inputs.environment == 'prod' &&
+        (needs.infra.result == 'success' || needs.infra.result == 'skipped')
+      }}
     needs:
       - infra
     uses: ./.github/workflows/ai-platform-bootstrap.yml
     with:
       environment: ${{ inputs.environment }}
-      run_apply: true
+      run_apply: ${{ inputs.run_apply == 'true' }}
       ai_profile: ${{ inputs.ai_profile }}
     secrets: inherit
 

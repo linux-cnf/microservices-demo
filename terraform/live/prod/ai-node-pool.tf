@@ -33,6 +33,12 @@ module "gke_node_pool_ai" {
 
   location_policy = "BALANCED"
 
+  # The project has a strict 12-vCPU quota.
+  # Delete the old AI node before creating its replacement so switching
+  # from a 2-vCPU profile to a 4-vCPU profile does not require surge quota.
+  max_surge       = 0
+  max_unavailable = 1
+
   # Node pool configuration
   node_pool_name    = "ai-node-pool"
   machine_type      = var.ai_node_pool_machine_type
