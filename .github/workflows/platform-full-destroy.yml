@@ -4,20 +4,27 @@
 #
 # RESPONSIBILITIES:
 # - Destroy dev, prod, or both platform infrastructure layers
+# - Delete Kubernetes LoadBalancer Services before cluster destruction
+# - Release Istio external IP addresses and forwarding rules
+# - Clean up orphaned GKE load balancer resources
 # - Remove GKE cluster resources
 # - Remove managed node pools
-# - Remove Cloud NAT resources
+# - Remove Cloud NAT resources and NAT auto IP addresses
 # - Clean up orphaned GKE/PVC disks
-# - Report leftover static IPs for manual review
+# - Report any remaining cloud networking resources
 #
 # SAFETY MODEL:
 # - Requires explicit confirmation
 # - Prod uses production-destroy GitHub environment approval
 # - Dev and prod are destroyed through separate Terraform states
+# - Load balancer cleanup is restricted to resources belonging to
+#   the selected GKE cluster
 #
 # NOTES:
 # - Shared resources are intentionally protected:
 #   Artifact Registry, Secret Manager, Service Accounts, Terraform state
+# - Cloud NAT is Terraform-managed and is destroyed through Terraform
+# - NAT_AUTO IP addresses are cleaned only after Terraform destroy
 # -------------------------------------------------------------------
 
 name: platform-full-destroy
@@ -33,6 +40,7 @@ on:
           - dev
           - prod
           - all
+
       confirm_destroy:
         description: "Type yes-destroy-entire-platform to confirm"
         required: true
@@ -47,23 +55,51 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ================================================================
+  # DESTROY DEV
+  # ================================================================
+
   destroy-dev:
     name: Destroy Dev
-    if: ${{ inputs.confirm_destroy == 'yes-destroy-entire-platform' && (inputs.environment == 'dev' || inputs.environment == 'all') }}
+
+    if: >-
+      ${{
+        inputs.confirm_destroy == 'yes-destroy-entire-platform' &&
+        (inputs.environment == 'dev' || inputs.environment == 'all')
+      }}
+
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
       id-token: write
+
     environment: development-destroy
 
     env:
       TF_INPUT: "false"
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+
       TF_DIR: terraform/live/dev
+
       GKE_CLUSTER: kfounding-dev
       GKE_REGION: us-central1
-      NODE_POOLS: "primary-node-pool-dev platform-observability-dev ai-node-pool-dev default-pool"
-      DISK_NAME_PATTERNS: "gke-kfounding-dev-primary-node-pool gke-kfounding-dev-platform-observability gke-kfounding-dev-ai-node-pool pvc-"
+
+      ISTIO_APPLICATION: istio-ingressgateway-dev
+      ISTIO_SERVICE_NAMESPACE: istio-system
+      ISTIO_SERVICE_NAME: istio-ingressgateway
+
+      NODE_POOLS: >-
+        primary-node-pool-dev
+        platform-observability-dev
+        ai-node-pool-dev
+        default-pool
+
+      DISK_NAME_PATTERNS: >-
+        gke-kfounding-dev-primary-node-pool
+        gke-kfounding-dev-platform-observability
+        gke-kfounding-dev-ai-node-pool
+        pvc-
 
     steps:
       - name: Checkout
@@ -87,16 +123,252 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform init -input=false
 
+      # ------------------------------------------------------------
+      # LoadBalancer cleanup must happen while the cluster and
+      # Kubernetes cloud controller are still available.
+      # ------------------------------------------------------------
+
+      - name: Delete Istio LoadBalancer and release external IP
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          : "${GKE_CLUSTER:?GKE_CLUSTER is required}"
+          : "${GKE_REGION:?GKE_REGION is required}"
+          : "${TF_VAR_gcp_project_id:?GCP project ID is required}"
+          : "${ISTIO_SERVICE_NAMESPACE:?Istio namespace is required}"
+          : "${ISTIO_SERVICE_NAME:?Istio Service name is required}"
+
+          echo "Checking whether cluster exists: ${GKE_CLUSTER}"
+
+          if ! gcloud container clusters describe "${GKE_CLUSTER}" \
+            --region="${GKE_REGION}" \
+            --project="${TF_VAR_gcp_project_id}" \
+            >/dev/null 2>&1; then
+
+            echo "Cluster does not exist."
+            echo "Skipping Kubernetes Service deletion."
+            echo "The next step will still check for orphaned cloud resources."
+            exit 0
+          fi
+
+          echo "Getting credentials for ${GKE_CLUSTER}..."
+
+          gcloud container clusters get-credentials "${GKE_CLUSTER}" \
+            --region="${GKE_REGION}" \
+            --project="${TF_VAR_gcp_project_id}"
+
+          echo "Stopping Argo CD reconciliation to prevent resource recreation..."
+
+          if kubectl get statefulset argocd-application-controller \
+            -n argocd >/dev/null 2>&1; then
+
+            kubectl scale statefulset argocd-application-controller \
+              -n argocd \
+              --replicas=0 || true
+          fi
+
+          if kubectl get deployment argocd-application-controller \
+            -n argocd >/dev/null 2>&1; then
+
+            kubectl scale deployment argocd-application-controller \
+              -n argocd \
+              --replicas=0 || true
+          fi
+
+          if kubectl get application "${ISTIO_APPLICATION}" \
+            -n argocd >/dev/null 2>&1; then
+
+            echo "Removing the Istio gateway Application without cascading..."
+            kubectl delete application "${ISTIO_APPLICATION}" \
+              -n argocd \
+              --cascade=orphan \
+              --ignore-not-found=true || true
+          fi
+
+          echo "Deleting Service:"
+          echo "${ISTIO_SERVICE_NAMESPACE}/${ISTIO_SERVICE_NAME}"
+
+          kubectl delete service "${ISTIO_SERVICE_NAME}" \
+            --namespace="${ISTIO_SERVICE_NAMESPACE}" \
+            --ignore-not-found=true \
+            --wait=true \
+            --timeout=180s || true
+
+          echo "Waiting for GKE to remove the cluster's forwarding rule..."
+
+          for ATTEMPT in $(seq 1 36); do
+            MATCHING_RULES=""
+
+            RULES="$(gcloud compute forwarding-rules list \
+              --project="${TF_VAR_gcp_project_id}" \
+              --regions="${GKE_REGION}" \
+              --filter="description~${ISTIO_SERVICE_NAMESPACE}/${ISTIO_SERVICE_NAME}" \
+              --format="value(name)" 2>/dev/null || true)"
+
+            for RULE in ${RULES}; do
+              TARGET_POOL="$(gcloud compute forwarding-rules describe "${RULE}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --region="${GKE_REGION}" \
+                --format="value(target.basename())" 2>/dev/null || true)"
+
+              [ -z "${TARGET_POOL}" ] && continue
+
+              INSTANCES="$(gcloud compute target-pools describe "${TARGET_POOL}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --region="${GKE_REGION}" \
+                --format="value(instances[])" 2>/dev/null || true)"
+
+              if echo "${INSTANCES}" |
+                grep -q "/instances/gke-${GKE_CLUSTER}-"; then
+
+                MATCHING_RULES="${MATCHING_RULES} ${RULE}"
+              fi
+            done
+
+            if [ -z "${MATCHING_RULES// }" ]; then
+              echo "Cluster-specific Istio forwarding rule was removed."
+              break
+            fi
+
+            echo "Cleanup is still pending:${MATCHING_RULES}"
+            echo "Attempt ${ATTEMPT}/36"
+            sleep 10
+          done
+
+      - name: Delete orphaned Istio load balancer resources
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          : "${GKE_CLUSTER:?GKE_CLUSTER is required}"
+          : "${GKE_REGION:?GKE_REGION is required}"
+          : "${TF_VAR_gcp_project_id:?GCP project ID is required}"
+
+          SERVICE_ID="${ISTIO_SERVICE_NAMESPACE}/${ISTIO_SERVICE_NAME}"
+
+          echo "Searching for Istio target pools associated with:"
+          echo "Service: ${SERVICE_ID}"
+          echo "Cluster: ${GKE_CLUSTER}"
+
+          TARGET_POOLS="$(gcloud compute target-pools list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --regions="${GKE_REGION}" \
+            --filter="description~${SERVICE_ID}" \
+            --format="value(name)" 2>/dev/null || true)"
+
+          if [ -z "${TARGET_POOLS}" ]; then
+            echo "No matching target pools found."
+            exit 0
+          fi
+
+          for TARGET_POOL in ${TARGET_POOLS}; do
+            echo
+            echo "Inspecting target pool: ${TARGET_POOL}"
+
+            INSTANCES="$(gcloud compute target-pools describe "${TARGET_POOL}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              --format="value(instances[])" 2>/dev/null || true)"
+
+            if ! echo "${INSTANCES}" |
+              grep -q "/instances/gke-${GKE_CLUSTER}-"; then
+
+              echo "Skipping ${TARGET_POOL}."
+              echo "It does not reference nodes belonging to ${GKE_CLUSTER}."
+              continue
+            fi
+
+            HEALTH_CHECKS="$(gcloud compute target-pools describe "${TARGET_POOL}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              --format="value(healthChecks[].basename())" 2>/dev/null || true)"
+
+            if gcloud compute forwarding-rules describe "${TARGET_POOL}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              >/dev/null 2>&1; then
+
+              echo "Deleting forwarding rule: ${TARGET_POOL}"
+
+              gcloud compute forwarding-rules delete "${TARGET_POOL}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --region="${GKE_REGION}" \
+                --quiet || true
+            fi
+
+            if gcloud compute target-pools describe "${TARGET_POOL}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              >/dev/null 2>&1; then
+
+              echo "Deleting target pool: ${TARGET_POOL}"
+
+              gcloud compute target-pools delete "${TARGET_POOL}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --region="${GKE_REGION}" \
+                --quiet || true
+            fi
+
+            if gcloud compute addresses describe "${TARGET_POOL}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              >/dev/null 2>&1; then
+
+              ADDRESS_STATUS="$(gcloud compute addresses describe "${TARGET_POOL}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --region="${GKE_REGION}" \
+                --format="value(status)" 2>/dev/null || true)"
+
+              if [ "${ADDRESS_STATUS}" = "RESERVED" ]; then
+                echo "Deleting released Istio external address: ${TARGET_POOL}"
+
+                gcloud compute addresses delete "${TARGET_POOL}" \
+                  --project="${TF_VAR_gcp_project_id}" \
+                  --region="${GKE_REGION}" \
+                  --quiet || true
+              else
+                echo "Address ${TARGET_POOL} is still ${ADDRESS_STATUS}."
+                echo "Skipping manual address deletion."
+              fi
+            fi
+
+            for HEALTH_CHECK in ${HEALTH_CHECKS}; do
+              [ -z "${HEALTH_CHECK}" ] && continue
+
+              if gcloud compute http-health-checks describe "${HEALTH_CHECK}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                >/dev/null 2>&1; then
+
+                echo "Deleting legacy HTTP health check: ${HEALTH_CHECK}"
+
+                gcloud compute http-health-checks delete "${HEALTH_CHECK}" \
+                  --project="${TF_VAR_gcp_project_id}" \
+                  --quiet || true
+              fi
+            done
+          done
+
+      # ------------------------------------------------------------
+      # Node pools are deleted after LoadBalancer cleanup.
+      # ------------------------------------------------------------
+
       - name: Pre-delete GKE node pools safely
+        shell: bash
         run: |
           set +e
+
           : "${NODE_POOLS:?NODE_POOLS is required}"
+
           echo "Checking if cluster exists: ${GKE_CLUSTER}"
 
           if ! gcloud container clusters describe "${GKE_CLUSTER}" \
-            --region "${GKE_REGION}" \
-            --project "${TF_VAR_gcp_project_id}" >/dev/null 2>&1; then
-            echo "Cluster does not exist. Skipping node pool cleanup."
+            --region="${GKE_REGION}" \
+            --project="${TF_VAR_gcp_project_id}" \
+            >/dev/null 2>&1; then
+
+            echo "Cluster does not exist."
+            echo "Skipping node pool cleanup."
             exit 0
           fi
 
@@ -104,103 +376,215 @@ jobs:
             echo "Checking node pool: ${NODE_POOL}"
 
             if gcloud container node-pools describe "${NODE_POOL}" \
-              --cluster "${GKE_CLUSTER}" \
-              --region "${GKE_REGION}" \
-              --project "${TF_VAR_gcp_project_id}" >/dev/null 2>&1; then
+              --cluster="${GKE_CLUSTER}" \
+              --region="${GKE_REGION}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              >/dev/null 2>&1; then
 
-              echo "Deleting node pool through gcloud first: ${NODE_POOL}"
+              echo "Deleting node pool through gcloud: ${NODE_POOL}"
 
               gcloud container node-pools delete "${NODE_POOL}" \
-                --cluster "${GKE_CLUSTER}" \
-                --region "${GKE_REGION}" \
-                --project "${TF_VAR_gcp_project_id}" \
+                --cluster="${GKE_CLUSTER}" \
+                --region="${GKE_REGION}" \
+                --project="${TF_VAR_gcp_project_id}" \
                 --quiet || true
             else
               echo "Node pool not found: ${NODE_POOL}"
             fi
           done
 
-          echo "Waiting for GKE/MIG reconciliation..."
+          echo "Waiting for GKE and managed instance group reconciliation..."
           sleep 300
 
       - name: Remove pre-deleted node pools from Terraform state
         working-directory: ${{ env.TF_DIR }}
+        shell: bash
         run: |
-          terraform state rm module.gke_node_pool.google_container_node_pool.primary_nodes || true
-          terraform state rm module.gke_node_pool_platform_observability.google_container_node_pool.primary_nodes || true
-          terraform state rm module.ai_node_pool.google_container_node_pool.primary_nodes || true
+          terraform state rm \
+            module.gke_node_pool.google_container_node_pool.primary_nodes || true
+
+          terraform state rm \
+            module.gke_node_pool_platform_observability.google_container_node_pool.primary_nodes || true
+
+          terraform state rm \
+            module.ai_node_pool.google_container_node_pool.primary_nodes || true
 
       - name: Terraform Destroy Dev GKE and NAT only
         working-directory: ${{ env.TF_DIR }}
+        shell: bash
         run: |
-          terraform destroy -input=false -auto-approve \
+          terraform destroy \
+            -input=false \
+            -auto-approve \
             -target=module.gke_cluster \
             -target=module.cloud_nat.google_compute_router_nat.this \
             -target=module.cloud_nat.google_compute_router.this
 
+      # ------------------------------------------------------------
+      # Terraform should release NAT_AUTO addresses. This fallback
+      # deletes only NAT_AUTO addresses that are no longer in use.
+      # ------------------------------------------------------------
+
+      - name: Delete released orphan NAT auto IPs
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          echo "Checking for released NAT_AUTO addresses..."
+
+          NAT_ADDRESSES="$(gcloud compute addresses list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --regions="${GKE_REGION}" \
+            --filter="purpose=NAT_AUTO AND status=RESERVED" \
+            --format="value(name)" 2>/dev/null || true)"
+
+          if [ -z "${NAT_ADDRESSES}" ]; then
+            echo "No released NAT_AUTO addresses found."
+            exit 0
+          fi
+
+          for ADDRESS in ${NAT_ADDRESSES}; do
+            echo "Deleting released NAT_AUTO address: ${ADDRESS}"
+
+            gcloud compute addresses delete "${ADDRESS}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              --quiet || true
+          done
+
       - name: Delete orphan GKE disks
         if: ${{ !cancelled() }}
+        shell: bash
         run: |
-          echo "Finding unattached GKE/PVC disks..."
+          set -uo pipefail
+
+          echo "Finding unattached GKE and PVC disks..."
+
           : "${DISK_NAME_PATTERNS:?DISK_NAME_PATTERNS is required}"
+
           gcloud compute disks list \
             --project="${TF_VAR_gcp_project_id}" \
             --filter="-users:*" \
-            --format="csv[no-heading](name,zone.basename())" | while IFS=, read -r DISK ZONE; do
+            --format="csv[no-heading](name,zone.basename())" |
+          while IFS=, read -r DISK ZONE; do
+            [ -z "${DISK}" ] && continue
+            [ -z "${ZONE}" ] && continue
 
-              [ -z "${DISK}" ] && continue
-              [ -z "${ZONE}" ] && continue
+            SHOULD_DELETE="false"
 
-              SHOULD_DELETE="false"
-
-              for PATTERN in ${DISK_NAME_PATTERNS}; do
-                if echo "${DISK}" | grep -q "^${PATTERN}"; then
-                  SHOULD_DELETE="true"
-                fi
-              done
-
-              if [ "${SHOULD_DELETE}" = "true" ]; then
-                echo "Deleting orphan disk: ${DISK} (${ZONE})"
-
-                gcloud compute disks delete "${DISK}" \
-                  --project="${TF_VAR_gcp_project_id}" \
-                  --zone "${ZONE}" \
-                  --quiet || true
+            for PATTERN in ${DISK_NAME_PATTERNS}; do
+              if echo "${DISK}" | grep -q "^${PATTERN}"; then
+                SHOULD_DELETE="true"
+                break
               fi
             done
 
-      - name: Check leftover static IPs
+            if [ "${SHOULD_DELETE}" = "true" ]; then
+              echo "Deleting orphan disk: ${DISK} (${ZONE})"
+
+              gcloud compute disks delete "${DISK}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --zone="${ZONE}" \
+                --quiet || true
+            fi
+          done
+
+      - name: Verify cloud resource cleanup
         if: ${{ !cancelled() }}
+        shell: bash
         run: |
-          echo "=== Regional Static IPs ==="
+          set -uo pipefail
+
+          echo "=== Remaining Regional Addresses ==="
+
           gcloud compute addresses list \
             --project="${TF_VAR_gcp_project_id}" \
-            --format="table(name,address,status,region,purpose)"
+            --regions="${GKE_REGION}" \
+            --format="table(name,address,status,region.basename(),purpose)" || true
 
-          echo "=== Global Static IPs ==="
+          echo
+          echo "=== Remaining Global Addresses ==="
+
           gcloud compute addresses list \
             --project="${TF_VAR_gcp_project_id}" \
             --global \
-            --format="table(name,address,status,purpose)"
+            --format="table(name,address,status,purpose)" || true
+
+          echo
+          echo "=== Remaining Regional Forwarding Rules ==="
+
+          gcloud compute forwarding-rules list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --regions="${GKE_REGION}" \
+            --format="table(name,IPAddress,target.basename(),description)" || true
+
+          echo
+          echo "=== Remaining Target Pools ==="
+
+          gcloud compute target-pools list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --regions="${GKE_REGION}" \
+            --format="table(name,region.basename(),description)" || true
+
+          echo
+          echo "=== Remaining Cloud Routers ==="
+
+          gcloud compute routers list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --regions="${GKE_REGION}" \
+            --format="table(name,region.basename(),network.basename())" || true
+
+  # ================================================================
+  # DESTROY PROD
+  # ================================================================
 
   destroy-prod:
     name: Destroy Prod
-    needs: [destroy-dev]
-    if: ${{ always() && inputs.confirm_destroy == 'yes-destroy-entire-platform' && (inputs.environment == 'prod' || inputs.environment == 'all') }}
+
+    needs:
+      - destroy-dev
+
+    if: >-
+      ${{
+        always() &&
+        inputs.confirm_destroy == 'yes-destroy-entire-platform' &&
+        (inputs.environment == 'prod' || inputs.environment == 'all')
+      }}
+
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
       id-token: write
+
     environment: production-destroy
 
     env:
       TF_INPUT: "false"
       TF_VAR_gcp_project_id: ${{ secrets.GCP_PROJECT_ID }}
+
       TF_DIR: terraform/live/prod
-      GKE_CLUSTER: kfounding
+
+      GKE_CLUSTER: kfounding-prod
       GKE_REGION: us-central1
-      NODE_POOLS: "primary-node-pool platform-observability ai-node-pool default-pool"
-      DISK_NAME_PATTERNS: "gke-kfounding-primary-node-pool gke-kfounding-platform-observability gke-kfounding-ai-node-pool gke-kfounding-default-pool pvc-"
+
+      ISTIO_APPLICATION: istio-ingressgateway-prod
+      ISTIO_SERVICE_NAMESPACE: istio-system
+      ISTIO_SERVICE_NAME: istio-ingressgateway
+
+      NODE_POOLS: >-
+        primary-node-pool
+        platform-observability
+        ai-node-pool
+        default-pool
+
+      DISK_NAME_PATTERNS: >-
+        gke-kfounding-prod-primary-node-pool
+        gke-kfounding-prod-platform-observability
+        gke-kfounding-prod-ai-node-pool
+        gke-kfounding-prod-default-pool
+        pvc-
 
     steps:
       - name: Checkout
@@ -224,16 +608,244 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform init -input=false
 
+      - name: Delete Istio LoadBalancer and release external IP
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          : "${GKE_CLUSTER:?GKE_CLUSTER is required}"
+          : "${GKE_REGION:?GKE_REGION is required}"
+          : "${TF_VAR_gcp_project_id:?GCP project ID is required}"
+          : "${ISTIO_SERVICE_NAMESPACE:?Istio namespace is required}"
+          : "${ISTIO_SERVICE_NAME:?Istio Service name is required}"
+
+          echo "Checking whether cluster exists: ${GKE_CLUSTER}"
+
+          if ! gcloud container clusters describe "${GKE_CLUSTER}" \
+            --region="${GKE_REGION}" \
+            --project="${TF_VAR_gcp_project_id}" \
+            >/dev/null 2>&1; then
+
+            echo "Cluster does not exist."
+            echo "Skipping Kubernetes Service deletion."
+            echo "The next step will still check for orphaned cloud resources."
+            exit 0
+          fi
+
+          echo "Getting credentials for ${GKE_CLUSTER}..."
+
+          gcloud container clusters get-credentials "${GKE_CLUSTER}" \
+            --region="${GKE_REGION}" \
+            --project="${TF_VAR_gcp_project_id}"
+
+          echo "Stopping Argo CD reconciliation to prevent resource recreation..."
+
+          if kubectl get statefulset argocd-application-controller \
+            -n argocd >/dev/null 2>&1; then
+
+            kubectl scale statefulset argocd-application-controller \
+              -n argocd \
+              --replicas=0 || true
+          fi
+
+          if kubectl get deployment argocd-application-controller \
+            -n argocd >/dev/null 2>&1; then
+
+            kubectl scale deployment argocd-application-controller \
+              -n argocd \
+              --replicas=0 || true
+          fi
+
+          if kubectl get application "${ISTIO_APPLICATION}" \
+            -n argocd >/dev/null 2>&1; then
+
+            echo "Removing the Istio gateway Application without cascading..."
+
+            kubectl delete application "${ISTIO_APPLICATION}" \
+              -n argocd \
+              --cascade=orphan \
+              --ignore-not-found=true || true
+          fi
+
+          echo "Deleting Service:"
+          echo "${ISTIO_SERVICE_NAMESPACE}/${ISTIO_SERVICE_NAME}"
+
+          kubectl delete service "${ISTIO_SERVICE_NAME}" \
+            --namespace="${ISTIO_SERVICE_NAMESPACE}" \
+            --ignore-not-found=true \
+            --wait=true \
+            --timeout=180s || true
+
+          echo "Waiting for GKE to remove the cluster's forwarding rule..."
+
+          for ATTEMPT in $(seq 1 36); do
+            MATCHING_RULES=""
+
+            RULES="$(gcloud compute forwarding-rules list \
+              --project="${TF_VAR_gcp_project_id}" \
+              --regions="${GKE_REGION}" \
+              --filter="description~${ISTIO_SERVICE_NAMESPACE}/${ISTIO_SERVICE_NAME}" \
+              --format="value(name)" 2>/dev/null || true)"
+
+            for RULE in ${RULES}; do
+              TARGET_POOL="$(gcloud compute forwarding-rules describe "${RULE}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --region="${GKE_REGION}" \
+                --format="value(target.basename())" 2>/dev/null || true)"
+
+              [ -z "${TARGET_POOL}" ] && continue
+
+              INSTANCES="$(gcloud compute target-pools describe "${TARGET_POOL}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --region="${GKE_REGION}" \
+                --format="value(instances[])" 2>/dev/null || true)"
+
+              if echo "${INSTANCES}" |
+                grep -q "/instances/gke-${GKE_CLUSTER}-"; then
+
+                MATCHING_RULES="${MATCHING_RULES} ${RULE}"
+              fi
+            done
+
+            if [ -z "${MATCHING_RULES// }" ]; then
+              echo "Cluster-specific Istio forwarding rule was removed."
+              break
+            fi
+
+            echo "Cleanup is still pending:${MATCHING_RULES}"
+            echo "Attempt ${ATTEMPT}/36"
+            sleep 10
+          done
+
+      - name: Delete orphaned Istio load balancer resources
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          : "${GKE_CLUSTER:?GKE_CLUSTER is required}"
+          : "${GKE_REGION:?GKE_REGION is required}"
+          : "${TF_VAR_gcp_project_id:?GCP project ID is required}"
+
+          SERVICE_ID="${ISTIO_SERVICE_NAMESPACE}/${ISTIO_SERVICE_NAME}"
+
+          echo "Searching for Istio target pools associated with:"
+          echo "Service: ${SERVICE_ID}"
+          echo "Cluster: ${GKE_CLUSTER}"
+
+          TARGET_POOLS="$(gcloud compute target-pools list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --regions="${GKE_REGION}" \
+            --filter="description~${SERVICE_ID}" \
+            --format="value(name)" 2>/dev/null || true)"
+
+          if [ -z "${TARGET_POOLS}" ]; then
+            echo "No matching target pools found."
+            exit 0
+          fi
+
+          for TARGET_POOL in ${TARGET_POOLS}; do
+            echo
+            echo "Inspecting target pool: ${TARGET_POOL}"
+
+            INSTANCES="$(gcloud compute target-pools describe "${TARGET_POOL}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              --format="value(instances[])" 2>/dev/null || true)"
+
+            if ! echo "${INSTANCES}" |
+              grep -q "/instances/gke-${GKE_CLUSTER}-"; then
+
+              echo "Skipping ${TARGET_POOL}."
+              echo "It does not reference nodes belonging to ${GKE_CLUSTER}."
+              continue
+            fi
+
+            HEALTH_CHECKS="$(gcloud compute target-pools describe "${TARGET_POOL}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              --format="value(healthChecks[].basename())" 2>/dev/null || true)"
+
+            if gcloud compute forwarding-rules describe "${TARGET_POOL}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              >/dev/null 2>&1; then
+
+              echo "Deleting forwarding rule: ${TARGET_POOL}"
+
+              gcloud compute forwarding-rules delete "${TARGET_POOL}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --region="${GKE_REGION}" \
+                --quiet || true
+            fi
+
+            if gcloud compute target-pools describe "${TARGET_POOL}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              >/dev/null 2>&1; then
+
+              echo "Deleting target pool: ${TARGET_POOL}"
+
+              gcloud compute target-pools delete "${TARGET_POOL}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --region="${GKE_REGION}" \
+                --quiet || true
+            fi
+
+            if gcloud compute addresses describe "${TARGET_POOL}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              >/dev/null 2>&1; then
+
+              ADDRESS_STATUS="$(gcloud compute addresses describe "${TARGET_POOL}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --region="${GKE_REGION}" \
+                --format="value(status)" 2>/dev/null || true)"
+
+              if [ "${ADDRESS_STATUS}" = "RESERVED" ]; then
+                echo "Deleting released Istio external address: ${TARGET_POOL}"
+
+                gcloud compute addresses delete "${TARGET_POOL}" \
+                  --project="${TF_VAR_gcp_project_id}" \
+                  --region="${GKE_REGION}" \
+                  --quiet || true
+              else
+                echo "Address ${TARGET_POOL} is still ${ADDRESS_STATUS}."
+                echo "Skipping manual address deletion."
+              fi
+            fi
+
+            for HEALTH_CHECK in ${HEALTH_CHECKS}; do
+              [ -z "${HEALTH_CHECK}" ] && continue
+
+              if gcloud compute http-health-checks describe "${HEALTH_CHECK}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                >/dev/null 2>&1; then
+
+                echo "Deleting legacy HTTP health check: ${HEALTH_CHECK}"
+
+                gcloud compute http-health-checks delete "${HEALTH_CHECK}" \
+                  --project="${TF_VAR_gcp_project_id}" \
+                  --quiet || true
+              fi
+            done
+          done
+
       - name: Pre-delete GKE node pools safely
+        shell: bash
         run: |
           set +e
+
           : "${NODE_POOLS:?NODE_POOLS is required}"
+
           echo "Checking if cluster exists: ${GKE_CLUSTER}"
 
           if ! gcloud container clusters describe "${GKE_CLUSTER}" \
-            --region "${GKE_REGION}" \
-            --project "${TF_VAR_gcp_project_id}" >/dev/null 2>&1; then
-            echo "Cluster does not exist. Skipping node pool cleanup."
+            --region="${GKE_REGION}" \
+            --project="${TF_VAR_gcp_project_id}" \
+            >/dev/null 2>&1; then
+
+            echo "Cluster does not exist."
+            echo "Skipping node pool cleanup."
             exit 0
           fi
 
@@ -241,81 +853,156 @@ jobs:
             echo "Checking node pool: ${NODE_POOL}"
 
             if gcloud container node-pools describe "${NODE_POOL}" \
-              --cluster "${GKE_CLUSTER}" \
-              --region "${GKE_REGION}" \
-              --project "${TF_VAR_gcp_project_id}" >/dev/null 2>&1; then
+              --cluster="${GKE_CLUSTER}" \
+              --region="${GKE_REGION}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              >/dev/null 2>&1; then
 
-              echo "Deleting node pool through gcloud first: ${NODE_POOL}"
+              echo "Deleting node pool through gcloud: ${NODE_POOL}"
 
               gcloud container node-pools delete "${NODE_POOL}" \
-                --cluster "${GKE_CLUSTER}" \
-                --region "${GKE_REGION}" \
-                --project "${TF_VAR_gcp_project_id}" \
+                --cluster="${GKE_CLUSTER}" \
+                --region="${GKE_REGION}" \
+                --project="${TF_VAR_gcp_project_id}" \
                 --quiet || true
             else
               echo "Node pool not found: ${NODE_POOL}"
             fi
           done
 
-          echo "Waiting for GKE/MIG reconciliation..."
+          echo "Waiting for GKE and managed instance group reconciliation..."
           sleep 300
 
       - name: Remove pre-deleted node pools from Terraform state
         working-directory: ${{ env.TF_DIR }}
+        shell: bash
         run: |
-          terraform state rm module.gke_node_pool.google_container_node_pool.primary_nodes || true
-          terraform state rm module.gke_node_pool_platform_observability.google_container_node_pool.primary_nodes || true
-          terraform state rm module.ai_node_pool.google_container_node_pool.primary_nodes || true
+          terraform state rm \
+            module.gke_node_pool.google_container_node_pool.primary_nodes || true
+
+          terraform state rm \
+            module.gke_node_pool_platform_observability.google_container_node_pool.primary_nodes || true
+
+          terraform state rm \
+            module.ai_node_pool.google_container_node_pool.primary_nodes || true
 
       - name: Terraform Destroy Prod GKE and NAT only
         working-directory: ${{ env.TF_DIR }}
+        shell: bash
         run: |
-          terraform destroy -input=false -auto-approve \
+          terraform destroy \
+            -input=false \
+            -auto-approve \
             -target=module.gke_cluster \
             -target=module.cloud_nat.google_compute_router_nat.this \
             -target=module.cloud_nat.google_compute_router.this
 
+      - name: Delete released orphan NAT auto IPs
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          echo "Checking for released NAT_AUTO addresses..."
+
+          NAT_ADDRESSES="$(gcloud compute addresses list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --regions="${GKE_REGION}" \
+            --filter="purpose=NAT_AUTO AND status=RESERVED" \
+            --format="value(name)" 2>/dev/null || true)"
+
+          if [ -z "${NAT_ADDRESSES}" ]; then
+            echo "No released NAT_AUTO addresses found."
+            exit 0
+          fi
+
+          for ADDRESS in ${NAT_ADDRESSES}; do
+            echo "Deleting released NAT_AUTO address: ${ADDRESS}"
+
+            gcloud compute addresses delete "${ADDRESS}" \
+              --project="${TF_VAR_gcp_project_id}" \
+              --region="${GKE_REGION}" \
+              --quiet || true
+          done
+
       - name: Delete orphan GKE disks
         if: ${{ !cancelled() }}
+        shell: bash
         run: |
-          echo "Finding unattached GKE/PVC disks..."
+          set -uo pipefail
+
+          echo "Finding unattached GKE and PVC disks..."
+
           : "${DISK_NAME_PATTERNS:?DISK_NAME_PATTERNS is required}"
+
           gcloud compute disks list \
             --project="${TF_VAR_gcp_project_id}" \
             --filter="-users:*" \
-            --format="csv[no-heading](name,zone.basename())" | while IFS=, read -r DISK ZONE; do
+            --format="csv[no-heading](name,zone.basename())" |
+          while IFS=, read -r DISK ZONE; do
+            [ -z "${DISK}" ] && continue
+            [ -z "${ZONE}" ] && continue
 
-              [ -z "${DISK}" ] && continue
-              [ -z "${ZONE}" ] && continue
+            SHOULD_DELETE="false"
 
-              SHOULD_DELETE="false"
-
-              for PATTERN in ${DISK_NAME_PATTERNS}; do
-                if echo "${DISK}" | grep -q "^${PATTERN}"; then
-                  SHOULD_DELETE="true"
-                fi
-              done
-
-              if [ "${SHOULD_DELETE}" = "true" ]; then
-                echo "Deleting orphan disk: ${DISK} (${ZONE})"
-
-                gcloud compute disks delete "${DISK}" \
-                  --project="${TF_VAR_gcp_project_id}" \
-                  --zone "${ZONE}" \
-                  --quiet || true
+            for PATTERN in ${DISK_NAME_PATTERNS}; do
+              if echo "${DISK}" | grep -q "^${PATTERN}"; then
+                SHOULD_DELETE="true"
+                break
               fi
             done
 
-      - name: Check leftover static IPs
+            if [ "${SHOULD_DELETE}" = "true" ]; then
+              echo "Deleting orphan disk: ${DISK} (${ZONE})"
+
+              gcloud compute disks delete "${DISK}" \
+                --project="${TF_VAR_gcp_project_id}" \
+                --zone="${ZONE}" \
+                --quiet || true
+            fi
+          done
+
+      - name: Verify cloud resource cleanup
         if: ${{ !cancelled() }}
+        shell: bash
         run: |
-          echo "=== Regional Static IPs ==="
+          set -uo pipefail
+
+          echo "=== Remaining Regional Addresses ==="
+
           gcloud compute addresses list \
             --project="${TF_VAR_gcp_project_id}" \
-            --format="table(name,address,status,region,purpose)"
+            --regions="${GKE_REGION}" \
+            --format="table(name,address,status,region.basename(),purpose)" || true
 
-          echo "=== Global Static IPs ==="
+          echo
+          echo "=== Remaining Global Addresses ==="
+
           gcloud compute addresses list \
             --project="${TF_VAR_gcp_project_id}" \
             --global \
-            --format="table(name,address,status,purpose)"
+            --format="table(name,address,status,purpose)" || true
+
+          echo
+          echo "=== Remaining Regional Forwarding Rules ==="
+
+          gcloud compute forwarding-rules list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --regions="${GKE_REGION}" \
+            --format="table(name,IPAddress,target.basename(),description)" || true
+
+          echo
+          echo "=== Remaining Target Pools ==="
+
+          gcloud compute target-pools list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --regions="${GKE_REGION}" \
+            --format="table(name,region.basename(),description)" || true
+
+          echo
+          echo "=== Remaining Cloud Routers ==="
+
+          gcloud compute routers list \
+            --project="${TF_VAR_gcp_project_id}" \
+            --regions="${GKE_REGION}" \
+            --format="table(name,region.basename(),network.basename())" || true
