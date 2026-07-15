@@ -20,10 +20,16 @@ module "gke_node_pool_ai" {
   cluster_name = module.gke_cluster.cluster_name
   location     = var.region
 
-  # Spread nodes across zones
+  # Keep the AI pool single-zone because initial_node_count is applied
+  # per configured zone during regional node-pool creation.
+  #
+  # One zone ensures both AI profiles create exactly one node:
+  # - cpu-small:  1 x e2-standard-2 = 2 vCPU
+  # - cpu-better: 1 x e2-highmem-4  = 4 vCPU
+  #
+  # This is required to stay within the free-trial 12-vCPU quota.
   node_locations = [
-    "us-central1-a",
-    "us-central1-b"
+    "us-central1-a"
   ]
 
   # Regional autoscaling
