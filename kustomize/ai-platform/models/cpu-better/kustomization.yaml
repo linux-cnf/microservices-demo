@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target:
+      kind: ConfigMap
+      name: ai-model-config
+      namespace: ai
+    patch: |-
+      - op: replace
+        path: /data/AI_MODEL
+        value: llama3.2:3b
+
+  - target:
+      kind: ConfigMap
+      name: ai-model-config
+      namespace: ai-bootstrap
+    patch: |-
+      - op: replace
+        path: /data/AI_MODEL
+        value: llama3.2:3b
