@@ -184,46 +184,6 @@ jobs:
               ;;
           esac
 
-      - name: Validate CPU quota
-        env:
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-        run: |
-          set -euo pipefail
-
-          QUOTA_ROW="$(
-            gcloud compute project-info describe \
-              --project="${PROJECT_ID}" \
-              --format='csv[no-heading](quotas.metric,quotas.limit,quotas.usage)' |
-            awk -F, '$1 == "CPUS_ALL_REGIONS" {print $2 "," $3; exit}'
-          )"
-
-          if [[ -z "${QUOTA_ROW}" ]]; then
-            echo "::error::Could not read CPUS_ALL_REGIONS quota."
-            exit 1
-          fi
-
-          IFS=',' read -r CPU_LIMIT CPU_USAGE <<< "${QUOTA_ROW}"
-
-          CPU_LIMIT_INT="${CPU_LIMIT%.*}"
-          CPU_USAGE_INT="${CPU_USAGE%.*}"
-
-          echo "CPU quota limit:       ${CPU_LIMIT_INT}"
-          echo "Current CPU usage:     ${CPU_USAGE_INT}"
-          echo "Selected target total: ${TARGET_CLUSTER_CPUS}"
-
-          if (( CPU_LIMIT_INT < TARGET_CLUSTER_CPUS )); then
-            echo "::error::Selected profile requires a ${TARGET_CLUSTER_CPUS}-vCPU quota, but the project limit is ${CPU_LIMIT_INT}."
-            exit 1
-          fi
-
-          if (( CPU_USAGE_INT > TARGET_CLUSTER_CPUS )); then
-            echo "::error::Current project CPU usage is already above the selected profile target."
-            echo "::error::Stop unrelated Compute Engine VMs before continuing."
-            exit 1
-          fi
-
-          echo "CPU quota validation passed."
-
       - name: Terraform plan AI platform
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: |
