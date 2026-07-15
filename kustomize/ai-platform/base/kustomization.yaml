@@ -50,3 +50,5 @@ resources:
   - servicemonitor-ai.yaml
   - prometheusrule-ai.yaml
   - ../security
+  - ai-model-configmap.yaml   
+  - ai-bootstrap-model-configmap.yaml

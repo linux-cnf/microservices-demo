@@ -57,7 +57,10 @@ spec:
             - name: OLLAMA_URL
               value: "http://ai-ollama.ai.svc.cluster.local:11434"
             - name: DEFAULT_MODEL
-              value: "llama3.2:3b"
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-model-config
+                  key: AI_MODEL
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://tracing-prod-opentelemetry-collector.tracing.svc.cluster.local:4318"
             - name: RATE_LIMIT_REQUESTS
