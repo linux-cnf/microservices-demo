@@ -227,6 +227,94 @@ patch_frontend_env() {
   ' | kubectl patch rollout frontend -n boutique --type=merge -p "$(cat)"
 }
 
+recommended_validation() {
+  echo
+  echo "========================================================="
+  echo "Recommended AI Platform validation"
+  echo "========================================================="
+
+  echo
+  echo "AI Platform target Git revision:"
+  kubectl get application "${AI_APP_NAME}" \
+    -n "${AI_APP_NAMESPACE}" \
+    -o jsonpath='{.spec.source.targetRevision}{"\n"}' || true
+
+  echo
+  echo "AI Platform Argo CD Application status:"
+  kubectl get application "${AI_APP_NAME}" \
+    -n "${AI_APP_NAMESPACE}" \
+    -o wide || true
+
+  echo
+  echo "All Argo CD Applications:"
+  kubectl get applications.argoproj.io \
+    -n "${AI_APP_NAMESPACE}" || true
+
+  echo
+  echo "AI namespace workloads:"
+  kubectl get deploy,statefulset,rollout,job,pods \
+    -n ai \
+    -o wide || true
+
+  echo
+  echo "AI namespace services:"
+  kubectl get services \
+    -n ai \
+    -o wide || true
+
+  echo
+  echo "AI namespace persistent volumes:"
+  kubectl get pvc \
+    -n ai || true
+
+  echo
+  echo "AI namespace configuration:"
+  kubectl get configmap \
+    -n ai || true
+
+  echo
+  echo "Recent AI namespace events:"
+  kubectl get events \
+    -n ai \
+    --sort-by=.lastTimestamp \
+    | tail -30 || true
+
+  echo
+  echo "Recent cluster-wide warning events:"
+  kubectl get events \
+    -A \
+    --field-selector type=Warning \
+    --sort-by=.lastTimestamp \
+    | tail -30 || true
+
+  echo
+  echo "AI pods not currently Running or Completed:"
+  kubectl get pods -n ai --no-headers 2>/dev/null \
+    | awk '$3 != "Running" && $3 != "Completed" {print}' || true
+
+  echo
+  echo "AI Platform validation commands:"
+  cat <<EOF
+
+  kubectl get application ${AI_APP_NAME} \\
+    -n ${AI_APP_NAMESPACE} \\
+    -o jsonpath='{.spec.source.targetRevision}{"\\n"}'
+
+  kubectl get application ${AI_APP_NAME} -n ${AI_APP_NAMESPACE} -o wide
+  kubectl get applications.argoproj.io -n ${AI_APP_NAMESPACE}
+  kubectl get deploy,statefulset,rollout,job,pods -n ai -o wide
+  kubectl get svc,pvc,configmap -n ai
+  kubectl get events -n ai --sort-by=.lastTimestamp | tail -30
+  kubectl get events -A --field-selector type=Warning \\
+    --sort-by=.lastTimestamp | tail -30
+
+EOF
+
+  echo "========================================================="
+  echo "AI Platform validation completed."
+  echo "========================================================="
+}
+
 deploy_platform() {
   echo "Deploying AI Platform through optional GitOps..."
 
@@ -235,9 +323,13 @@ deploy_platform() {
   wait_for_ai_app
   check_ai_gateway
 
+  echo
   echo "AI namespace workloads:"
   kubectl get deploy,rollout,pods -n ai
 
+  recommended_validation
+
+  echo
   echo "✅ AI Platform is ready."
 }
 
