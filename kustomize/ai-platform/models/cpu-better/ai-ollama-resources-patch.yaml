@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-ollama
+  namespace: ai
+spec:
+  template:
+    spec:
+      containers:
+        - name: ai-ollama
+          env:
+            - name: OLLAMA_NUM_PARALLEL
+              value: "1"
+            - name: OLLAMA_MAX_LOADED_MODELS
+              value: "1"
+            - name: OLLAMA_CONTEXT_LENGTH
+              value: "4096"
+            - name: OLLAMA_KEEP_ALIVE
+              value: "10m"
+          resources:
+            requests:
+              cpu: "1500m"
+              memory: "6Gi"
+            limits:
+              cpu: "3000m"
+              memory: "10Gi"
