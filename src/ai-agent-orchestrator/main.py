@@ -27,7 +27,9 @@ Future:
 Guardrails.
 """
 
+import json
 import os
+import time
 from typing import Any
 
 import requests
@@ -48,8 +50,6 @@ from prometheus_client import (
     generate_latest,
     CONTENT_TYPE_LATEST,
 )
-import time
-
 
 app = FastAPI(title="ai-agent-orchestrator")
 # ==========================================================
@@ -113,6 +113,10 @@ AI_TOOL_CALLS_TOTAL = Counter(
 LLM_GATEWAY_URL = os.getenv(
     "LLM_GATEWAY_URL",
     "http://ai-llm-gateway.ai.svc.cluster.local:8080",
+)
+
+LLM_GATEWAY_TIMEOUT_SECONDS = float(
+    os.getenv("LLM_GATEWAY_TIMEOUT_SECONDS", "330")
 )
 
 PROMETHEUS_URL = os.getenv(
@@ -481,6 +485,7 @@ def build_tempo_tool_result() -> dict[str, Any]:
 
         traces = result.get("traces", [])
 
+
         return {
             "source": TEMPO_URL,
             "query": "/api/search",
@@ -648,12 +653,21 @@ def build_incident_prompt(
     req: IncidentInvestigationRequest,
     context: dict[str, Any],
 ) -> str:
-    prompt = f"""
+    compact_context = compact_incident_context(context)
+
+    context_json = json.dumps(
+        compact_context,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    )
+
+    prompt_prefix = f"""
 {SYSTEM_PROMPT}
 
 You are performing an SRE incident investigation.
 
-Analyze the live incident context below and return ONLY the following JSON:
+Return ONLY valid JSON matching this structure:
 
 {{
   "root_cause": "...",
@@ -669,26 +683,168 @@ Analyze the live incident context below and return ONLY the following JSON:
 }}
 
 Rules:
-- Use only the provided live context.
+- Use only the supplied live context.
 - Do not invent pod names, metrics, logs, traces, or Argo CD status.
-- If evidence is insufficient, explicitly state what information is missing.
-- Keep the response concise and production-focused.
+- Separate current failures from historical rollout warnings.
+- If the platform is healthy, state that no active incident is detected.
+- If evidence is insufficient, state exactly what is missing.
+- Keep the answer concise and production-focused.
 
 User incident question:
 {req.prompt}
 
-Live incident context:
-{context}
+Compact live incident context:
 """.strip()
 
-    # LLM Gateway currently validates prompts with a maximum length of 4000
-    # characters. Keep the prompt safely below that limit.
+    # ChatRequest currently allows a maximum prompt length of 4000.
     max_prompt_chars = 3900
 
-    if len(prompt) > max_prompt_chars:
-        prompt = prompt[:max_prompt_chars]
+    separator = "\n"
+    available_context_chars = (
+        max_prompt_chars
+        - len(prompt_prefix)
+        - len(separator)
+    )
 
-    return prompt
+    if available_context_chars <= 0:
+        raise ValueError(
+            "Incident prompt instructions exceed the gateway prompt limit."
+        )
+
+    context_json = context_json[:available_context_chars]
+
+    return f"{prompt_prefix}{separator}{context_json}"
+
+def compact_incident_context(context: dict[str, Any]) -> dict[str, Any]:
+    kubernetes = context.get("kubernetes") or {}
+    prometheus = context.get("prometheus") or {}
+    elasticsearch = context.get("elasticsearch_logs") or {}
+    tempo = context.get("tempo") or {}
+    argocd = context.get("argocd") or {}
+
+    pods = kubernetes.get("pods") or []
+    deployments = kubernetes.get("deployments") or []
+    events = kubernetes.get("recent_events") or []
+    logs = elasticsearch.get("logs") or []
+    applications = argocd.get("applications") or []
+
+    unhealthy_pods = [
+        {
+            "name": pod.get("name"),
+            "phase": pod.get("phase"),
+            "restart_count": pod.get("restart_count", 0),
+            "containers_ready": pod.get("containers_ready"),
+            "node": pod.get("node"),
+        }
+        for pod in pods
+        if (
+            pod.get("phase") != "Running"
+            or pod.get("containers_ready") is not True
+            or int(pod.get("restart_count") or 0) > 0
+        )
+    ][:10]
+
+    unavailable_deployments = [
+        {
+            "name": deployment.get("name"),
+            "replicas": deployment.get("replicas", 0),
+            "ready_replicas": deployment.get("ready_replicas", 0),
+            "available_replicas": deployment.get(
+                "available_replicas",
+                0,
+            ),
+        }
+        for deployment in deployments
+        if int(deployment.get("available_replicas") or 0)
+        < int(deployment.get("replicas") or 0)
+    ][:10]
+
+    warning_events = [
+        {
+            "reason": event.get("reason"),
+            "object": event.get("object"),
+            "message": event.get("message"),
+        }
+        for event in events
+        if str(event.get("type", "")).lower() == "warning"
+    ][:8]
+
+    metric_values: dict[str, Any] = {}
+
+    for metric_name, metric_result in prometheus.items():
+        if not isinstance(metric_result, dict):
+            continue
+
+        if "value" in metric_result:
+            metric_values[metric_name] = metric_result["value"]
+        elif "error" in metric_result:
+            metric_values[metric_name] = {
+                "error": str(metric_result["error"])[:300]
+            }
+
+    relevant_logs = []
+
+    for log in logs:
+        message = log.get("message")
+
+        # Drop metrics/index records that contain no usable log message.
+        if not message:
+            continue
+
+        relevant_logs.append(
+            {
+                "timestamp": log.get("timestamp"),
+                "namespace": log.get("namespace"),
+                "pod": log.get("pod"),
+                "container": log.get("container"),
+                "message": str(message)[:500],
+            }
+        )
+
+        if len(relevant_logs) >= 5:
+            break
+
+    unhealthy_applications = [
+        {
+            "name": application.get("name"),
+            "sync_status": application.get("sync_status"),
+            "health_status": application.get("health_status"),
+            "path": application.get("path"),
+        }
+        for application in applications
+        if (
+            application.get("sync_status") != "Synced"
+            or application.get("health_status") != "Healthy"
+        )
+    ][:10]
+
+    compact_context = {
+        "namespace": context.get("namespace"),
+        "kubernetes": {
+            "total_pods": len(pods),
+            "unhealthy_pods": unhealthy_pods,
+            "unavailable_deployments": unavailable_deployments,
+            "warning_events": warning_events,
+        },
+        "prometheus": metric_values,
+        "elasticsearch": {
+            "total_hits": elasticsearch.get("total_hits"),
+            "relevant_logs": relevant_logs,
+        },
+        "tempo": {
+            "total_traces": tempo.get("total_traces", 0),
+            "error": (
+                str(tempo.get("error"))[:300]
+                if tempo.get("error")
+                else None
+            ),
+        },
+        "argocd": {
+            "unhealthy_applications": unhealthy_applications,
+        },
+    }
+
+    return compact_context
 
 def build_tool_context(tool_used: str, tool_result: dict[str, Any]) -> str:
     if tool_used == "none":
@@ -749,7 +905,7 @@ def investigate_incident(req: IncidentInvestigationRequest):
             response = requests.post(
                 f"{LLM_GATEWAY_URL}/chat",
                 json={"prompt": final_prompt},
-                timeout=180,
+                timeout=LLM_GATEWAY_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
             llm_response = response.json()
@@ -835,7 +991,7 @@ Final answer:
             response = requests.post(
                 f"{LLM_GATEWAY_URL}/chat",
                 json={"prompt": final_prompt},
-                timeout=120,
+                timeout=LLM_GATEWAY_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
             llm_response = response.json()

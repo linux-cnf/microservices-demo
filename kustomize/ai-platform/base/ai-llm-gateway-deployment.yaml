@@ -61,6 +61,8 @@ spec:
                 configMapKeyRef:
                   name: ai-model-config
                   key: AI_MODEL
+            - name: OLLAMA_REQUEST_TIMEOUT_SECONDS
+              value: "300"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://tracing-prod-opentelemetry-collector.tracing.svc.cluster.local:4318"
             - name: RATE_LIMIT_REQUESTS
