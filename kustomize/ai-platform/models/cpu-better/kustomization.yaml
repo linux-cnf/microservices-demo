@@ -8,3 +8,4 @@ patches:
   - path: ai-model-config-patch.yaml
   - path: ai-bootstrap-model-config-patch.yaml
   - path: ai-ollama-resources-patch.yaml
+  - path: ai-supporting-services-resources-patch.yaml

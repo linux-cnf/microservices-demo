@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-llm-gateway
+  namespace: ai
+spec:
+  template:
+    spec:
+      containers:
+      - name: ai-llm-gateway
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "750m"
+            memory: "768Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-agent-orchestrator
+  namespace: ai
+spec:
+  template:
+    spec:
+      containers:
+      - name: ai-agent-orchestrator
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "750m"
+            memory: "1Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-rate-limit-redis
+  namespace: ai
+spec:
+  template:
+    spec:
+      containers:
+      - name: redis
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "300m"
+            memory: "512Mi"
