@@ -1,7 +1,8 @@
 # ---------------------------------------------------------
 # PURPOSE:
-# Adds Kubernetes-level isolation for AI workloads.
-# Allows required mesh, DNS, observability, logging, and tracing traffic.
+# Adds Kubernetes-level network isolation for AI workloads.
+# Default deny is enabled first, then only required ingress
+# and egress paths are explicitly allowed.
 # ---------------------------------------------------------
 
 apiVersion: networking.k8s.io/v1
@@ -12,6 +13,7 @@ metadata:
   name: ai-default-deny
   namespace: ai
 spec:
+  # Apply default deny to all pods in the ai namespace.
   podSelector: {}
   policyTypes:
     - Ingress
@@ -23,20 +25,28 @@ metadata:
   name: ai-allow-required-ingress
   namespace: ai
 spec:
+  # Allow only trusted namespaces to call AI services.
   podSelector: {}
   policyTypes:
     - Ingress
   ingress:
     - from:
+        # AI services communicate with each other.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ai
+
+        # Model pull/bootstrap jobs need to reach AI services.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ai-bootstrap
+
+        # Boutique workloads may call the AI agent for incident analysis.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: boutique
+
+        # Prometheus/monitoring can scrape AI service metrics.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
@@ -47,30 +57,64 @@ metadata:
   name: ai-allow-required-egress
   namespace: ai
 spec:
+  # Allow AI pods to reach only required internal platform services.
   podSelector: {}
   policyTypes:
     - Egress
   egress:
+    # Internal namespace-to-namespace communication required by the AI platform.
     - to:
+        # AI services call each other: orchestrator, gateway, Ollama, Redis.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ai
+
+        # AI agent queries Prometheus and monitoring components.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
+
+        # AI agent queries Elasticsearch/logging components.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: logging
+
+        # AI agent queries Tempo/tracing components.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: tracing
+
+        # DNS/CoreDNS and cluster system services.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
+
+        # Istio control-plane and mesh-related communication.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: istio-system
 
+    # Required for the AI Agent Orchestrator to query Kubernetes API
+    # using in-cluster auth via kubernetes.default.svc.
+    # This Service IP is allocated from the Terraform-defined GKE service CIDR.
+    - to:
+        - ipBlock:
+            cidr: 10.30.0.0/22
+      ports:
+        - protocol: TCP
+          port: 443
+
+    # Required because kubernetes.default.svc forwards to the GKE control-plane endpoint.
+    # This CIDR comes from Terraform master_ipv4_cidr_block.
+    - to:
+        - ipBlock:
+            cidr: 172.16.0.0/28
+      ports:
+        - protocol: TCP
+          port: 443            
+
+    # Allow HTTPS egress to public endpoints only.
+    # Private RFC1918 ranges are excluded to avoid broad internal access.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0

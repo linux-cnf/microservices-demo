@@ -126,3 +126,25 @@ variable "location_policy" {
     error_message = "location_policy must be either BALANCED or ANY."
   }
 }
+
+variable "max_surge" {
+  type        = number
+  description = "Maximum temporary surge nodes during node pool updates"
+  default     = 1
+
+  validation {
+    condition     = var.max_surge >= 0
+    error_message = "max_surge must be zero or greater."
+  }
+}
+
+variable "max_unavailable" {
+  type        = number
+  description = "Maximum unavailable nodes during node pool updates"
+  default     = 0
+
+  validation {
+    condition     = var.max_unavailable >= 0
+    error_message = "max_unavailable must be zero or greater."
+  }
+}

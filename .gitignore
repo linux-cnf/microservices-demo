@@ -37,3 +37,10 @@ tfplan*
 *.tfplan
 crash.log
 crash.*.log
+
+# Ignore locally generated Kubernetes Image Auditor binaries.
+# Source code remains tracked; binaries are rebuilt through the Makefile.
+/bin/
+tools/image-auditor/image-auditor
+scripts/image-auditor
+

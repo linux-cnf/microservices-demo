@@ -13,8 +13,6 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  annotations:
-    argocd.argoproj.io/sync-wave: "-3"
   labels:
     app: ai-ollama
     purpose: llm

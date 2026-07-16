@@ -38,6 +38,7 @@ on:
         type: choice
         options:
           - prod
+
       run_apply:
         description: "Run terraform apply to enable AI node pool?"
         required: true
@@ -47,17 +48,32 @@ on:
           - "true"
           - "false"
 
+      ai_profile:
+        description: "AI hardware/model profile"
+        required: true
+        default: "cpu-small"
+        type: choice
+        options:
+          - cpu-small
+          - cpu-better
+
   workflow_call:
     inputs:
       environment:
         required: false
         type: string
         default: "prod"
+
       run_apply:
         description: "Run terraform apply to enable AI node pool?"
         required: false
         default: true
         type: boolean
+
+      ai_profile:
+        required: false
+        type: string
+        default: "cpu-small"
 
 permissions:
   contents: read
@@ -81,6 +97,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
@@ -137,9 +155,54 @@ jobs:
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
         run: terraform validate
 
+      - name: Select AI profile
+        env:
+          AI_PROFILE: ${{ inputs.ai_profile }}
+        run: |
+          set -euo pipefail
+
+          case "${AI_PROFILE}" in
+            cpu-small)
+              echo "AI_MACHINE_TYPE=e2-standard-2" >> "$GITHUB_ENV"
+              echo "AI_MODEL=tinyllama" >> "$GITHUB_ENV"
+              echo "AI_MIN_NODES=1" >> "$GITHUB_ENV"
+              echo "AI_MAX_NODES=1" >> "$GITHUB_ENV"
+              echo "TARGET_CLUSTER_CPUS=10" >> "$GITHUB_ENV"
+              ;;
+
+            cpu-better)
+              echo "AI_MACHINE_TYPE=e2-highmem-4" >> "$GITHUB_ENV"
+              echo "AI_MODEL=llama3.2:3b" >> "$GITHUB_ENV"
+              echo "AI_MIN_NODES=1" >> "$GITHUB_ENV"
+              echo "AI_MAX_NODES=1" >> "$GITHUB_ENV"
+              echo "TARGET_CLUSTER_CPUS=12" >> "$GITHUB_ENV"
+              ;;
+
+            *)
+              echo "::error::Invalid AI profile: ${AI_PROFILE}"
+              exit 1
+              ;;
+          esac
+
       - name: Terraform plan AI platform
         working-directory: ${{ env.TERRAFORM_WORKING_DIR }}
-        run: terraform plan -input=false -var="enable_ai_node_pool=true" -out=tfplan-ai
+        run: |
+          set -euo pipefail
+
+          echo "Selected AI profile:"
+          echo "  Machine type: ${AI_MACHINE_TYPE}"
+          echo "  Model:        ${AI_MODEL}"
+          echo "  Min nodes:    ${AI_MIN_NODES}"
+          echo "  Max nodes:    ${AI_MAX_NODES}"
+          echo "  Target CPU:   ${TARGET_CLUSTER_CPUS}"
+
+          terraform plan \
+            -input=false \
+            -var="enable_ai_node_pool=true" \
+            -var="ai_node_pool_machine_type=${AI_MACHINE_TYPE}" \
+            -var="ai_node_pool_min_count=${AI_MIN_NODES}" \
+            -var="ai_node_pool_max_count=${AI_MAX_NODES}" \
+            -out=tfplan-ai
 
       - name: Terraform apply AI platform
         if: ${{ inputs.run_apply == true || inputs.run_apply == 'true' }}

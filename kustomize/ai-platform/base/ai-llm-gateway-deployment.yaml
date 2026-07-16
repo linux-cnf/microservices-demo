@@ -48,7 +48,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: ai-llm-gateway
-          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/ai-microservices/ai-llm-gateway:ffb9d925937120b47c3070c6f7566fc762c82782
+          image: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/ai-microservices/ai-llm-gateway:c746f094deeae00d27f450cc5cf13c131f25debe
           imagePullPolicy: Always
           ports:
             - name: http
@@ -57,9 +57,14 @@ spec:
             - name: OLLAMA_URL
               value: "http://ai-ollama.ai.svc.cluster.local:11434"
             - name: DEFAULT_MODEL
-              value: "tinyllama"
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-model-config
+                  key: AI_MODEL
+            - name: OLLAMA_REQUEST_TIMEOUT_SECONDS
+              value: "300"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://tracing-opentelemetry-collector.tracing.svc.cluster.local:4318"
+              value: "http://tracing-prod-opentelemetry-collector.tracing.svc.cluster.local:4318"
             - name: RATE_LIMIT_REQUESTS
               value: "30"
             - name: RATE_LIMIT_WINDOW_SECONDS

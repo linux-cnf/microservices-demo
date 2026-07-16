@@ -67,9 +67,9 @@ spec:
             - name: OLLAMA_URL
               value: "http://ai-ollama.ai.svc.cluster.local:11434"
             - name: DEFAULT_MODEL
-              value: "tinyllama"
+              value: "llama3.2:3b"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://tracing-opentelemetry-collector.tracing.svc.cluster.local:4318"
+              value: "http://tracing-prod-opentelemetry-collector.tracing.svc.cluster.local:4318"
             - name: RATE_LIMIT_REQUESTS
               value: "30"
             - name: RATE_LIMIT_WINDOW_SECONDS

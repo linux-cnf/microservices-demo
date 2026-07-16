@@ -1,38 +1,90 @@
 #!/usr/bin/env bash
 # =========================================================
-# Environment-Aware Cluster Bootstrap Script (GKE + Argo CD)
+# Environment and Branch-Aware Cluster Bootstrap
 # =========================================================
 #
 # PURPOSE:
-# Bootstrap Argo CD into a selected GKE environment.
+# Bootstrap Argo CD into a selected GKE environment and configure
+# the root Application to reconcile from a selected Git branch.
 #
 # USAGE:
-#   ./scripts/cluster-bootstrap.sh -n dev
-#   ./scripts/cluster-bootstrap.sh -n prod
+#   ./scripts/cluster-bootstrap.sh -n dev  -b develop
+#   ./scripts/cluster-bootstrap.sh -n prod -b develop
+#   ./scripts/cluster-bootstrap.sh -n prod -b main
 #
-# DEV:
-# - Cluster: kfounding-dev
-# - Argo CD namespace: argocd-dev
-# - Root app: platform-root-dev
+# OPTIONS:
+#   -n  Environment: dev or prod
+#   -b  Git branch/revision: develop, main, release/*, feature/*, etc.
 #
-# PROD:
-# - Cluster: kfounding-prod
-# - Argo CD namespace: argocd
-# - Root app: platform-root-prod 
+# EXAMPLES:
+#
+# Development cluster using develop:
+#   ./scripts/cluster-bootstrap.sh -n dev -b develop
+#
+# Temporary production lab using develop:
+#   ./scripts/cluster-bootstrap.sh -n prod -b develop
+#
+# Production release using main:
+#   ./scripts/cluster-bootstrap.sh -n prod -b main
+#
+# IMPORTANT:
+# The script does not modify the tracked root Application file.
+# It creates a temporary rendered manifest with the requested
+# targetRevision and applies that manifest to the cluster.
 # =========================================================
 
 set -euo pipefail
 
 PROJECT_ID="project-19d98bfe-795f-49b8-af0"
 REGION="us-central1"
-ENVIRONMENT=""
 
-while getopts "n:" opt; do
+ENVIRONMENT=""
+GIT_REVISION=""
+
+usage() {
+  cat <<EOF
+Usage:
+  $0 -n dev|prod -b <git-revision>
+
+Examples:
+  $0 -n dev -b develop
+  $0 -n prod -b develop
+  $0 -n prod -b main
+EOF
+}
+
+while getopts ":n:b:" opt; do
   case "$opt" in
-    n) ENVIRONMENT="$OPTARG" ;;
-    *) echo "Usage: $0 -n dev|prod"; exit 1 ;;
+    n)
+      ENVIRONMENT="$OPTARG"
+      ;;
+    b)
+      GIT_REVISION="$OPTARG"
+      ;;
+    :)
+      echo "ERROR: Option -$OPTARG requires a value."
+      usage
+      exit 1
+      ;;
+    \?)
+      echo "ERROR: Invalid option: -$OPTARG"
+      usage
+      exit 1
+      ;;
   esac
 done
+
+if [[ -z "$ENVIRONMENT" || -z "$GIT_REVISION" ]]; then
+  echo "ERROR: Both environment and Git revision are required."
+  usage
+  exit 1
+fi
+
+# Allow common Git revision formats while blocking shell-sensitive input.
+if [[ ! "$GIT_REVISION" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+  echo "ERROR: Invalid Git revision: $GIT_REVISION"
+  exit 1
+fi
 
 case "$ENVIRONMENT" in
   dev)
@@ -45,42 +97,73 @@ case "$ENVIRONMENT" in
     CLUSTER_NAME="kfounding-prod"
     ARGOCD_NAMESPACE="argocd"
     ROOT_APP_FILE="argocd/platform-root-app-prod.yaml"
-    ROOT_APP_NAME="platform-root-prod"	  
+    ROOT_APP_NAME="platform-root-prod"
     ;;
   *)
-    echo "Usage: $0 -n dev|prod"
+    echo "ERROR: Unsupported environment: $ENVIRONMENT"
+    usage
     exit 1
     ;;
 esac
 
+RENDERED_ROOT_APP=""
+
+cleanup() {
+  if [[ -n "${RENDERED_ROOT_APP:-}" && -f "$RENDERED_ROOT_APP" ]]; then
+    rm -f "$RENDERED_ROOT_APP"
+  fi
+}
+
+trap cleanup EXIT
+
 retry() {
   local attempts=5
   local delay=20
+  local attempt
 
-  for i in $(seq 1 "$attempts"); do
-    "$@" && return 0
-    echo "Attempt $i/$attempts failed. Retrying in ${delay}s..."
+  for attempt in $(seq 1 "$attempts"); do
+    if "$@"; then
+      return 0
+    fi
+
+    echo "Attempt ${attempt}/${attempts} failed. Retrying in ${delay}s..."
     sleep "$delay"
   done
 
-  echo "Command failed after ${attempts} attempts: $*"
+  echo "ERROR: Command failed after ${attempts} attempts: $*"
   return 1
 }
 
 on_error() {
-  echo "Bootstrap failed at line $1"
+  local line_number="$1"
+
+  echo
+  echo "Bootstrap failed at line ${line_number}."
+
   kubectl get pods -n "$ARGOCD_NAMESPACE" || true
 
   if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
-    kubectl get application -n "$ARGOCD_NAMESPACE" || true
+    kubectl get applications.argoproj.io \
+      -n "$ARGOCD_NAMESPACE" || true
   fi
 }
 
 trap 'on_error $LINENO' ERR
 
-command -v gcloud >/dev/null || { echo "gcloud not installed"; exit 1; }
-command -v kubectl >/dev/null || { echo "kubectl not installed"; exit 1; }
-command -v helm >/dev/null || { echo "helm not installed"; exit 1; }
+command -v gcloud >/dev/null 2>&1 || {
+  echo "ERROR: gcloud is not installed."
+  exit 1
+}
+
+command -v kubectl >/dev/null 2>&1 || {
+  echo "ERROR: kubectl is not installed."
+  exit 1
+}
+
+command -v helm >/dev/null 2>&1 || {
+  echo "ERROR: helm is not installed."
+  exit 1
+}
 
 for file in \
   argocd/argocd-cm-health-patch.yaml \
@@ -88,30 +171,50 @@ for file in \
   "$ROOT_APP_FILE" \
   argocd/bootstrap/values.yaml
 do
-  [[ -f "$file" ]] || { echo "Missing file: $file"; exit 1; }
+  [[ -f "$file" ]] || {
+    echo "ERROR: Missing required file: $file"
+    exit 1
+  }
 done
 
-echo "Environment: $ENVIRONMENT"
-echo "Project: $PROJECT_ID"
-echo "Cluster: $CLUSTER_NAME"
-echo "Argo CD namespace: $ARGOCD_NAMESPACE"
-echo "Root app file: $ROOT_APP_FILE"
+echo "========================================================="
+echo "Cluster bootstrap configuration"
+echo "========================================================="
+echo "Environment:          $ENVIRONMENT"
+echo "Project:              $PROJECT_ID"
+echo "Region:               $REGION"
+echo "Cluster:              $CLUSTER_NAME"
+echo "Argo CD namespace:    $ARGOCD_NAMESPACE"
+echo "Root application:     $ROOT_APP_NAME"
+echo "Root application file:$ROOT_APP_FILE"
+echo "Git revision:         $GIT_REVISION"
+echo "========================================================="
 
 gcloud config set project "$PROJECT_ID" >/dev/null
 
 echo "Fetching GKE credentials..."
+
 retry gcloud container clusters get-credentials "$CLUSTER_NAME" \
   --region "$REGION" \
   --project "$PROJECT_ID"
 
 echo "Verifying cluster access..."
+
 retry kubectl cluster-info
 retry kubectl get nodes -o wide
 
-echo "Installing Argo CD..."
-retry bash -c "kubectl create namespace ${ARGOCD_NAMESPACE} --dry-run=client -o yaml | kubectl apply --validate=false -f -"
+echo "Creating Argo CD namespace..."
 
-helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
+retry bash -c \
+  "kubectl create namespace '${ARGOCD_NAMESPACE}' \
+  --dry-run=client -o yaml |
+  kubectl apply --validate=false -f -"
+
+echo "Installing or upgrading Argo CD..."
+
+helm repo add argo https://argoproj.github.io/argo-helm \
+  >/dev/null 2>&1 || true
+
 helm repo update argo
 
 retry helm upgrade --install argocd argo/argo-cd \
@@ -123,50 +226,124 @@ retry helm upgrade --install argocd argo/argo-cd \
 
 echo "Waiting for Argo CD core components..."
 
-retry kubectl wait --for=condition=Available deployment/argocd-server \
-  -n "$ARGOCD_NAMESPACE" --timeout=600s
+retry kubectl wait \
+  --for=condition=Available \
+  deployment/argocd-server \
+  -n "$ARGOCD_NAMESPACE" \
+  --timeout=600s
 
-retry kubectl wait --for=condition=Available deployment/argocd-repo-server \
-  -n "$ARGOCD_NAMESPACE" --timeout=600s
+retry kubectl wait \
+  --for=condition=Available \
+  deployment/argocd-repo-server \
+  -n "$ARGOCD_NAMESPACE" \
+  --timeout=600s
 
-kubectl wait --for=condition=Available deployment/argocd-applicationset-controller \
-  -n "$ARGOCD_NAMESPACE" --timeout=600s || true
+kubectl wait \
+  --for=condition=Available \
+  deployment/argocd-applicationset-controller \
+  -n "$ARGOCD_NAMESPACE" \
+  --timeout=600s || true
 
-kubectl wait --for=condition=Available deployment/argocd-dex-server \
-  -n "$ARGOCD_NAMESPACE" --timeout=600s || true
+kubectl wait \
+  --for=condition=Available \
+  deployment/argocd-dex-server \
+  -n "$ARGOCD_NAMESPACE" \
+  --timeout=600s || true
 
-retry kubectl rollout status statefulset/argocd-application-controller \
-  -n "$ARGOCD_NAMESPACE" --timeout=600s
+retry kubectl rollout status \
+  statefulset/argocd-application-controller \
+  -n "$ARGOCD_NAMESPACE" \
+  --timeout=600s
 
 echo "Applying Argo CD custom health checks..."
-retry bash -c "sed 's/namespace: argocd$/namespace: ${ARGOCD_NAMESPACE}/' argocd/argocd-cm-health-patch.yaml | kubectl apply --validate=false -f -"
 
-echo "Applying Argo CD notifications config..."
-retry bash -c "sed 's/namespace: argocd$/namespace: ${ARGOCD_NAMESPACE}/' argocd/argocd-notifications-cm.yaml | kubectl apply --validate=false -f -"
+retry bash -c \
+  "sed 's/namespace: argocd$/namespace: ${ARGOCD_NAMESPACE}/' \
+  argocd/argocd-cm-health-patch.yaml |
+  kubectl apply --validate=false -f -"
+
+echo "Applying Argo CD notifications configuration..."
+
+retry bash -c \
+  "sed 's/namespace: argocd$/namespace: ${ARGOCD_NAMESPACE}/' \
+  argocd/argocd-notifications-cm.yaml |
+  kubectl apply --validate=false -f -"
 
 echo "Restarting Argo CD components..."
 
-kubectl rollout restart deployment/argocd-server -n "$ARGOCD_NAMESPACE"
-kubectl rollout restart deployment/argocd-repo-server -n "$ARGOCD_NAMESPACE"
-kubectl rollout restart deployment/argocd-notifications-controller -n "$ARGOCD_NAMESPACE" || true
-kubectl rollout restart statefulset/argocd-application-controller -n "$ARGOCD_NAMESPACE"
+kubectl rollout restart deployment/argocd-server \
+  -n "$ARGOCD_NAMESPACE"
+
+kubectl rollout restart deployment/argocd-repo-server \
+  -n "$ARGOCD_NAMESPACE"
+
+kubectl rollout restart deployment/argocd-notifications-controller \
+  -n "$ARGOCD_NAMESPACE" || true
+
+kubectl rollout restart statefulset/argocd-application-controller \
+  -n "$ARGOCD_NAMESPACE"
 
 retry kubectl rollout status deployment/argocd-server \
-  -n "$ARGOCD_NAMESPACE" --timeout=300s
+  -n "$ARGOCD_NAMESPACE" \
+  --timeout=300s
 
 retry kubectl rollout status deployment/argocd-repo-server \
-  -n "$ARGOCD_NAMESPACE" --timeout=300s
+  -n "$ARGOCD_NAMESPACE" \
+  --timeout=300s
 
 kubectl rollout status deployment/argocd-notifications-controller \
-  -n "$ARGOCD_NAMESPACE" --timeout=300s || true
+  -n "$ARGOCD_NAMESPACE" \
+  --timeout=300s || true
 
 retry kubectl rollout status statefulset/argocd-application-controller \
-  -n "$ARGOCD_NAMESPACE" --timeout=300s
+  -n "$ARGOCD_NAMESPACE" \
+  --timeout=300s
 
-echo "Applying Argo CD root application..."
-retry kubectl apply --validate=false -f "$ROOT_APP_FILE" -n "$ARGOCD_NAMESPACE"
+echo "Rendering root Application for Git revision: $GIT_REVISION"
 
-echo "Waiting for root application to be registered..."
+RENDERED_ROOT_APP="$(mktemp)"
+
+# Replace the root Application source revision without modifying the
+# repository file. The first targetRevision field belongs to spec.source.
+awk -v revision="$GIT_REVISION" '
+  BEGIN {
+    replaced = 0
+  }
+
+  /^[[:space:]]*targetRevision:[[:space:]]*/ && replaced == 0 {
+    indentation = $0
+    sub(/targetRevision:.*/, "", indentation)
+    print indentation "targetRevision: " revision
+    replaced = 1
+    next
+  }
+
+  {
+    print
+  }
+
+  END {
+    if (replaced == 0) {
+      exit 42
+    }
+  }
+' "$ROOT_APP_FILE" >"$RENDERED_ROOT_APP" || {
+  echo "ERROR: Could not update targetRevision in $ROOT_APP_FILE"
+  exit 1
+}
+
+echo "Rendered root Application source:"
+grep -E \
+  "repoURL:|targetRevision:|path:" \
+  "$RENDERED_ROOT_APP" || true
+
+echo "Applying Argo CD root Application..."
+
+retry kubectl apply \
+  --validate=false \
+  -f "$RENDERED_ROOT_APP"
+
+echo "Waiting for root Application to be registered..."
 
 kubectl wait \
   --for=jsonpath='{.metadata.name}'="$ROOT_APP_NAME" \
@@ -174,39 +351,78 @@ kubectl wait \
   -n "$ARGOCD_NAMESPACE" \
   --timeout=120s || true
 
-echo "Checking root reconciliation status..."
+echo "Verifying configured Git revision..."
 
-for i in {1..30}; do
-  STATUS=$(kubectl get application "$ROOT_APP_NAME" -n "$ARGOCD_NAMESPACE" \
-    -o jsonpath='{.status.sync.status} {.status.health.status}' 2>/dev/null || true)
+APPLIED_REVISION="$(
+  kubectl get application "$ROOT_APP_NAME" \
+    -n "$ARGOCD_NAMESPACE" \
+    -o jsonpath='{.spec.source.targetRevision}'
+)"
 
-  echo "${ROOT_APP_NAME} status: ${STATUS:-not ready}"
+if [[ "$APPLIED_REVISION" != "$GIT_REVISION" ]]; then
+  echo "ERROR: Root Application revision mismatch."
+  echo "Expected: $GIT_REVISION"
+  echo "Actual:   $APPLIED_REVISION"
+  exit 1
+fi
+
+echo "Root Application is configured for: $APPLIED_REVISION"
+
+echo "Waiting for root Application reconciliation..."
+
+ROOT_HEALTHY=false
+
+for attempt in $(seq 1 30); do
+  STATUS="$(
+    kubectl get application "$ROOT_APP_NAME" \
+      -n "$ARGOCD_NAMESPACE" \
+      -o jsonpath='{.status.sync.status} {.status.health.status}' \
+      2>/dev/null || true
+  )"
+
+  echo "Attempt ${attempt}/30 — ${ROOT_APP_NAME}: ${STATUS:-not ready}"
 
   if [[ "$STATUS" == "Synced Healthy" ]]; then
-    echo "${ROOT_APP_NAME} is Synced and Healthy."
+    ROOT_HEALTHY=true
     break
   fi
 
   sleep 20
 done
 
+if [[ "$ROOT_HEALTHY" != "true" ]]; then
+  echo "WARNING: Root Application did not become Synced and Healthy"
+  echo "within the waiting period."
+  echo
+  kubectl get application "$ROOT_APP_NAME" \
+    -n "$ARGOCD_NAMESPACE" \
+    -o yaml || true
+fi
+
 echo
 echo "========================================================="
 echo "GitOps bootstrap submitted successfully"
 echo "========================================================="
-echo
-echo "Environment: $ENVIRONMENT"
-echo "Cluster: $CLUSTER_NAME"
+echo "Environment:       $ENVIRONMENT"
+echo "Cluster:           $CLUSTER_NAME"
 echo "Argo CD namespace: $ARGOCD_NAMESPACE"
-echo "Root app: $ROOT_APP_NAME"
+echo "Root application:  $ROOT_APP_NAME"
+echo "Git revision:      $GIT_REVISION"
+echo "========================================================="
 echo
 
-kubectl get application -n "$ARGOCD_NAMESPACE" || true
+kubectl get applications.argoproj.io \
+  -n "$ARGOCD_NAMESPACE" || true
+
 kubectl get pods -A || true
 
 echo
 echo "Recommended validation:"
-echo "  ./scripts/cluster-bootstrap.sh -n ${ENVIRONMENT}"
-echo "  kubectl get application -n ${ARGOCD_NAMESPACE}"
+echo
+echo "  kubectl get application ${ROOT_APP_NAME} \\"
+echo "    -n ${ARGOCD_NAMESPACE} \\"
+echo "    -o jsonpath='{.spec.source.targetRevision}{\"\\n\"}'"
+echo
+echo "  kubectl get applications.argoproj.io -n ${ARGOCD_NAMESPACE}"
 echo "  kubectl get pods -A"
 echo "  kubectl get events -A --sort-by=.lastTimestamp | tail -30"
