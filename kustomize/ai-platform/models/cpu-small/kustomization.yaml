@@ -5,20 +5,7 @@ resources:
   - ../../base
 
 patches:
-  - target:
-      kind: ConfigMap
-      name: ai-model-config
-      namespace: ai
-    patch: |-
-      - op: replace
-        path: /data/AI_MODEL
-        value: tinyllama
-
-  - target:
-      kind: ConfigMap
-      name: ai-model-config
-      namespace: ai-bootstrap
-    patch: |-
-      - op: replace
-        path: /data/AI_MODEL
-        value: tinyllama
+  - path: ai-model-config-patch.yaml
+  - path: ai-bootstrap-model-config-patch.yaml
+  - path: ai-ollama-resources-patch.yaml
+  - path: ai-supporting-services-resources-patch.yaml
