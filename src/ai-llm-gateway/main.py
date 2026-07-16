@@ -10,6 +10,7 @@ Responsibilities:
 - Keep frontend independent from Ollama/vLLM implementation details
 - Prepare future support for auth, rate limiting, routing, and audit logging
 """
+import logging
 import os
 import time
 import redis
@@ -30,6 +31,13 @@ from prometheus_client import (
     Histogram,
     generate_latest,
     CONTENT_TYPE_LATEST,
+)
+
+logger = logging.getLogger("ai-llm-gateway")
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+
+OLLAMA_REQUEST_TIMEOUT_SECONDS = float(
+    os.getenv("OLLAMA_REQUEST_TIMEOUT_SECONDS", "300")
 )
 
 OLLAMA_URL = os.getenv(
@@ -212,7 +220,14 @@ Answer:""",
     }
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        timeout = httpx.Timeout(
+            connect=10.0,
+            read=OLLAMA_REQUEST_TIMEOUT_SECONDS,
+            write=30.0,
+            pool=10.0,
+        )
+        async with httpx.AsyncClient(timeout=timeout) as client:
+
             response = await client.post(
                 f"{OLLAMA_URL}/api/generate",
                 json=payload,
@@ -227,15 +242,61 @@ Answer:""",
             response=data.get("response", ""),
         )
 
+    except httpx.TimeoutException as exc:
+
+        AI_ERRORS_TOTAL.labels(
+            endpoint="/chat",
+        ).inc()
+
+        logger.exception(
+            "Ollama request timed out after %.0f seconds. "
+            "model=%s prompt_chars=%d",
+            OLLAMA_REQUEST_TIMEOUT_SECONDS,
+            model,
+            len(body.prompt),
+        )
+
+        raise HTTPException(
+            status_code=504,
+            detail=(
+                "Ollama inference timed out after "
+                f"{OLLAMA_REQUEST_TIMEOUT_SECONDS:.0f} seconds."
+            ),
+        ) from exc
+
     except httpx.HTTPStatusError as exc:
 
         AI_ERRORS_TOTAL.labels(
             endpoint="/chat",
         ).inc()
 
+        logger.error(
+            "Ollama returned HTTP %s. model=%s body=%s",
+            exc.response.status_code,
+            model,
+            exc.response.text[:2000],
+        )
+
         raise HTTPException(
             status_code=exc.response.status_code,
-            detail=exc.response.text,
+            detail=exc.response.text[:2000],
+        ) from exc
+
+    except httpx.RequestError as exc:
+
+        AI_ERRORS_TOTAL.labels(
+            endpoint="/chat",
+        ).inc()
+
+        logger.exception(
+            "Ollama network request failed. model=%s error=%s",
+            model,
+            exc,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ollama network request failed: {exc}",
         ) from exc
 
     except Exception as exc:
@@ -243,6 +304,11 @@ Answer:""",
         AI_ERRORS_TOTAL.labels(
             endpoint="/chat",
         ).inc()
+
+        logger.exception(
+            "Unexpected LLM Gateway error. model=%s",
+            model,
+        )
 
         raise HTTPException(
             status_code=500,

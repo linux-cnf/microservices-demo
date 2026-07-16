@@ -82,6 +82,8 @@ spec:
               value: "boutique"
             - name: PRODUCT_CATALOG_APP_LABEL
               value: "productcatalogservice"
+            - name: LLM_GATEWAY_TIMEOUT_SECONDS
+              value: "330"
           readinessProbe:
             httpGet:
               path: /readyz
