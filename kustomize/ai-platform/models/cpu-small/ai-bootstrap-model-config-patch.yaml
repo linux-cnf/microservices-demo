@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-model-config
+  namespace: ai-bootstrap
+data:
+  AI_MODEL: tinyllama
