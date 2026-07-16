@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
-    targetRevision: main
+    targetRevision: develop
     path: argocd/apps/dev/argocd-health-report
   destination:
     server: https://kubernetes.default.svc

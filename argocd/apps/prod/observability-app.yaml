@@ -10,7 +10,7 @@ spec:
 
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
-    targetRevision: develop
+    targetRevision: main
     path: helm-chart/observability
     helm:
       valueFiles:
