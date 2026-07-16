@@ -81,7 +81,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: "us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/frontend:44e8113840c07f58ac78ee96f7b090006e076717"
+          image: "us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/frontend:bb72a318d72c8dd4c4cc90573b4303e1c2e01916"
           ports:
             - containerPort: 8080
           readinessProbe:
