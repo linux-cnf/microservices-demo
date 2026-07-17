@@ -1,0 +1,21 @@
+{{- if and .Values.grafanaDashboards.enabled .Values.grafanaDashboards.boutiqueServiceTraffic.enabled }}
+{{- $environment := required "environment must be set through values-dev.yaml or values-prod.yaml" .Values.environment }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: boutique-service-traffic-{{ $environment }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: observability
+    app.kubernetes.io/component: grafana-dashboard
+    environment: {{ $environment | quote }}
+  annotations:
+    grafana_folder: {{ .Values.grafanaDashboards.boutiqueServiceTraffic.folder | quote }}
+data:
+  boutique-service-traffic-{{ $environment }}.json: |
+{{ .Files.Get "dashboards/boutique-service-traffic.json"
+   | replace "__ENVIRONMENT__" $environment
+   | replace "__NAMESPACE__" .Values.grafanaDashboards.boutiqueServiceTraffic.namespace
+   | indent 4 }}
+{{- end }}
