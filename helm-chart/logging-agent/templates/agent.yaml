@@ -78,10 +78,17 @@ spec:
         id: kubernetes-container-logs
         use_output: default
         streams:
-          - paths:
+          - id: kubernetes-container-logs-stream
+            paths:
               - /var/log/containers/*.log
+
+            prospector:
+              scanner:
+                symlinks: true
+
             parsers:
               - container: ~
+
             data_stream:
               type: logs
               dataset: kubernetes.container_logs
