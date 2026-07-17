@@ -1,3 +1,6 @@
+tracing:
+  samplingPercentage: 5
+
 tempo:
   enabled: true
 
