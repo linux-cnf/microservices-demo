@@ -1,5 +1,5 @@
 # Must be overridden by values-dev.yaml or values-prod.yaml.
-environment: ""
+environment: default
 
 namespaces:
   monitoring: monitoring
