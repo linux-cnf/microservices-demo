@@ -1,3 +1,6 @@
+tracing:
+  samplingPercentage: 5
+
 tempo:
   enabled: true
 
@@ -68,7 +71,7 @@ opentelemetry-collector:
 
     exporters:
       otlp:
-        endpoint: tracing-tempo-otlp:4317
+        endpoint: tracing-tempo:4317
         tls:
           insecure: true
 

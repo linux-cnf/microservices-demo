@@ -9,3 +9,13 @@ tempo:
 opentelemetry-collector:
   nodeSelector:
     cloud.google.com/gke-nodepool: platform-observability
+
+  config:
+    exporters:
+      otlp:
+        endpoint: tracing-prod-tempo.tracing.svc.cluster.local:4317
+        tls:
+          insecure: true
+
+tracing:
+  samplingPercentage: 5
