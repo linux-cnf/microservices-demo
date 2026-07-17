@@ -2,8 +2,8 @@ environment: dev
 
 resources:
   requests:
-    cpu: 100m
+    cpu: 20m
     memory: 512Mi
   limits:
-    cpu: 500m
+    cpu: 300m
     memory: 1Gi
