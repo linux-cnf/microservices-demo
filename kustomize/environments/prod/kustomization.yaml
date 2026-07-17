@@ -26,6 +26,7 @@ components:
 patches:
   - path: resourcequota-prod.yaml
   - path: istio-podmonitor-patch.yaml
+  - path: istio-ingressgateway-podmonitor-patch.yaml
 
 images:
   - name: us-central1-docker.pkg.dev/project-19d98bfe-795f-49b8-af0/microservices-demo/adservice
