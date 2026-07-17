@@ -23,6 +23,35 @@ tempo:
             http:
               endpoint: 0.0.0.0:4318
 
+    metricsGenerator:
+      enabled: true
+
+      processor:
+        service_graphs:
+          wait: 10s
+          max_items: 10000
+
+        span_metrics:
+          enable_target_info: true
+
+      registry:
+        collection_interval: 15s
+        external_labels:
+          source: tempo
+
+      storage:
+        path: /var/tempo/metrics
+
+      traces_storage:
+        path: /var/tempo/traces-generator
+
+    overrides:
+      defaults:
+        metrics_generator:
+          processors:
+            - service-graphs
+            - span-metrics
+
   persistence:
     enabled: true
     size: 10Gi

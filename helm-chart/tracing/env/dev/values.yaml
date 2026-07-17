@@ -6,6 +6,15 @@ tempo:
     nodeSelector:
       cloud.google.com/gke-nodepool: platform-observability-dev
 
+    metricsGenerator:
+      remoteWriteUrl: >-
+        http://observability-dev-kube-pro-prometheus.monitoring.svc.cluster.local:9090/api/v1/write
+
+      registry:
+        external_labels:
+          environment: dev
+          cluster: kfounding-dev
+
 opentelemetry-collector:
   nodeSelector:
     cloud.google.com/gke-nodepool: platform-observability-dev
