@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://github.com/linux-cnf/microservices-demo.git
     targetRevision: develop
-    path: argocd/apps/argo-rollouts
+    path: argocd/apps/argo-rollouts-dev
   destination:
     server: https://kubernetes.default.svc
     namespace: argo-rollouts
