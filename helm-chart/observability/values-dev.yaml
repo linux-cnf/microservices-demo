@@ -13,6 +13,11 @@ grafanaDashboards:
     namespace: boutique
     folder: Boutique Dev
 
+  boutiqueTracingOverview:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Dev
+
 kube-prometheus-stack:
   grafana:
     additionalDataSources:

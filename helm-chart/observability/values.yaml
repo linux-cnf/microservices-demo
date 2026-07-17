@@ -106,3 +106,8 @@ grafanaDashboards:
     enabled: true
     namespace: boutique
     folder: Boutique
+
+  boutiqueTracingOverview:
+    enabled: true
+    namespace: boutique
+    folder: Boutique
