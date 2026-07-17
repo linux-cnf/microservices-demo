@@ -1,3 +1,5 @@
+environment: dev
+
 resources:
   requests:
     cpu: 5m

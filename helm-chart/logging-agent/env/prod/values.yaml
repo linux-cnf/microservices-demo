@@ -1,3 +1,5 @@
+environment: prod
+
 resources:
   requests:
     cpu: 5m
