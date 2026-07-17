@@ -17,3 +17,6 @@ resources:
   limits:
     cpu: 200m
     memory: 700Mi
+
+# Overridden by env/dev/values.yaml or env/prod/values.yaml.
+environment: default
