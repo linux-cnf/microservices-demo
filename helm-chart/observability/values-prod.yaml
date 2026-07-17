@@ -1,0 +1,9 @@
+environment: prod
+
+grafanaDashboards:
+  enabled: true
+
+  boutiqueServiceTraffic:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Prod
