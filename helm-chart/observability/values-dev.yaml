@@ -8,11 +8,24 @@ grafanaDashboards:
     namespace: boutique
     folder: Boutique Dev
 
+  boutiqueTracing:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Dev
+
 kube-prometheus-stack:
   grafana:
     additionalDataSources:
       - name: Tempo
+        uid: tempo
         type: tempo
         access: proxy
         url: http://tracing-dev-tempo.tracing.svc.cluster.local:3200
         isDefault: false
+        jsonData:
+          nodeGraph:
+            enabled: true
+          serviceMap:
+            datasourceUid: prometheus
+          search:
+            hide: false

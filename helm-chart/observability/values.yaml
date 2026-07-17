@@ -46,6 +46,7 @@ kube-prometheus-stack:
 
     prometheusSpec:
       serviceMonitorSelectorNilUsesHelmValues: false
+      enableRemoteWriteReceiver: true
 
       nodeSelector:
         workload: observability
@@ -97,6 +98,11 @@ grafanaDashboards:
   enabled: true
 
   boutiqueServiceTraffic:
+    enabled: true
+    namespace: boutique
+    folder: Boutique
+
+  boutiqueTracing:
     enabled: true
     namespace: boutique
     folder: Boutique
