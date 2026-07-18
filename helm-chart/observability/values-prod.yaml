@@ -18,6 +18,11 @@ grafanaDashboards:
     namespace: boutique
     folder: Boutique Prod
 
+  boutiqueServiceTrafficOverview:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Prod
+
 kube-prometheus-stack:
   grafana:
     additionalDataSources:
