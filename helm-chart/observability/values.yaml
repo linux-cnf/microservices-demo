@@ -111,3 +111,6 @@ grafanaDashboards:
     enabled: true
     namespace: boutique
     folder: Boutique
+
+  boutiqueServiceTrafficOverview:
+    enabled: true
