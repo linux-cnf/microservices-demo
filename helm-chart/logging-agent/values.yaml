@@ -20,3 +20,17 @@ resources:
 
 # Overridden by env/dev/values.yaml or env/prod/values.yaml.
 environment: default
+
+kibana:
+  dashboardProvisioning:
+    enabled: false
+
+  serviceName: ""
+  namespace: logging
+
+  dataView:
+    id: kubernetes-container-logs-default
+    title: logs-kubernetes.container_logs-default
+
+  dashboard:
+    title: Boutique Application Logs - DEFAULT

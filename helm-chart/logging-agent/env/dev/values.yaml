@@ -7,3 +7,17 @@ resources:
   limits:
     cpu: 300m
     memory: 1Gi
+
+kibana:
+  dashboardProvisioning:
+    enabled: true
+
+  serviceName: logging-dev-eck-kibana-kb-http
+  namespace: logging
+
+  dataView:
+    id: kubernetes-container-logs-dev
+    title: logs-kubernetes.container_logs-dev
+
+  dashboard:
+    title: Boutique Application Logs - DEV
