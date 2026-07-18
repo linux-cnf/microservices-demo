@@ -1,0 +1,110 @@
+{{- if .Values.kibana.dashboardProvisioning.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-kibana-dashboard-import
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: kibana-dashboard-import
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 300
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kibana-dashboard-import
+        app.kubernetes.io/instance: {{ .Release.Name }}
+
+    spec:
+      restartPolicy: OnFailure
+
+      containers:
+        - name: dashboard-import
+          image: curlimages/curl:8.12.1
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - /bin/sh
+            - -ec
+
+          args:
+            - |
+              KIBANA_URL="https://{{ .Values.kibana.serviceName }}.{{ .Values.kibana.namespace }}.svc:5601"
+
+              echo "Waiting for Kibana at ${KIBANA_URL}..."
+
+              until curl -skf \
+                -u "elastic:${KIBANA_PASSWORD}" \
+                "${KIBANA_URL}/api/status" >/dev/null; do
+                echo "Kibana is not ready yet"
+                sleep 10
+              done
+
+              echo "Preparing dashboard for {{ .Values.environment }}..."
+
+              sed \
+                -e 's|__ENV__|{{ .Values.environment }}|g' \
+                -e 's|__ENV_UPPER__|{{ .Values.environment | upper }}|g' \
+                /dashboard/boutique-application-logs.ndjson \
+                > /tmp/boutique-application-logs.ndjson
+
+              echo "Importing Kibana saved objects..."
+
+              RESPONSE_FILE="/tmp/import-response.json"
+
+              HTTP_CODE="$(
+                curl -sk \
+                  -o "${RESPONSE_FILE}" \
+                  -w '%{http_code}' \
+                  -u "elastic:${KIBANA_PASSWORD}" \
+                  -H 'kbn-xsrf: true' \
+                  -X POST \
+                  "${KIBANA_URL}/api/saved_objects/_import?overwrite=true" \
+                  -F file=@/tmp/boutique-application-logs.ndjson
+              )"
+
+              cat "${RESPONSE_FILE}"
+              echo
+
+              if [ "${HTTP_CODE}" -lt 200 ] || [ "${HTTP_CODE}" -ge 300 ]; then
+                echo "Kibana import failed with HTTP ${HTTP_CODE}"
+                exit 1
+              fi
+
+              if ! grep -q '"success":true' "${RESPONSE_FILE}"; then
+                echo "Kibana returned an unsuccessful import response"
+                exit 1
+              fi
+
+              echo "Kibana dashboard import completed successfully."
+
+          env:
+            - name: KIBANA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kibana.authSecret.name }}
+                  key: {{ .Values.kibana.authSecret.key }}
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+          volumeMounts:
+            - name: dashboard
+              mountPath: /dashboard
+              readOnly: true
+
+      volumes:
+        - name: dashboard
+          configMap:
+            name: {{ .Release.Name }}-kibana-dashboard
+{{- end }}

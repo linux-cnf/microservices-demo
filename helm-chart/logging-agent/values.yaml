@@ -28,6 +28,10 @@ kibana:
   serviceName: ""
   namespace: logging
 
+  authSecret:
+    name: elasticsearch-es-elastic-user
+    key: elastic
+
   dataView:
     id: kubernetes-container-logs-default
     title: logs-kubernetes.container_logs-default
