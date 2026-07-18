@@ -28,6 +28,11 @@ grafanaDashboards:
     namespace: boutique
     folder: Platform Prod
 
+  distributedTracingOperations:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Prod
+
 
 kube-prometheus-stack:
   grafana:

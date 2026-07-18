@@ -118,3 +118,8 @@ grafanaDashboards:
   kubernetesPlatformHealth:
     enabled: true
     folder: Platform
+
+  distributedTracingOperations:
+    enabled: true
+    namespace: boutique
+    folder: Boutique
