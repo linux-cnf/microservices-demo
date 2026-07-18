@@ -6,6 +6,7 @@ resources:
   - namespace.yaml
   - https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
   - argo-rollouts-pdb.yaml
+  - argo-rollouts-servicemonitor.yaml
 
 patches:
   - path: argo-rollouts-ha-patch.yaml

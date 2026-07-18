@@ -7,3 +7,4 @@ resources:
 patches:
   - path: argo-rollouts-dev-patch.yaml
   - path: argo-rollouts-dev-pdb-patch.yaml
+  - path: argo-rollouts-servicemonitor-dev-patch.yaml
