@@ -23,6 +23,11 @@ grafanaDashboards:
     namespace: boutique
     folder: Boutique Dev
 
+  kubernetesPlatformHealth:
+    enabled: true
+    folder: Platform Dev
+    namespace: boutique
+
 kube-prometheus-stack:
   grafana:
     additionalDataSources:

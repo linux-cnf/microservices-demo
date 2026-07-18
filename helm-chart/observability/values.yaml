@@ -114,3 +114,7 @@ grafanaDashboards:
 
   boutiqueServiceTrafficOverview:
     enabled: true
+
+  kubernetesPlatformHealth:
+    enabled: true
+    folder: Platform
