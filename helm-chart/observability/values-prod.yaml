@@ -33,6 +33,11 @@ grafanaDashboards:
     namespace: boutique
     folder: Boutique Prod
 
+  boutiqueSloGoldenSignals:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Prod
+
 
 kube-prometheus-stack:
   grafana:

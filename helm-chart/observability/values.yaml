@@ -123,3 +123,8 @@ grafanaDashboards:
     enabled: true
     namespace: boutique
     folder: Boutique
+
+  boutiqueSloGoldenSignals:
+    enabled: true
+    namespace: boutique
+    folder: Boutique
