@@ -152,3 +152,8 @@ grafanaDashboards:
     enabled: false
     folder: "Kubernetes Security"
     excludedNamespacesRegex: "kube-system|kube-public|kube-node-lease|gke-.*"
+
+  aiPlatformOperations:
+    enabled: false
+    namespace: ai
+    folder: "AI Platform"
