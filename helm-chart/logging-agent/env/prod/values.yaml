@@ -1,7 +1,23 @@
+environment: prod
+
 resources:
   requests:
-    cpu: 5m
-    memory: 300Mi
+    cpu: 20m
+    memory: 512Mi
   limits:
-    cpu: 200m
-    memory: 700Mi
+    cpu: 300m
+    memory: 1Gi
+
+kibana:
+  dashboardProvisioning:
+    enabled: true
+
+  serviceName: logging-prod-eck-kibana-kb-http
+  namespace: logging
+
+  dataView:
+    id: kubernetes-container-logs-prod
+    title: logs-kubernetes.container_logs-prod
+
+  dashboard:
+    title: Boutique Application Logs - PROD

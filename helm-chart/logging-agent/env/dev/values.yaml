@@ -1,7 +1,23 @@
+environment: dev
+
 resources:
   requests:
-    cpu: 5m
-    memory: 300Mi
+    cpu: 20m
+    memory: 512Mi
   limits:
-    cpu: 200m
-    memory: 700Mi
+    cpu: 300m
+    memory: 1Gi
+
+kibana:
+  dashboardProvisioning:
+    enabled: true
+
+  serviceName: logging-dev-eck-kibana-kb-http
+  namespace: logging
+
+  dataView:
+    id: kubernetes-container-logs-dev
+    title: logs-kubernetes.container_logs-dev
+
+  dashboard:
+    title: Boutique Application Logs - DEV

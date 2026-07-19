@@ -19,3 +19,4 @@ resources:
   - emailservice-authorization-policy.yaml
   - shippingservice-authorization-policy.yaml
   - redis-cart-authorization-policy.yaml
+  - istio-ingressgateway-podmonitor.yaml

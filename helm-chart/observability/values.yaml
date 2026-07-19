@@ -1,32 +1,34 @@
+# Must be overridden by values-dev.yaml or values-prod.yaml.
+environment: default
+
 namespaces:
   monitoring: monitoring
   logging: logging
-
-kubePrometheusStack:
-  enabled: true
-
-loki:
-  enabled: false
 
 kube-prometheus-stack:
   crds:
     enabled: true
 
   grafana:
+    enabled: true
+    defaultDashboardsEnabled: true
+
+    service:
+      type: ClusterIP
+
+    ingress:
+      enabled: false
+
     additionalDataSources:
       - name: Tempo
         type: tempo
         access: proxy
-        url: http://tracing-prod-tempo.tracing.svc.cluster.local:3200
+        url: http://tempo.tracing.svc.cluster.local:3200
         isDefault: false
-    enabled: true
-    defaultDashboardsEnabled: true
-    service:
-      type: ClusterIP
-    ingress:
-      enabled: false
+
     nodeSelector:
       workload: observability
+
     tolerations:
       - key: dedicated
         operator: Equal
@@ -35,14 +37,20 @@ kube-prometheus-stack:
 
   prometheus:
     enabled: true
+
     service:
       type: ClusterIP
+
     ingress:
       enabled: false
+
     prometheusSpec:
       serviceMonitorSelectorNilUsesHelmValues: false
+      enableRemoteWriteReceiver: true
+
       nodeSelector:
         workload: observability
+
       tolerations:
         - key: dedicated
           operator: Equal
@@ -51,13 +59,17 @@ kube-prometheus-stack:
 
   alertmanager:
     enabled: true
+
     service:
       type: ClusterIP
+
     ingress:
       enabled: false
+
     alertmanagerSpec:
       nodeSelector:
         workload: observability
+
       tolerations:
         - key: dedicated
           operator: Equal
@@ -66,8 +78,10 @@ kube-prometheus-stack:
 
   kube-state-metrics:
     enabled: true
+
     nodeSelector:
       workload: observability
+
     tolerations:
       - key: dedicated
         operator: Equal
@@ -76,5 +90,65 @@ kube-prometheus-stack:
 
   prometheus-node-exporter:
     enabled: true
+
     tolerations:
       - operator: Exists
+
+grafanaDashboards:
+  enabled: true
+
+  istioServiceMeshOperations:
+    enabled: true
+    applicationNamespace: boutique
+    istioNamespace: istio-system
+    folder: Service Mesh
+
+  boutiqueServiceTraffic:
+    enabled: true
+    namespace: boutique
+    folder: Boutique
+
+  boutiqueTracing:
+    enabled: true
+    namespace: boutique
+    folder: Boutique
+
+  boutiqueTracingOverview:
+    enabled: true
+    namespace: boutique
+    folder: Boutique
+
+  boutiqueServiceTrafficOverview:
+    enabled: true
+
+  kubernetesPlatformHealth:
+    enabled: true
+    folder: Platform
+
+  distributedTracingOperations:
+    enabled: true
+    namespace: boutique
+    folder: Boutique
+
+  boutiqueSloGoldenSignals:
+    enabled: true
+    namespace: boutique
+    folder: Boutique
+
+  argoRolloutsOperations:
+    enabled: true
+    namespace: boutique
+    folder: Progressive Delivery
+
+  kubernetesCostEfficiency:
+    enabled: true
+    folder: Platform
+
+  kubernetesCapacityPlanning:
+    enabled: true
+    folder: Platform
+
+  kubernetesSecurityPosture:
+    enabled: false
+    folder: "Kubernetes Security"
+    excludedNamespacesRegex: "kube-system|kube-public|kube-node-lease|gke-.*"

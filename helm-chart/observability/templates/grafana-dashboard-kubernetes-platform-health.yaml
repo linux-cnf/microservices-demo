@@ -1,0 +1,20 @@
+{{- if and .Values.grafanaDashboards.enabled .Values.grafanaDashboards.kubernetesPlatformHealth.enabled }}
+{{- $environment := required "environment must be set through values-dev.yaml or values-prod.yaml" .Values.environment }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-platform-health-{{ $environment }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: observability
+    app.kubernetes.io/component: grafana-dashboard
+    environment: {{ $environment | quote }}
+  annotations:
+    grafana_folder: {{ .Values.grafanaDashboards.kubernetesPlatformHealth.folder | quote }}
+data:
+  kubernetes-platform-health-{{ $environment }}.json: |
+{{ .Files.Get "dashboards/kubernetes-platform-health.json"
+   | replace "${environment}" $environment
+   | indent 4 }}
+{{- end }}

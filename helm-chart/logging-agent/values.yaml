@@ -12,8 +12,29 @@ tolerations:
 
 resources:
   requests:
-    cpu: 20m
-    memory: 300Mi
+    cpu: 100m
+    memory: 512Mi
   limits:
-    cpu: 200m
-    memory: 700Mi
+    cpu: 500m
+    memory: 1Gi
+
+# Overridden by env/dev/values.yaml or env/prod/values.yaml.
+environment: default
+
+kibana:
+  dashboardProvisioning:
+    enabled: false
+
+  serviceName: ""
+  namespace: logging
+
+  authSecret:
+    name: elasticsearch-es-elastic-user
+    key: elastic
+
+  dataView:
+    id: kubernetes-container-logs-default
+    title: logs-kubernetes.container_logs-default
+
+  dashboard:
+    title: Boutique Application Logs - DEFAULT

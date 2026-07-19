@@ -6,6 +6,25 @@ tempo:
     nodeSelector:
       cloud.google.com/gke-nodepool: platform-observability
 
+    metricsGenerator:
+      remoteWriteUrl: >-
+        http://observability-prod-kube-pro-prometheus.monitoring.svc.cluster.local:9090/api/v1/write
+
+      registry:
+        external_labels:
+          environment: prod
+          cluster: kfounding-prod
+
 opentelemetry-collector:
   nodeSelector:
     cloud.google.com/gke-nodepool: platform-observability
+
+  config:
+    exporters:
+      otlp:
+        endpoint: tracing-prod-tempo.tracing.svc.cluster.local:4317
+        tls:
+          insecure: true
+
+tracing:
+  samplingPercentage: 5

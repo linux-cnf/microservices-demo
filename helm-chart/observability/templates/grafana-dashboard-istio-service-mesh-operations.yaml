@@ -1,0 +1,24 @@
+{{- $dashboards := .Values.grafanaDashboards | default dict }}
+{{- $dashboard := get $dashboards "istioServiceMeshOperations" | default dict }}
+{{- if and (get $dashboards "enabled") (get $dashboard "enabled") }}
+{{- $environment := required "environment must be set through values-dev.yaml or values-prod.yaml" .Values.environment }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: istio-service-mesh-operations-{{ $environment }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: observability
+    app.kubernetes.io/component: grafana-dashboard
+    environment: {{ $environment | quote }}
+  annotations:
+    grafana_folder: {{ .Values.grafanaDashboards.istioServiceMeshOperations.folder | quote }}
+data:
+  istio-service-mesh-operations-{{ $environment }}.json: |
+{{ .Files.Get "dashboards/istio-service-mesh-operations.json"
+   | replace "__ENVIRONMENT__" $environment
+   | replace "__APP_NAMESPACE__" .Values.grafanaDashboards.istioServiceMeshOperations.applicationNamespace
+   | replace "__ISTIO_NAMESPACE__" .Values.grafanaDashboards.istioServiceMeshOperations.istioNamespace
+   | indent 4 }}
+{{- end }}

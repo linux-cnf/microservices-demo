@@ -1,0 +1,14 @@
+{{- if .Values.kibana.dashboardProvisioning.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-kibana-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: kibana-dashboard
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: Helm
+data:
+  boutique-application-logs.ndjson: |
+{{ .Files.Get "dashboards/boutique-application-logs.ndjson" | indent 4 }}
+{{- end }}

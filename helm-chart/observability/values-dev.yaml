@@ -1,0 +1,80 @@
+environment: dev
+
+grafanaDashboards:
+  enabled: true
+
+  boutiqueServiceTraffic:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Dev
+
+  boutiqueTracing:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Dev
+
+  boutiqueTracingOverview:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Dev
+
+  boutiqueServiceTrafficOverview:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Dev
+
+  kubernetesPlatformHealth:
+    enabled: true
+    folder: Platform Dev
+    namespace: boutique
+
+  distributedTracingOperations:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Dev
+
+  boutiqueSloGoldenSignals:
+    enabled: true
+    namespace: boutique
+    folder: Boutique Dev
+
+  argoRolloutsOperations:
+    enabled: true
+    namespace: boutique
+    folder: Progressive Delivery Dev
+
+  kubernetesCostEfficiency:
+    enabled: true
+    folder: Platform Dev
+
+  kubernetesCapacityPlanning:
+    enabled: true
+    folder: Platform Dev
+
+  istioServiceMeshOperations:
+    enabled: true
+    applicationNamespace: boutique
+    istioNamespace: istio-system
+    folder: Service Mesh Dev
+
+
+  kubernetesSecurityPosture:
+    enabled: true
+    folder: "Kubernetes Dev"
+    excludedNamespacesRegex: "kube-system|kube-public|kube-node-lease|gke-.*"
+kube-prometheus-stack:
+  grafana:
+    additionalDataSources:
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tracing-dev-tempo.tracing.svc.cluster.local:3200
+        isDefault: false
+        jsonData:
+          nodeGraph:
+            enabled: true
+          serviceMap:
+            datasourceUid: prometheus
+          search:
+            hide: false
