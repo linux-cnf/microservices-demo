@@ -44,6 +44,10 @@ grafanaDashboards:
     folder: Progressive Delivery Prod
 
 
+  kubernetesCostEfficiency:
+    enabled: true
+    folder: Platform Prod
+
   kubernetesCapacityPlanning:
     enabled: true
     folder: Platform Prod
