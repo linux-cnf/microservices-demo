@@ -133,3 +133,7 @@ grafanaDashboards:
     enabled: true
     namespace: boutique
     folder: Progressive Delivery
+
+  kubernetesCapacityPlanning:
+    enabled: true
+    folder: Platform

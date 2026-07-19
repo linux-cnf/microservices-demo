@@ -43,6 +43,10 @@ grafanaDashboards:
     namespace: boutique
     folder: Progressive Delivery Dev
 
+  kubernetesCapacityPlanning:
+    enabled: true
+    folder: Platform Dev
+
 kube-prometheus-stack:
   grafana:
     additionalDataSources:

@@ -44,6 +44,10 @@ grafanaDashboards:
     folder: Progressive Delivery Prod
 
 
+  kubernetesCapacityPlanning:
+    enabled: true
+    folder: Platform Prod
+
 kube-prometheus-stack:
   grafana:
     additionalDataSources:
