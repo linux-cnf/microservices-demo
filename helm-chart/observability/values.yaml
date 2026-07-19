@@ -97,6 +97,12 @@ kube-prometheus-stack:
 grafanaDashboards:
   enabled: true
 
+  istioServiceMeshOperations:
+    enabled: true
+    applicationNamespace: boutique
+    istioNamespace: istio-system
+    folder: Service Mesh
+
   boutiqueServiceTraffic:
     enabled: true
     namespace: boutique
