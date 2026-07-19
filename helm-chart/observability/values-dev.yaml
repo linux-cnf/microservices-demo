@@ -38,6 +38,11 @@ grafanaDashboards:
     namespace: boutique
     folder: Boutique Dev
 
+  argoRolloutsOperations:
+    enabled: true
+    namespace: boutique
+    folder: Progressive Delivery Dev
+
 kube-prometheus-stack:
   grafana:
     additionalDataSources:

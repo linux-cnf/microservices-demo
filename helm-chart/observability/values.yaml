@@ -128,3 +128,8 @@ grafanaDashboards:
     enabled: true
     namespace: boutique
     folder: Boutique
+
+  argoRolloutsOperations:
+    enabled: true
+    namespace: boutique
+    folder: Progressive Delivery
