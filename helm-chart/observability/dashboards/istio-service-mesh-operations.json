@@ -2288,7 +2288,7 @@
       },
       "targets": [
         {
-          "expr": "sort_asc(envoy_server_days_until_first_cert_expiring{namespace=~\"$namespace\",job=~\"$job\",pod=~\"$pod\"})",
+          "expr": "sort(envoy_server_days_until_first_cert_expiring{namespace=~\"${namespace:regex}\",job=~\"${job:regex}\",pod=~\"${pod:regex}\"})",
           "legendFormat": "{{namespace}} / {{pod}}",
           "refId": "A",
           "instant": true
