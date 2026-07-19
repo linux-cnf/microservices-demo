@@ -147,3 +147,8 @@ grafanaDashboards:
   kubernetesCapacityPlanning:
     enabled: true
     folder: Platform
+
+  kubernetesSecurityPosture:
+    enabled: false
+    folder: "Kubernetes Security"
+    excludedNamespacesRegex: "kube-system|kube-public|kube-node-lease|gke-.*"
