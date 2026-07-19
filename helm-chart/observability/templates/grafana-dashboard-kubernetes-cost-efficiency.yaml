@@ -1,0 +1,20 @@
+{{- if and .Values.grafanaDashboards.enabled .Values.grafanaDashboards.kubernetesCostEfficiency.enabled }}
+{{- $environment := required "environment must be set through values-dev.yaml or values-prod.yaml" .Values.environment }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-cost-efficiency-{{ $environment }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: observability
+    app.kubernetes.io/component: grafana-dashboard
+    environment: {{ $environment | quote }}
+  annotations:
+    grafana_folder: {{ .Values.grafanaDashboards.kubernetesCostEfficiency.folder | quote }}
+data:
+  kubernetes-cost-efficiency-{{ $environment }}.json: |
+{{ .Files.Get "dashboards/kubernetes-cost-efficiency.json"
+   | replace "__ENVIRONMENT__" $environment
+   | indent 4 }}
+{{- end }}
