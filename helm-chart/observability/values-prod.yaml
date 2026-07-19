@@ -58,6 +58,11 @@ grafanaDashboards:
     istioNamespace: istio-system
     folder: Service Mesh Prod
 
+
+  kubernetesSecurityPosture:
+    enabled: true
+    folder: "Kubernetes Prod"
+    excludedNamespacesRegex: "kube-system|kube-public|kube-node-lease|gke-.*"
 kube-prometheus-stack:
   grafana:
     additionalDataSources:

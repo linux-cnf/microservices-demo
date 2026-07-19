@@ -1,0 +1,24 @@
+{{- $dashboards := .Values.grafanaDashboards | default dict }}
+{{- $dashboard := get $dashboards "kubernetesSecurityPosture" | default dict }}
+{{- if and (get $dashboards "enabled") (get $dashboard "enabled") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-security-posture-{{ required "environment is required" .Values.environment }}
+  namespace: {{ .Values.namespaces.monitoring }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: kubernetes-security-posture
+    app.kubernetes.io/component: grafana-dashboard
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: observability
+    environment: {{ .Values.environment | quote }}
+  annotations:
+    grafana_folder: {{ get $dashboard "folder" | quote }}
+data:
+  kubernetes-security-posture.json: |
+{{ .Files.Get "dashboards/kubernetes-security-posture.json"
+   | replace "__ENVIRONMENT__" .Values.environment
+   | replace "__EXCLUDED_NAMESPACE_REGEX__" (get $dashboard "excludedNamespacesRegex")
+   | indent 4 }}
+{{- end }}
