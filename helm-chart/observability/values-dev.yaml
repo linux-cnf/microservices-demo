@@ -51,6 +51,12 @@ grafanaDashboards:
     enabled: true
     folder: Platform Dev
 
+  istioServiceMeshOperations:
+    enabled: true
+    applicationNamespace: boutique
+    istioNamespace: istio-system
+    folder: Service Mesh Dev
+
 kube-prometheus-stack:
   grafana:
     additionalDataSources:
