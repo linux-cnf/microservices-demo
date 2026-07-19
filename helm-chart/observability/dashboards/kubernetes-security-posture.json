@@ -261,7 +261,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count(kube_secret_info{namespace!~\"__EXCLUDED_NAMESPACE_REGEX__\"} unless on(namespace, secret) kube_secret_owner{namespace!~\"__EXCLUDED_NAMESPACE_REGEX__\"})",
+          "expr": "count(kube_secret_info{namespace!~\"__EXCLUDED_NAMESPACE_REGEX__\"} unless on(namespace, secret) kube_secret_owner{namespace!~\"__EXCLUDED_NAMESPACE_REGEX__\"}) or vector(0)",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
