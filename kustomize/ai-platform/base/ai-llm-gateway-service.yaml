@@ -34,3 +34,7 @@ spec:
     - name: http
       port: 8080
       targetPort: http
+    - name: http-metrics
+      port: 15020
+      protocol: TCP
+      targetPort: 15020

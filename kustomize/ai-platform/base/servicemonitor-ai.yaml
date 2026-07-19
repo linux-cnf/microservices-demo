@@ -24,6 +24,6 @@ spec:
     matchNames:
       - ai
   endpoints:
-    - port: http
-      path: /metrics
+    - port: http-metrics
+      path: /stats/prometheus
       interval: 30s
