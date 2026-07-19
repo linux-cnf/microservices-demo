@@ -63,6 +63,11 @@ grafanaDashboards:
     enabled: true
     folder: "Kubernetes Prod"
     excludedNamespacesRegex: "kube-system|kube-public|kube-node-lease|gke-.*"
+
+  aiPlatformOperations:
+    enabled: true
+    namespace: ai
+    folder: "AI Platform Prod"
 kube-prometheus-stack:
   grafana:
     additionalDataSources:

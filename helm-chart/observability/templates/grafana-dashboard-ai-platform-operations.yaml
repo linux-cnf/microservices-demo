@@ -1,0 +1,29 @@
+{{- $dashboards := .Values.grafanaDashboards | default dict }}
+{{- $dashboard := get $dashboards "aiPlatformOperations" | default dict }}
+{{- $environment := required "environment is required" .Values.environment }}
+{{- if and
+      (get $dashboards "enabled")
+      (get $dashboard "enabled")
+      (eq $environment "prod")
+}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-platform-operations-{{ $environment }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: ai-platform-operations
+    app.kubernetes.io/component: grafana-dashboard
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: observability
+    environment: {{ $environment | quote }}
+  annotations:
+    grafana_folder: {{ get $dashboard "folder" | quote }}
+data:
+  ai-platform-operations-{{ $environment }}.json: |
+{{ .Files.Get "dashboards/ai-platform-operations.json"
+   | replace "__ENVIRONMENT__" $environment
+   | replace "__AI_NAMESPACE__" (get $dashboard "namespace")
+   | indent 4 }}
+{{- end }}
