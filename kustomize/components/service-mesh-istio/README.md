@@ -44,8 +44,11 @@ http://localhost:20001
 Generate traffic:
 
 ```bash
+# Set this to the Istio ingress URL or IP for your environment.
+export FRONTEND_URL="http://<frontend-address>"
+
 for i in {1..100}; do
-  curl -s -o /dev/null http://34.45.27.5
+  curl -s -o /dev/null "$FRONTEND_URL"
 done
 ```
 
@@ -245,7 +248,7 @@ Validation:
 
 ```bash
 for i in {1..30}; do
-  curl -s -o /dev/null -w "%{time_total}\n" http://34.45.27.5
+  curl -s -o /dev/null -w "%{time_total}\n" "$FRONTEND_URL"
 done
 ```
 
@@ -270,7 +273,7 @@ Validation:
 
 ```bash
 for i in {1..50}; do
-  curl -s -o /dev/null -w "%{http_code}\n" http://34.45.27.5
+  curl -s -o /dev/null -w "%{http_code}\n" "$FRONTEND_URL"
 done | sort | uniq -c
 ```
 
@@ -321,7 +324,7 @@ kubectl get virtualservice -n boutique
 ### Verify Application
 
 ```bash
-curl -I http://34.45.27.5
+curl -I "$FRONTEND_URL"
 ```
 
 Expected:
@@ -354,4 +357,3 @@ Key achievements:
 * Added repeatable resilience testing workflows
 
 This phase demonstrates practical service mesh security and operational readiness using Istio.
-

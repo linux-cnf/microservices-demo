@@ -1,11 +1,21 @@
-# ./kubernetes-manifests
+# Kubernetes manifests
 
-:warning: Kubernetes manifests provided in this directory are not directly
-deployable to a cluster. They are meant to be used with `skaffold` command to
-insert the correct `image:` tags.
+These service manifests are the direct-deployment/Skaffold source for Online
+Boutique. Skaffold replaces their image references when it builds and deploys
+the application.
 
-Use the manifests in [/release](/release) directory which are configured with
-pre-built public images.
+For a prebuilt, versioned direct deployment, use
+[`release/kubernetes-manifests.yaml`](../release/kubernetes-manifests.yaml).
+For the current environment-aware GitOps deployment, use the overlays under
+[`kustomize/environments`](../kustomize/environments); Argo CD owns those
+resources in dev and prod.
 
-#adding a below note to understand "diff kubernetes-manifests/frontend.yaml kustomize/base/frontend.yaml"
-kubernetes-manifests contains static Kubernetes YAMLs that can be applied directly using kubectl apply -f. kustomize/base contains reusable base manifests managed by Kustomize, allowing environment-specific overlays (dev, staging, prod) to customize configurations without duplicating YAML. In production GitOps environments, Kustomize is commonly used because it improves maintainability and reduces manifest duplication
+Render this directory's Kustomization without applying it:
+
+```bash
+kubectl kustomize kubernetes-manifests >/tmp/online-boutique.yaml
+```
+
+Do not assume these manifests and `kustomize/base` are interchangeable. The
+latter includes platform-specific reliability and rollout behavior used by the
+environment overlays.

@@ -1,43 +1,21 @@
-# logging-agent
+# Logging Agent chart
 
-## Overview
-Deploys **Elastic Agent (DaemonSet)** to collect logs from all Kubernetes nodes and send them to Elasticsearch.
+This chart deploys Elastic Agent as a DaemonSet, its service account/RBAC, and a
+Kibana dashboard import job. The agent enriches and forwards node/workload logs
+to the Elasticsearch service deployed by `helm-chart/logging`.
 
----
+Environment values are under `env/dev/values.yaml` and `env/prod/values.yaml`.
+The logging backend and required secrets must be ready before the agent starts.
 
-## Components & Use Cases
-
-- **Elastic Agent**
-  - Collect pod + node logs
-  - Forward logs to Elasticsearch
-
-- **RBAC (ServiceAccount + Role)**
-  - Access Kubernetes metadata
-
-- **DaemonSet**
-  - Ensures agent runs on every node
-
----
-
-## Installation
+## Validate locally
 
 ```bash
-helm upgrade --install logging-agent ./helm-chart/logging-agent \
-  -n logging --create-namespace
+helm lint helm-chart/logging-agent \
+  -f helm-chart/logging-agent/env/dev/values.yaml
+helm template logging-agent helm-chart/logging-agent \
+  --namespace logging \
+  -f helm-chart/logging-agent/env/dev/values.yaml >/tmp/logging-agent.yaml
+```
 
-
-Preview
-helm template logging-agent ./helm-chart/logging-agent -n logging
-
-Workflow Pattern
-Update values/templates
-Validate:
-helm lint ./helm-chart/logging-agent
-Create PR → CI validates
-Merge → Deploy via Argo CD / pipeline
-
-Production Notes
-Runs on all nodes (auto-scales with cluster)
-Keep CPU/memory limits minimal
-Requires Elasticsearch (logging chart)
-Used only for log collection (not storage)
+Normal deployment is owned by the environment-specific Argo CD `logging-agent`
+Application.
