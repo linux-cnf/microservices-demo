@@ -1,6 +1,9 @@
 # Use Online Boutique with Kustomize
 
-This page contains instructions on deploying variations of the [Online Boutique](https://github.com/GoogleCloudPlatform/microservices-demo) sample application using [Kustomize](https://kustomize.io/). Each variations is designed as a [**Kustomize component**](https://github.com/kubernetes-sigs/kustomize/blob/master/examples/components.md), so multiple variations can be composed together in the deployment.
+This page contains instructions for deploying variations of the Online Boutique
+application using [Kustomize](https://kustomize.io/). Each variation is a
+[Kustomize component](https://github.com/kubernetes-sigs/kustomize/blob/master/examples/components.md),
+so compatible variations can be composed in one deployment.
 
 ## What is Kustomize?
 
@@ -131,10 +134,10 @@ Kustomize allows you to reference public remote resources so the `kustomization.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- github.com/GoogleCloudPlatform/microservices-demo/kustomize/base
+- github.com/linux-cnf/microservices-demo/kustomize/base
 components:
-- github.com/GoogleCloudPlatform/microservices-demo/kustomize/components/cymbal-branding
-- github.com/GoogleCloudPlatform/microservices-demo/kustomize/components/google-cloud-operations
+- github.com/linux-cnf/microservices-demo/kustomize/components/cymbal-branding
+- github.com/linux-cnf/microservices-demo/kustomize/components/google-cloud-operations
 ```
 
 Learn more about [Kustomize remote targets](https://github.com/kubernetes-sigs/kustomize/blob/master/examples/remoteBuild.md).

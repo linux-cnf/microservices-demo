@@ -1,9 +1,7 @@
-# Legacy Istio Manifests
+# Legacy Istio manifests
 
-These manifests originate from the upstream Google Boutique sample.
-
-The active production Istio configuration is maintained under:
-
-kustomize/components/service-mesh-istio
-
-This directory is retained as a reference and historical example.
+These manifests originate from the upstream Online Boutique sample and remain
+as a reference for direct deployments. The active environment-aware Istio
+configuration, strict mTLS, authorization policy, monitoring, traffic routing,
+and fault-test manifests are in the
+[service-mesh Kustomize component](../kustomize/components/service-mesh-istio/).

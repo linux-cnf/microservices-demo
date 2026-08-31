@@ -1,55 +1,24 @@
-# observability
+# Observability chart
 
-## Overview
-Provides **metrics, dashboards, and alerting** using:
+This chart wraps `kube-prometheus-stack` and provisions Prometheus, Alertmanager,
+Grafana, kube-state-metrics, node-exporter, and repository-managed Grafana
+dashboards. Dashboards cover application traffic/SLOs, Argo Rollouts, Istio,
+tracing, Kubernetes health/capacity/cost/security, and production AI operations.
 
-- Prometheus  
-- Grafana  
-- Alertmanager  
+Argo CD uses `values-dev.yaml` or `values-prod.yaml` on top of `values.yaml`.
+The AI dashboard is present in both renders, but its data is meaningful only
+when the production-only AI platform is deployed and scraped.
 
----
-
-## Components & Use Cases
-
-- **Prometheus**
-  - Collect cluster and application metrics
-
-- **Grafana**
-  - Dashboards and visualization
-
-- **Alertmanager**
-  - Alert routing and notifications
-
-- **kube-state-metrics**
-  - Kubernetes object metrics
-
-- **node-exporter**
-  - Node-level CPU, memory, disk metrics
-
----
-
-## Installation
+## Validate locally
 
 ```bash
-helm dependency update ./helm-chart/observability
+helm dependency build helm-chart/observability
+helm lint helm-chart/observability \
+  -f helm-chart/observability/values-dev.yaml
+helm template observability helm-chart/observability \
+  --namespace monitoring \
+  -f helm-chart/observability/values-dev.yaml >/tmp/observability-dev.yaml
+```
 
-helm upgrade --install observability ./helm-chart/observability \
-  -n monitoring --create-namespace
-
-Preview
-helm template observability ./helm-chart/observability -n monitoring
-
-Workflow Pattern
-Update values/templates
-Validate:
-helm lint
-Create PR → CI validates
-Merge → Deploy via Argo CD / pipeline
-
-Production Notes
-Use dedicated observability node pool
-Monitor Golden Signals:
-latency, traffic, errors, saturation
-Enable alerting early
-Keep Grafana secured (auth later)
-Optional: enable Loki for logs integration
+Use `values-prod.yaml` for a production render. Normal deployment is owned by
+the environment's Argo CD `observability` Application.

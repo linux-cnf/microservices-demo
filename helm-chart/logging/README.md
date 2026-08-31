@@ -1,50 +1,19 @@
-# logging
+# Logging chart
 
-## Overview
-Provides **log storage and visualization** using:
+This chart declares the ECK dependency and repository-managed Elasticsearch and
+Kibana resources. It provides the storage and search backend consumed by the
+`logging-agent` chart.
 
-- Elasticsearch  
-- Kibana (via ECK)
-
----
-
-## Components & Use Cases
-
-- **Elasticsearch**
-  - Store and index logs
-  - Fast search and retention
-
-- **Kibana**
-  - UI for log exploration and debugging
-
-- **Persistent Storage**
-  - Ensures logs are not lost on restart
-
----
-
-## Installation
+## Validate locally
 
 ```bash
-helm dependency update ./helm-chart/logging
+helm dependency build helm-chart/logging
+helm lint helm-chart/logging
+helm template logging helm-chart/logging \
+  --namespace logging >/tmp/logging.yaml
+```
 
-helm upgrade --install logging ./helm-chart/logging \
-  -n logging --create-namespace
-
-Preview
-helm template logging ./helm-chart/logging -n logging
-
-Workflow Pattern
-Update values.yaml
-Validate:
-helm lint
-helm dependency update
-Create PR → CI validates
-Merge → Deploy via Argo CD / pipeline
-
-Production Notes
-Use dedicated observability node pool
-Monitor disk usage (very important)
-Enable backups for Elasticsearch
-Scale using storage or nodeSets
-Works with logging-agent for log ingestion
-<-- retrigger ci -->
+Normal deployment is owned by the environment-specific Argo CD `logging`
+Application. Monitor persistent-volume capacity and Elasticsearch health; define
+retention, backup, and recovery requirements before using the lab configuration
+for important data.

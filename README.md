@@ -1,315 +1,180 @@
-# 🚀 Production-Grade Platform Engineering Lab
+# Production-Grade Platform Engineering Lab
 
-This repository transforms Google's Online Boutique microservices application into a production-oriented cloud-native platform used to demonstrate modern DevOps, GitOps, Kubernetes, Observability, Security, Service Mesh, and Platform Engineering practices.
+This repository extends Google's Online Boutique sample into a production-oriented
+platform engineering lab on Google Cloud. It keeps the polyglot microservices
+application while adding environment-aware infrastructure, GitOps delivery,
+progressive rollouts, service-mesh security, observability, centralized logging,
+distributed tracing, and an optional AI platform.
 
-The objective is not only to deploy microservices, but to design, automate, secure, observe, validate, and operate a production-style Kubernetes platform using enterprise-grade tooling and operational workflows.
-
----
-
-# 🏗️ Platform Architecture
+## Architecture
 
 ```text
-Developer
-    │
-    ▼
-GitHub Repository
-    │
-    ▼
-GitHub Actions CI/CD
-    │
-    ▼
-Terraform Infrastructure
-    │
-    ▼
-Private GKE Cluster
-    │
-    ▼
-Argo CD GitOps
-    │
-    ▼
-Kubernetes Workloads
-    │
-    ▼
-Observability + Logging + Tracing
+GitHub (develop/main)
+        |
+        v
+GitHub Actions -----> Artifact Registry
+        |
+        v
+Terraform (shared, dev, prod)
+        |
+        v
+Private-node GKE clusters
+        |
+        v
+Argo CD app-of-apps
+        |
+        +--> Kustomize: Online Boutique, Istio policies, Argo Rollouts
+        +--> Helm: Prometheus/Grafana, Elasticsearch/Kibana, Tempo, Kiali
+        +--> External Secrets Operator -> Google Secret Manager
 ```
 
----
+The GKE nodes use private addresses. The Terraform live environments configure
+Cloud NAT for controlled outbound access; the platform image-mirroring workflow
+can also copy approved third-party images into Artifact Registry.
 
-# 🛠️ Technology Stack
+## Major components
 
-| Category                  | Technologies                                       |
-| ------------------------- | -------------------------------------------------- |
-| Cloud                     | GCP, GKE                                           |
-| Infrastructure as Code    | Terraform                                          |
-| GitOps                    | Argo CD                                            |
-| CI/CD                     | GitHub Actions                                     |
-| Containers                | Docker                                             |
-| Kubernetes Packaging      | Helm, Kustomize                                    |
-| Service Mesh              | Istio                                              |
-| Progressive Delivery      | Argo Rollouts                                      |
-| Registry                  | Artifact Registry                                  |
-| Monitoring                | Prometheus                                         |
-| Dashboards                | Grafana                                            |
-| Logging                   | Elasticsearch, Kibana, ECK                         |
-| Tracing                   | Tempo, OpenTelemetry                               |
-| Secrets Management        | External Secrets Operator                          |
-| Secret Backend            | Google Secret Manager                              |
-| Security                  | RBAC, Workload Identity, AuthorizationPolicy, mTLS |
-| Networking                | Private GKE, Cloud NAT, VPC Native Networking      |
-| Automation                | Bash                                               |
-| Application Communication | gRPC                                               |
+| Area | Implementation |
+| --- | --- |
+| Application | Online Boutique microservices under `src/`, primarily communicating over gRPC |
+| Infrastructure | Reusable Terraform modules and isolated `shared`, `dev`, and `prod` live states |
+| GitOps | Argo CD app-of-apps with environment-specific roots |
+| Packaging | Kustomize bases/components/overlays and platform Helm charts |
+| Delivery | Argo Rollouts canaries with Prometheus analysis |
+| Service mesh | Istio ingress, traffic policy, strict mTLS, authorization policies, and Kiali |
+| Metrics | Prometheus, Alertmanager, kube-state-metrics, node-exporter, and Grafana dashboards |
+| Logging | ECK-managed Elasticsearch and Kibana with Elastic Agent |
+| Tracing | Tempo and OpenTelemetry Collector with Istio tracing configuration |
+| Secrets | External Secrets Operator, Google Secret Manager, and Workload Identity |
+| Security | Network policies, RBAC, image auditing, Gitleaks, Checkov, Trivy, and Zizmor |
+| AI platform | Ollama, LLM gateway, agent orchestrator, Redis rate limiting, observability, Istio policy, and optional canary rollout |
 
----
+## Repository layout
 
-# 🎯 Platform Engineering Journey
+| Path | Purpose |
+| --- | --- |
+| `src/` | Application and AI service source code |
+| `kubernetes-manifests/` | Direct-deployment Online Boutique manifests |
+| `kustomize/` | Base, reusable components, dev/prod overlays, and AI manifests |
+| `helm-chart/` | Observability, logging, tracing, Kiali, and logging-agent charts |
+| `argocd/` | Environment roots, Applications, projects, health checks, and notifications |
+| `terraform/modules/` | Reusable GCP modules |
+| `terraform/live/` | `shared`, `dev`, `prod`, and GitHub-governance states |
+| `scripts/` | Bootstrap, image mirroring, smoke testing, rollout, and operational helpers |
+| `.github/workflows/` | CI, infrastructure, bootstrap, security, and validation workflows |
+| `docs/` | Development, release, rollout, and AI platform guides |
+| `release/` | Generated release manifests |
 
-The repository is implemented incrementally using production-oriented phases.
+## Environment and branch strategy
 
-## Phase 1 — Reliability Engineering
+| Environment | Git branch | Argo CD root | Workload overlay |
+| --- | --- | --- | --- |
+| Development | `develop` | `argocd/platform-root-app-dev.yaml` | `kustomize/environments/dev` |
+| Production | `main` | `argocd/platform-root-app-prod.yaml` | `kustomize/environments/prod` |
 
-Implemented:
+Changes are developed and validated through pull requests into `develop`, then
+promoted to `main` through the repository's release process. Argo CD applications
+use automated synchronization, pruning, and self-healing.
 
-* Readiness Probes
-* Liveness Probes
-* Startup Probes
-* Pod Disruption Budgets
+The AI infrastructure is currently production-only at the workflow/GitOps level:
+the AI bootstrap and node-pool disable workflows expose only `prod`, and the
+optional AI Argo CD Application tracks `main`. Although a dev AI node-pool module
+exists in Terraform, it is not part of the supported end-to-end dev bootstrap.
 
-Key Goal:
+## Prerequisites
 
-Improve workload reliability and reduce application downtime during deployments and node maintenance.
+The exact tools depend on the workflow, but local operators normally need:
 
----
+- Google Cloud CLI authenticated to the target project
+- Terraform (the workflows currently use 1.14.8)
+- `kubectl` and access to the target GKE cluster
+- Helm and Kustomize (or `kubectl kustomize`)
+- Argo CD CLI for optional GitOps inspection
+- Docker only when building images locally
 
-## Phase 2 — GitOps Health Monitoring
+Cloud automation also expects repository/environment secrets for Workload
+Identity Federation and the GCP project. Do not place credentials in Git.
 
-Implemented:
+## Provision and bootstrap
 
-* Argo CD Health Customization
-* Automated Health Reporting
-* Scheduled Health Checks
+The supported automation is exposed as manually dispatched GitHub Actions:
 
-Key Goal:
+1. `platform-bootstrap.yml` validates Terraform and can orchestrate infrastructure,
+   approved image mirroring, GitHub governance, and the production AI bootstrap.
+2. `infra-main.yml` plans or applies `terraform/live/shared`, `dev`, or `prod`.
+3. `scripts/cluster-bootstrap.sh` installs/configures Argo CD and applies the
+   environment-specific root application from an authenticated operator host.
+4. Argo CD reconciles platform Helm charts and the appropriate Kustomize overlay.
+5. `smoke-test.yml` or `scripts/smoke-test.sh` performs cluster checks.
 
-Improve operational visibility of GitOps-managed applications.
+Review workflow inputs and destructive confirmations before running automation.
+`platform-full-destroy.yml` deliberately protects shared resources and requires
+environment-specific approval.
 
----
+For local manifest exploration without cloud changes:
 
-## Phase 3 — Progressive Delivery
-
-Implemented:
-
-* Argo Rollouts
-* Canary Deployment Strategy
-* Automated Rollout Verification
-* Rollout Analysis Templates
-
-Key Goal:
-
-Safely deploy application updates using progressive delivery techniques.
-
----
-
-## Phase 4 — Automated Rollback Validation
-
-Implemented:
-
-* Prometheus-Based Rollout Analysis
-* Automated Rollback Conditions
-* Deployment Health Validation
-
-Key Goal:
-
-Automatically prevent unhealthy releases from reaching production traffic.
-
----
-
-## Phase 5 — Service Mesh Traffic Management
-
-Implemented:
-
-* Istio Service Mesh
-* VirtualService Routing
-* DestinationRule Policies
-* Traffic Splitting
-* Service Mesh Metrics
-
-Key Goal:
-
-Introduce advanced traffic management and service-to-service observability.
-
----
-
-## Phase 6 — Security & Resilience Engineering
-
-Implemented:
-
-* Kiali Service Mesh Dashboard
-* STRICT mTLS
-* AuthorizationPolicies
-* Least-Privilege Service Communication
-* Fault Injection Testing
-* Security Validation Testing
-* Service Mesh Resilience Testing
-
-Key Goal:
-
-Improve platform security, visibility, and failure testing capabilities.
-
----
-
-# 🔐 Security Features
-
-Implemented security controls include:
-
-* Workload Identity
-* External Secrets Operator
-* Google Secret Manager Integration
-* Kubernetes RBAC
-* Network Policies
-* STRICT Istio mTLS
-* Service-Level Authorization Policies
-* Least Privilege Communication Model
-
----
-
-# 📊 Observability Stack
-
-Monitoring:
-
-* Prometheus
-* kube-state-metrics
-* Node Exporter
-
-Visualization:
-
-* Grafana
-
-Logging:
-
-* Elasticsearch
-* Kibana
-* ECK Operator
-
-Tracing:
-
-* Tempo
-* OpenTelemetry
-
-Service Mesh Visibility:
-
-* Kiali
-
----
-
-# 🚀 GitOps Architecture
-
-The platform follows a GitOps operating model.
-
-```text
-Git Commit
-    │
-    ▼
-GitHub Actions
-    │
-    ▼
-Container Build
-    │
-    ▼
-Artifact Registry
-    │
-    ▼
-Argo CD
-    │
-    ▼
-Kubernetes Cluster
+```bash
+kubectl kustomize kustomize/environments/dev >/tmp/dev-rendered.yaml
+kubectl kustomize kustomize/environments/prod >/tmp/prod-rendered.yaml
+helm dependency build helm-chart/observability
+helm template observability helm-chart/observability \
+  --namespace monitoring -f helm-chart/observability/values-dev.yaml >/tmp/observability.yaml
 ```
 
-Features:
+## CI/CD and security validation
 
-* App-of-Apps Pattern
-* Automated Synchronization
-* Self-Healing
-* Automated Pruning
-* Declarative Infrastructure
+- `ci-main.yaml` tests changed application services, builds images on `main` or
+  release branches, and opens GitOps image-tag pull requests.
+- `ai-platform-ci.yml` validates/builds changed AI services on `main` and opens
+  an AI GitOps update pull request.
+- Kustomize, Helm, Terraform, raw manifests, and workflow YAML have dedicated CI.
+- `devsecops-security-scan.yml` orchestrates Gitleaks, Checkov, Trivy, and Zizmor.
+- `tools/image-auditor/` checks running Pod images against approved Artifact
+  Registry prefixes.
 
----
+## Useful checks
 
-# 📁 Repository Structure
+```bash
+# Render workload overlays
+kubectl kustomize kustomize/environments/dev >/dev/null
+kubectl kustomize kustomize/environments/prod >/dev/null
 
-```text
-argocd/                 GitOps applications
-terraform/              Infrastructure as Code
-kustomize/              Kubernetes customization
-helm-chart/             Platform Helm charts
-scripts/                Operational automation
-istio-manifests/        Original Istio reference manifests
-src/                    Application source code
+# Validate Terraform formatting
+terraform fmt -check -recursive terraform
+
+# Inspect GitOps and rollouts
+kubectl get applications -n argocd
+kubectl get rollouts -A
+kubectl argo rollouts get rollout frontend -n boutique
+
+# Inspect platform health
+kubectl get pods -A
+kubectl get servicemonitors,prometheusrules -A
+kubectl get externalsecrets -A
+
+# Build and run the image auditor
+make image-auditor-test
+./scripts/run-image-auditor.sh --namespace boutique
 ```
 
----
+If reconciliation stalls, inspect the Argo CD Application, its events, the
+rendered Kustomize output, and the controller logs before making manual cluster
+changes. For canary failures, inspect the Rollout and AnalysisRun together with
+the Prometheus query result.
 
-# 🎓 Learning Outcomes
+## Detailed documentation
 
-This repository demonstrates practical implementation of:
+- [Argo CD control plane](argocd/README.md)
+- [Kustomize layouts and components](kustomize/README.md)
+- [Platform Helm charts](helm-chart/README.md)
+- [Istio reference manifests](istio-manifests/README.md)
+- [AI platform](docs/ai-platform/README.md)
+- [AI deployment guide](docs/ai-platform/deployment-guide.md)
+- [AI operations runbook](docs/ai-platform/operations/runbook.md)
+- [Argo Rollouts analysis](docs/rollouts/phase4-prometheus-analysis.md)
+- [Release process](docs/releasing/README.md)
+- [GitHub Actions workflows](.github/workflows/README.md)
+- [Development guide](docs/development-guide.md)
 
-* Platform Engineering
-* Kubernetes Operations
-* GitOps
-* Service Mesh
-* Progressive Delivery
-* Observability Engineering
-* Infrastructure as Code
-* DevSecOps
-* Reliability Engineering
-* Production Readiness
-
----
-
-# 👨‍💻 Target Audience
-
-This repository is designed for:
-
-* DevOps Engineers
-* Platform Engineers
-* Site Reliability Engineers (SRE)
-* Cloud Engineers
-* Kubernetes Engineers
-* Infrastructure Engineers
-* Senior / Lead DevOps Professionals
-
----
-
-# 📈 Current Platform Capabilities
-
-✅ Private GKE Cluster
-
-✅ GitOps with Argo CD
-
-✅ Progressive Delivery with Argo Rollouts
-
-✅ Service Mesh with Istio
-
-✅ STRICT mTLS
-
-✅ Service-Level Authorization Policies
-
-✅ Centralized Logging
-
-✅ Distributed Tracing
-
-✅ Platform Observability
-
-✅ External Secrets Integration
-
-✅ Workload Identity
-
-✅ Fault Injection Testing
-
-✅ Production-Oriented Operational Workflows
-
----
-
-# 📌 Project Goal
-
-The primary goal of this repository is to provide a hands-on production-style Platform Engineering lab where engineers can learn, experiment, and demonstrate real-world Kubernetes, DevOps, GitOps, Security, Service Mesh, and Observability practices beyond basic application deployment.
-
+This is a lab/reference implementation. Review cost, capacity, access controls,
+backup requirements, and organization policy before adapting it for production.
