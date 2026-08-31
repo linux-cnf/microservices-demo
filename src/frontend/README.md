@@ -1,5 +1,9 @@
 # frontend
 
-Run the following command to restore dependencies to `vendor/` directory:
+Dependencies are managed with Go modules (`go.mod` and `go.sum`). From this
+directory, download dependencies and run the tests with:
 
-    dep ensure --vendor-only
+```bash
+go mod download
+go test ./...
+```

@@ -1,61 +1,40 @@
-# helm-chart
+# Platform Helm charts
 
-## Overview
-This directory contains **platform Helm charts** for logging and observability.
+This directory contains charts consumed by the environment-specific Argo CD
+Applications.
 
-Each chart is independent and follows a modular deployment approach.
+| Chart | Purpose |
+| --- | --- |
+| `observability` | kube-prometheus-stack plus repository-managed Grafana dashboards |
+| `logging` | ECK dependency and Elasticsearch/Kibana resources |
+| `logging-agent` | Elastic Agent, RBAC, and Kibana dashboard import |
+| `tracing` | Tempo, OpenTelemetry Collector, and mesh tracing configuration |
+| `kiali` | Kiali dependency and environment values |
 
----
+Argo CD selects the matching dev or prod values. Logging Agent depends on the
+logging backend, while dashboard data sources depend on observability and
+tracing. Sync waves in `argocd/apps/dev` and `argocd/apps/prod` define the actual
+installation order.
 
-## Charts
+## Local validation
 
-- **logging-agent**
-  - Collects logs from Kubernetes nodes
-  - Ships logs to Elasticsearch
-
-- **logging**
-  - Provides Elasticsearch + Kibana
-  - Stores and visualizes logs
-
-- **observability**
-  - Provides Prometheus + Grafana + Alertmanager
-  - Metrics, dashboards, and alerting
-
----
-
-## Installation Order (Recommended)
-
-1. observability  
-2. logging  
-3. logging-agent  
-
----
-
-## Preview Charts
+Build dependencies before linting charts that declare them:
 
 ```bash
-helm template <chart-name> ./helm-chart/<chart-name>
-Example: helm template logging ./helm-chart/logging
+for chart in helm-chart/observability helm-chart/logging \
+  helm-chart/tracing helm-chart/kiali; do
+  helm dependency build "$chart"
+done
 
-Workflow Pattern
-Update chart (values/templates)
-Validate: helm lint ./helm-chart/<chart>
-Create PR → CI validation
-Merge → Deploy via Argo CD / pipeline
+helm lint helm-chart/observability -f helm-chart/observability/values-dev.yaml
+helm template observability helm-chart/observability \
+  --namespace monitoring -f helm-chart/observability/values-dev.yaml >/tmp/observability.yaml
+```
 
-Production Notes
-Use dedicated observability node pool
-Keep charts independent and modular
-Prefer GitOps (Argo CD) for deployments
-Scale components based on workload
+Repeat with the chart's prod values where present. `helm-chart-ci.yaml` lints and
+templates all five charts; `kubevious-manifests-ci.yaml` additionally analyzes
+the logging charts.
 
-
-## CI Validation
-
-- **helm-chart-ci.yaml**
-  - Lints and templates each Helm chart (`logging-agent`, `logging`, `observability`)
-  - Ensures charts render correctly before merge
-
-- **kubevious-manifests-ci.yaml**
-  - Validates Kubernetes manifests (Helm, kustomize, raw YAML)
-  - Detects misconfigurations and unsafe patterns
+Prefer changing values/templates through Git and allowing Argo CD to deploy
+them. Direct `helm upgrade` commands create state outside the GitOps ownership
+model and are intended only for isolated testing.

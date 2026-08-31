@@ -1,277 +1,73 @@
-# AI Platform Engineering Documentation
+# AI platform engineering documentation
 
-This directory contains the complete documentation for the AI Platform Engineering implementation built on top of the Online Boutique microservices application.
+The optional AI platform adds an Ollama inference runtime, LLM gateway, agent
+orchestrator, Redis rate limiting, frontend assistant integration, observability,
+Istio policy, and an optional Argo Rollouts canary to Online Boutique.
 
-The platform demonstrates how modern Platform Engineering practices can be combined with AI workloads using Kubernetes, Terraform, GitOps, Service Mesh, Observability, and Progressive Delivery.
+> **Environment support:** the end-to-end AI bootstrap and GitOps path is
+> currently production-only. The AI workflows accept only `prod`, the optional
+> Argo CD Application tracks `main`, and AI resources are not part of the dev
+> root app. A dev Terraform node-pool definition exists, but it is not a
+> supported complete dev AI deployment workflow.
 
----
+## Implementation
 
-# Project Goals
+| Layer | Repository source |
+| --- | --- |
+| Infrastructure | `terraform/live/prod/ai-node-pool.tf` and `ai-iam.tf` |
+| Runtime and services | `kustomize/ai-platform/base` |
+| CPU/model profiles | `kustomize/ai-platform/models/cpu-small` and `cpu-better` |
+| Security | `kustomize/ai-platform/security` |
+| Canary delivery | `kustomize/ai-platform/rollout` |
+| GitOps entrypoint | `argocd/optional-apps/ai-platform/manifests/ai-platform.yaml` |
+| Automation | `.github/workflows/ai-platform-bootstrap.yml`, `ai-nodepool-disable.yml`, and `ai-platform-ci.yml` |
 
-Build a production-grade AI platform that demonstrates:
+The base includes namespaces, RBAC, a persistent model cache, Ollama and model
+bootstrap, the gateway and orchestrator, rate-limit Redis, ServiceMonitors,
+Prometheus rules, a Grafana dashboard ConfigMap, and the security layer. The
+rollout overlay removes the normal gateway Deployment and substitutes a Rollout
+and Prometheus AnalysisTemplate.
 
-- Infrastructure as Code
-- Kubernetes-native AI deployment
-- GitOps with Argo CD
-- AI inference using Ollama (vLLM-ready architecture)
-- LLM Gateway
-- AI Agent Orchestrator
-- Observability
-- Service Mesh security
-- Progressive Delivery
-- Cost-controlled AI infrastructure
-
----
-
-# Implementation Phases
-
-| Phase | Description | Status |
-|--------|-------------|--------|
-| Phase 1 | AI Architecture Design | ✅ |
-| Phase 2 | Terraform AI Node Pool | ✅ |
-| Phase 3 | AI Bootstrap Pipeline | ✅ |
-| Phase 4 | AI Destroy Pipeline | ✅ |
-| Phase 5 | Deploy Ollama / vLLM-ready Runtime | ✅ |
-| Phase 6 | Build LLM Gateway | ✅ |
-| Phase 7 | Build AI Agent Orchestrator | ✅ |
-| Phase 8 | Integrate Platform Tools | ✅ |
-| Phase 9 | Frontend AI Assistant | ✅ |
-| Phase 10 | AI Observability | ✅ |
-| Phase 11 | Istio Security | ✅ |
-| Phase 12 | Progressive Delivery | ✅ |
-| Phase 13 | GitOps Finalization | ✅ |
-| Phase 14 | Documentation & Demo | 🚧 |
-
----
-
-# Documentation
-
-## Platform Overview
-
-- architecture.md
-- components.md
-- workflow.md
-
----
-
-## Deployment
-
-- deployment-guide.md
-
-Covers:
-
-- Infrastructure provisioning
-- AI deployment
-- Runtime verification
-- GitOps deployment
-- Canary rollout
-- Runtime validation
-
----
-
-## Operations
-
-Located in:
-
-```
-operations/
-```
-
-Includes:
-
-- runbook.md
-- troubleshooting.md
-
-Topics include:
-
-- Day-2 operations
-- Health verification
-- Incident response
-- Common operational issues
-- Recovery procedures
-
----
-
-## Demonstration
-
-Located in:
-
-```
-demo/
-```
-
-Includes:
-
-- demo-scenarios.md
-
-Example demonstrations:
-
-- Deploy AI platform
-- AI assistant walkthrough
-- Canary rollout
-- Prometheus metrics
-- AI troubleshooting
-- GitOps reconciliation
-
----
-
-## Interview Preparation
-
-Located in:
-
-```
-interview/
-```
-
-Includes:
-
-- interview-qna.md
-
-Topics:
-
-- Platform Engineering
-- Kubernetes
-- AI Infrastructure
-- GitOps
-- Terraform
-- Istio
-- Progressive Delivery
-- Observability
-
----
-
-## Lessons Learned
-
-See:
-
-```
-lessons-learned.md
-```
-
-Topics include:
-
-- Design decisions
-- Trade-offs
-- Challenges
-- Improvements
-- Future roadmap
-
----
-
-## Portfolio Showcase
-
-See:
-
-```
-project-showcase.md
-```
-
-Contains:
-
-- Executive summary
-- Production architecture
-- Business value
-- Interview pitch
-
----
-
-# Platform Architecture
+## Request flow
 
 ```text
-                    Users
-                      │
-                      ▼
-           Online Boutique Frontend
-                      │
-                      ▼
-              AI Assistant Page
-                      │
-                      ▼
-          AI Agent Orchestrator
-          ├───────────────┐
-          │               │
-          ▼               ▼
-   Kubernetes API    Prometheus
-          │               │
-          ▼               ▼
-    Elasticsearch      Tempo
-          │
-          ▼
-      LLM Gateway
-          │
-          ▼
-     Ollama / vLLM
+Frontend assistant
+        |
+        v
+AI agent orchestrator ----> Kubernetes API / Prometheus / Elasticsearch
+        |
+        v
+LLM gateway ----> rate-limit Redis
+        |
+        v
+Ollama model runtime
 ```
 
----
+## Documentation map
 
-# Technology Stack
+- [Architecture](architecture.md)
+- [Components](components.md)
+- [System design](system-design.md)
+- [Workflow](workflow.md)
+- [Deployment guide](deployment-guide.md)
+- [Cost control](cost-control.md)
+- [AI observability](phase10-ai-observability.md)
+- [Operations runbook](operations/runbook.md)
+- [Troubleshooting](operations/troubleshooting.md)
+- [Disaster recovery](operations/disaster-recovery.md)
+- [Demo scenarios](demo/demo-scenarios.md)
+- [Lessons learned](lessons-learned.md)
+- [Project showcase](project-showcase.md)
 
-## Infrastructure
+## Safe local validation
 
-- Google Kubernetes Engine
-- Terraform
-- GitHub Actions
-- Argo CD
+Rendering does not connect to a cluster:
 
-## AI Platform
+```bash
+kubectl kustomize kustomize/ai-platform/models/cpu-small >/tmp/ai-small.yaml
+kubectl kustomize kustomize/ai-platform/models/cpu-better >/tmp/ai-better.yaml
+kubectl kustomize kustomize/ai-platform/rollout >/tmp/ai-rollout.yaml
+```
 
-- Ollama
-- vLLM-ready architecture
-- LLM Gateway
-- AI Agent Orchestrator
-
-## Observability
-
-- Prometheus
-- Grafana
-- Elasticsearch
-- Tempo
-
-## Service Mesh
-
-- Istio
-- mTLS
-- AuthorizationPolicy
-- VirtualService
-- DestinationRule
-
-## Progressive Delivery
-
-- Argo Rollouts
-- AnalysisTemplate
-- Prometheus Analysis
-- Automated Rollback
-
----
-
-# Production Features
-
-- GitOps deployment
-- Infrastructure as Code
-- AI service isolation
-- Dedicated AI node pool
-- Autoscaling
-- Canary deployment
-- Zero-downtime upgrades
-- Service mesh security
-- Distributed tracing
-- Metrics
-- Log analysis
-- Tool-enabled AI Agent
-- Cost-controlled AI infrastructure
-
----
-
-# Intended Audience
-
-This project is designed for:
-
-- Platform Engineers
-- DevOps Engineers
-- Site Reliability Engineers (SRE)
-- Cloud Engineers
-- AI Infrastructure Engineers
-- MLOps Engineers
-
-It can also serve as a reference implementation for organizations adopting AI workloads on Kubernetes using GitOps and modern cloud-native practices.
+Deploy only through the documented production bootstrap after reviewing GCP
+costs, node-pool capacity, required secrets, and workflow approvals.
